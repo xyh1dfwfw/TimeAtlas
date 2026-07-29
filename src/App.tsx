@@ -25,9 +25,11 @@ import {
 } from 'lucide-react'
 import {
   atlasInquiryPaths,
+  atlasMapRoutes,
   compareLenses,
   scenarios,
   type AtlasInquiryPath,
+  type AtlasMapRoute,
   type CompareLens,
   type ActivityPack,
   type ActivityPackMode,
@@ -1323,7 +1325,7 @@ function App() {
     setCompareScenarioBId(id)
   }
 
-  function loadCompareFromInquiryPath(path: AtlasInquiryPath) {
+  function loadCompareFromInquiryPath(path: Pick<AtlasInquiryPath | AtlasMapRoute, 'scenarioIds' | 'lensKey'>) {
     const validScenarioIds = path.scenarioIds.filter((id) => getScenarioById(id))
     const firstScenarioId = validScenarioIds[0] ?? defaultCompareScenarioAId
     const secondScenarioId = validScenarioIds.find((id) => id !== firstScenarioId) ?? getFallbackCompareScenarioId(firstScenarioId)
@@ -1368,6 +1370,11 @@ function App() {
         totalCompletedMissionCount={totalCompletedMissionCount}
         missionWorkCountByScenario={missionWorkCountByScenario}
         onSelect={selectScenario}
+      />
+      <TimeSpaceAtlasPanel
+        selectedScenarioId={selectedScenarioId}
+        onOpenScenario={selectScenario}
+        onLoadCompare={loadCompareFromInquiryPath}
       />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
@@ -1820,6 +1827,348 @@ function AtlasOverview({
       </div>
     </section>
   )
+}
+
+
+function TimeSpaceAtlasPanel({
+  selectedScenarioId,
+  onOpenScenario,
+  onLoadCompare,
+}: {
+  selectedScenarioId: string
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onLoadCompare: (route: AtlasMapRoute) => void
+}) {
+  const [selectedRouteId, setSelectedRouteId] = useState(atlasMapRoutes[0]?.id ?? '')
+  const [regionFilter, setRegionFilter] = useState('all')
+  const [themeFilter, setThemeFilter] = useState('all')
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const selectedRoute = atlasMapRoutes.find((route) => route.id === selectedRouteId) ?? atlasMapRoutes[0]
+  const routeScenarios = selectedRoute.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+  const highlightedScenario = routeScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? routeScenarios[0]
+  const visibleScenarios = sortedScenarios.filter((scenario) => {
+    const matchesRegion = regionFilter === 'all' || scenario.region === regionFilter
+    const matchesTheme = themeFilter === 'all' || scenario.theme.includes(themeFilter)
+
+    return matchesRegion && matchesTheme
+  })
+  const routeScenarioIds = new Set(routeScenarios.map((scenario) => scenario.id))
+  const lens = getCompareLensByKey(selectedRoute.lensKey)
+
+  async function copyRouteAssignment(route: AtlasMapRoute) {
+    try {
+      await copyTextToClipboard(formatAtlasMapRouteAssignment(route))
+      setCopyStatus(route.id)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="time-space-atlas" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="time-space-atlas-title">
+      <div className="rounded-[2rem] border border-emerald-200/15 bg-emerald-100/[0.04] p-5">
+        <div className="mb-4 flex items-center gap-3 text-emerald-100">
+          <MapPin size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">time-space atlas / route explorer</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="time-space-atlas-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Time-Space Atlas / Route Explorer
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              用现有 scenario 的年份、坐标、地区与主题生成互动历史地图、时间轨和 inquiry-route launcher。选择路线后，地图 pins、时间线、场景预览与作业单会同步高亮。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {atlasMapRoutes.length} 条策展路线 · {visibleScenarios.length}/{scenarios.length} 个地图点可见
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_0.7fr_0.7fr]">
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">Inquiry route</span>
+            <select
+              value={selectedRoute.id}
+              onChange={(event) => setSelectedRouteId(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-emerald-200/60"
+            >
+              {atlasMapRoutes.map((route) => <option key={route.id} value={route.id}>{route.title}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">地区筛选</span>
+            <select
+              value={regionFilter}
+              onChange={(event) => setRegionFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-emerald-200/60"
+            >
+              <option value="all">全部地区</option>
+              {regionOptions.map((region) => <option key={region} value={region}>{region}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">主题筛选</span>
+            <select
+              value={themeFilter}
+              onChange={(event) => setThemeFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-emerald-200/60"
+            >
+              <option value="all">全部主题</option>
+              {themeOptions.map((theme) => <option key={theme} value={theme}>{theme}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+          <div className="space-y-4">
+            <div className="relative h-[29rem] overflow-hidden rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_25%_28%,rgba(16,185,129,0.20),transparent_24%),radial-gradient(circle_at_74%_48%,rgba(251,191,36,0.12),transparent_22%),linear-gradient(135deg,rgba(20,184,166,0.12),transparent_48%),#090806]">
+              <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(255,255,255,0.35)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.35)_1px,transparent_1px)] [background-size:36px_36px]" />
+              <div className="absolute left-5 top-5 rounded-full border border-emerald-200/20 bg-black/35 px-3 py-1.5 text-xs uppercase tracking-[0.2em] text-emerald-100">
+                stylized coordinate atlas
+              </div>
+              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <polyline
+                  points={routeScenarios.map((scenario) => {
+                    const [latitude, longitude] = scenario.coordinates
+                    const x = Math.min(94, Math.max(6, ((longitude + 180) / 360) * 100))
+                    const y = Math.min(90, Math.max(10, ((90 - latitude) / 180) * 100))
+
+                    return `${x},${y}`
+                  }).join(' ')}
+                  fill="none"
+                  stroke="rgba(251,191,36,0.72)"
+                  strokeWidth="0.65"
+                  strokeDasharray="2 2"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+              {visibleScenarios.map((scenario) => {
+                const [latitude, longitude] = scenario.coordinates
+                const x = Math.min(94, Math.max(6, ((longitude + 180) / 360) * 100))
+                const y = Math.min(90, Math.max(10, ((90 - latitude) / 180) * 100))
+                const isInRoute = routeScenarioIds.has(scenario.id)
+                const isSelected = scenario.id === highlightedScenario?.id || scenario.id === selectedScenarioId
+
+                return (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)}
+                    aria-label={`打开地图场景：${scenario.title}`}
+                    className={`group absolute -translate-x-1/2 -translate-y-1/2 rounded-full border transition focus:outline-none focus:ring-2 focus:ring-emerald-100 ${
+                      isSelected
+                        ? 'h-6 w-6 border-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.85)]'
+                        : isInRoute
+                          ? 'h-5 w-5 border-amber-100/80 shadow-[0_0_20px_rgba(16,185,129,0.45)]'
+                          : 'h-3.5 w-3.5 border-stone-950 opacity-50 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: scenario.accent, left: `${x}%`, top: `${y}%` }}
+                  >
+                    <span className="pointer-events-none absolute left-1/2 top-7 z-10 hidden w-48 -translate-x-1/2 rounded-2xl border border-white/10 bg-stone-950/95 p-3 text-left text-xs leading-5 text-stone-300 shadow-2xl group-hover:block">
+                      <span className="block font-semibold text-stone-50">{scenario.title}</span>
+                      <span>{scenario.year} · {scenario.region} · {scenario.location}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <div className="mb-4 flex items-center gap-3 text-emerald-100">
+                <Clock3 size={18} />
+                <h3 className="font-semibold text-stone-50">Route timeline rail</h3>
+              </div>
+              <div className="relative py-3">
+                <div className="absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2 bg-white/10" aria-hidden="true" />
+                <div className="relative flex items-center justify-between gap-3">
+                  {routeScenarios.map((scenario, index) => (
+                    <button
+                      key={`${selectedRoute.id}-${scenario.id}`}
+                      type="button"
+                      onClick={() => onOpenScenario(scenario.id, sectionIds.experience)}
+                      className="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-950 text-xs font-bold text-stone-950 shadow-lg" style={{ backgroundColor: scenario.accent }}>
+                        {index + 1}
+                      </span>
+                      <span className="text-sm font-semibold text-amber-100">{scenario.year}</span>
+                      <span className="max-w-32 text-xs leading-5 text-stone-500 transition group-hover:text-stone-300">{scenario.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-emerald-200/15 bg-emerald-100/[0.045] p-5">
+              <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                <span className="rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-3 py-1 text-emerald-100">{lens.title}</span>
+                <span>{routeScenarios.length} stops</span>
+              </div>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">{selectedRoute.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-stone-400">{selectedRoute.subtitle}</p>
+              <div className="mt-4 rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-300">
+                <span className="font-semibold text-emerald-100">Route question：</span>{selectedRoute.routeQuestion}
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+                  <span className="font-semibold text-stone-100">Map focus：</span>{selectedRoute.mapFocus}
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+                  <span className="font-semibold text-stone-100">Classroom use：</span>{selectedRoute.classroomUse}
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedRoute.tags.map((tag) => <Tag key={`${selectedRoute.id}-${tag}`}>{tag}</Tag>)}
+              </div>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => routeScenarios[0] ? onOpenScenario(routeScenarios[0].id, sectionIds.sceneReader) : undefined}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  打开第一站
+                  <ArrowRight size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onLoadCompare(selectedRoute)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"
+                >
+                  <Scale size={18} />
+                  载入 Compare Lab
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyRouteAssignment(selectedRoute)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                >
+                  {copyStatus === selectedRoute.id ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === selectedRoute.id ? '路线作业单已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出路线作业单'}
+                </button>
+              </div>
+            </article>
+
+            {highlightedScenario ? (
+              <article className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  <span>{highlightedScenario.year}</span>
+                  <span>{highlightedScenario.region}</span>
+                  <span>{highlightedScenario.theme}</span>
+                </div>
+                <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">场景预览：{highlightedScenario.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{highlightedScenario.summary}</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+                    <span className="font-semibold text-amber-100">身份：</span>{highlightedScenario.identity} / {highlightedScenario.role}
+                  </div>
+                  <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+                    <span className="font-semibold text-amber-100">Scene hook：</span>{highlightedScenario.sceneBeats[0]?.learnerPrompt ?? highlightedScenario.atmosphere}
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onOpenScenario(highlightedScenario.id, sectionIds.sceneReader)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+                  >
+                    打开 Scene Reader
+                    <ArrowRight size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenScenario(highlightedScenario.id, sectionIds.sourceReader)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                  >
+                    打开 Source Reader
+                    <ScrollText size={16} />
+                  </button>
+                </div>
+              </article>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-5">
+          {atlasMapRoutes.map((route) => {
+            const isSelected = route.id === selectedRoute.id
+            const routeStops = route.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+            return (
+              <button
+                key={route.id}
+                type="button"
+                onClick={() => setSelectedRouteId(route.id)}
+                className={`rounded-3xl border p-4 text-left transition ${
+                  isSelected
+                    ? 'border-emerald-200/45 bg-emerald-100/[0.09]'
+                    : 'border-white/10 bg-black/20 hover:border-emerald-100/25 hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{getCompareLensByKey(route.lensKey).shortLabel} · {routeStops.length} stops</div>
+                <h3 className="mt-2 font-semibold text-stone-50">{route.title}</h3>
+                <p className="mt-2 text-xs leading-5 text-stone-500">{route.subtitle}</p>
+                <div className="mt-3 flex -space-x-1">
+                  {routeStops.map((scenario) => (
+                    <span key={`${route.id}-${scenario.id}`} className="h-4 w-4 rounded-full border border-stone-950" style={{ backgroundColor: scenario.accent }} />
+                  ))}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+          {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '地图点会打开对应 scenario section；路线作业单包含地图焦点、时间顺序、交付物和 Compare Lab 设置。'}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function formatAtlasMapRouteAssignment(route: AtlasMapRoute) {
+  const lens = getCompareLensByKey(route.lensKey)
+  const routeScenarios = route.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  return [
+    `TimeAtlas Route Explorer：${route.title}`,
+    route.subtitle,
+    '',
+    `比较镜头：${lens.title} / ${lens.shortLabel}`,
+    `Route question：${route.routeQuestion}`,
+    `Map focus：${route.mapFocus}`,
+    `Classroom use：${route.classroomUse}`,
+    '',
+    '路线时间顺序：',
+    ...routeScenarios.map((scenario, index) => `${index + 1}. ${scenario.year}｜${scenario.title}｜${scenario.location}｜${scenario.region}｜${scenario.identity}`),
+    '',
+    '路线任务：',
+    route.assignmentPrompt,
+    '',
+    '交付物：',
+    ...route.deliverables.map((deliverable) => `- ${deliverable}`),
+    '',
+    '建议证据起点：',
+    ...routeScenarios.flatMap((scenario) => [
+      `- ${scenario.title}：${scenario.summary}`,
+      `  - Scene Reader：${scenario.sceneBeats[0]?.evidenceHook ?? scenario.atmosphere}`,
+      `  - Source Reader：${scenario.sources[0]?.title ?? scenario.sourceEvidenceUse}`,
+    ]),
+    '',
+    'Compare Lab 快速设置：',
+    `- compareA：${routeScenarios[0]?.title ?? '请选择第一站'}`,
+    `- compareB：${routeScenarios.find((scenario) => scenario.id !== routeScenarios[0]?.id)?.title ?? '请选择第二站'}`,
+    `- lens：${lens.title}`,
+    '',
+    '标签：',
+    ...route.tags.map((tag) => `- ${tag}`),
+  ].join('\n')
 }
 
 function PortfolioPanel({

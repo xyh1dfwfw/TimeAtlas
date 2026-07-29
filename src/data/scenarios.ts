@@ -100,6 +100,20 @@ export type AtlasInquiryPath = {
   rubric: string[]
 }
 
+export type AtlasMapRoute = {
+  id: string
+  title: string
+  subtitle: string
+  lensKey: CompareLensKey
+  scenarioIds: string[]
+  routeQuestion: string
+  mapFocus: string
+  classroomUse: string
+  assignmentPrompt: string
+  deliverables: string[]
+  tags: string[]
+}
+
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
 export type ActivityPackMode = 'warmup' | 'source-lab' | 'roleplay' | 'debate' | 'writing' | 'compare' | 'extension'
@@ -527,6 +541,74 @@ export const atlasInquiryPaths: AtlasInquiryPath[] = [
       '至少使用三个场景中的具体证据，并说明证据边界',
       '结论能体现普通人的能动性和限制并存',
     ],
+  },
+]
+
+export const atlasMapRoutes: AtlasMapRoute[] = [
+  {
+    id: 'knowledge-cities-route',
+    title: '知识城市：纸张、手稿与考试',
+    subtitle: '从巴格达到廷巴克图再到江南，追踪知识如何依靠城市、媒介和门槛流动。',
+    lensKey: 'knowledge-transmission',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar'],
+    routeQuestion: '知识网络为什么总是同时扩大机会，又制造新的进入门槛？',
+    mapFocus: '地图上连接伊斯兰世界、撒哈拉贸易网络与江南出版/科举社会，时间线从 9 世纪延伸到 16 世纪。',
+    classroomUse: '适合让学生先看空间距离，再比较纸张、手稿、师承、商业出版和考试制度。',
+    assignmentPrompt: '制作一张三站知识流动图：每站标出媒介、进入门槛、权威来源和被排除的学习者。',
+    deliverables: ['三站知识流动图', '两条来源证据', '一句关于“技术是否带来知识公平”的判断'],
+    tags: ['知识城市', '纸张', '手稿', '考试', '教育门槛'],
+  },
+  {
+    id: 'market-corridors-route',
+    title: '市场走廊：城市交换与制度边界',
+    subtitle: '把长安西市、汴京茶铺、广州口岸和特诺奇蒂特兰集市放进同一张交易地图。',
+    lensKey: 'market-exchange',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'qing-guangzhou-comprador', 'tenochtitlan-market-seller'],
+    routeQuestion: '市场给普通人带来的选择空间，在哪些环节被税赋、监管、信用和帝国秩序重新塑形？',
+    mapFocus: '路线从唐宋城市服务与丝路商品，延伸到清末口岸和美洲湖城集市，强调交易网络的空间尺度差异。',
+    classroomUse: '适合启动市场比较、商品链追踪或“谁能自由交易”讨论。',
+    assignmentPrompt: '为每个市场场景写一条“商品/服务—规则—风险—普通人策略”的证据链。',
+    deliverables: ['四格市场证据链', '机会/限制双列表', '一段市场自由度比较'],
+    tags: ['市场', '贸易', '口岸', '信用', '监管'],
+  },
+  {
+    id: 'crisis-news-route',
+    title: '危机新闻：远方消息如何抵达日常',
+    subtitle: '把边境传闻、口岸压力、空袭警报和征服流言连成风险传播路线。',
+    lensKey: 'risk-safety',
+    scenarioIds: ['tang-changan-merchant', 'qing-guangzhou-comprador', 'wwii-london-civilian', 'tenochtitlan-market-seller'],
+    routeQuestion: '当消息不完整、风险却已经逼近时，普通人依靠什么判断并行动？',
+    mapFocus: '路线跨越欧亚、美洲与战时欧洲，强调消息从远方事件转化为个人安全决策的过程。',
+    classroomUse: '适合先遮住真实历史结局，让学生只凭场景证据判断风险，再回看时间线。',
+    assignmentPrompt: '给每个场景写一条“消息—判断—行动—后果”的风险链，并标出仍不确定的信息。',
+    deliverables: ['四条风险传播链', '短期/长期风险区分', '不确定信息清单'],
+    tags: ['危机新闻', '风险', '安全', '传闻', '警报'],
+  },
+  {
+    id: 'labor-safety-route',
+    title: '劳动纪律与安全：时间表、身体与制度',
+    subtitle: '从茶铺学徒、曼彻斯特纺织女工到战时伦敦居民，看制度化时间如何进入身体。',
+    lensKey: 'risk-safety',
+    scenarioIds: ['song-bianjing-apprentice', 'industrial-manchester-mill-worker', 'wwii-london-civilian'],
+    routeQuestion: '纪律什么时候像保护，什么时候像控制？普通人的安全边界由谁决定？',
+    mapFocus: '路线把前工业城市服务、工业工厂制度和战时民防并置，突出时间、规章与身体风险。',
+    classroomUse: '适合劳动史、安全史或制度约束单元，帮助学生避免只把辛苦写成个人品格问题。',
+    assignmentPrompt: '比较三人的一天：谁控制时间，谁承担身体风险，谁拥有协商空间？',
+    deliverables: ['时间控制图', '保护/控制判断表', '180 字安全边界论证'],
+    tags: ['劳动纪律', '安全', '工厂', '学徒', '民防'],
+  },
+  {
+    id: 'industrial-global-exchange-route',
+    title: '工业城市与全球交换',
+    subtitle: '从广州口岸、曼彻斯特工厂到长安与特诺奇蒂特兰，追问全球交换如何改变城市劳动。',
+    lensKey: 'market-exchange',
+    scenarioIds: ['qing-guangzhou-comprador', 'industrial-manchester-mill-worker', 'tang-changan-merchant', 'tenochtitlan-market-seller'],
+    routeQuestion: '跨区域交换如何把远方商品、劳动力纪律和帝国压力带进城市普通人的一天？',
+    mapFocus: '路线把古代贸易城市、殖民接触市场、清末口岸和工业化城市放在一张长时段交换图上。',
+    classroomUse: '适合做长时段比较：不要只问“有没有贸易”，而要问交换网络如何重组劳动和风险。',
+    assignmentPrompt: '选择两座城市，比较远方交换如何改变本地工作节奏、价格风险或制度压力。',
+    deliverables: ['两城比较卡', '一条商品/劳动联系线', '一个关于全球交换代价的判断'],
+    tags: ['工业城市', '全球交换', '城市劳动', '商品链', '帝国压力'],
   },
 ]
 
