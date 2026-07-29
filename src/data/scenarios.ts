@@ -76,6 +76,18 @@ export type CompareLens = {
   rubric: string[]
 }
 
+export type AtlasInquiryPath = {
+  title: string
+  subtitle: string
+  lensKey: CompareLensKey
+  scenarioIds: string[]
+  drivingQuestion: string
+  whyTheseScenarios: string
+  tasks: string[]
+  discussionMoves: string[]
+  rubric: string[]
+}
+
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
 export type LessonPack = {
@@ -324,6 +336,134 @@ export const compareLenses: CompareLens[] = [
       '能比较信息、风险和制度约束',
       '能使用决策结果与真实历史对照',
       '结论能承认不确定性与多种可能',
+    ],
+  },
+]
+
+export const atlasInquiryPaths: AtlasInquiryPath[] = [
+  {
+    title: '繁荣背后的秩序成本',
+    subtitle: '从帝国都城、海关口岸到战时城市，追问“开放”需要谁来承担风险。',
+    lensKey: 'institutional-constraints',
+    scenarioIds: ['tang-changan-merchant', 'qing-guangzhou-comprador', 'wwii-london-civilian'],
+    drivingQuestion: '普通人看见的繁荣或安全，究竟依赖哪些制度安排，又把哪些代价转嫁给了他们？',
+    whyTheseScenarios:
+      '长安商人、广州买办助手和伦敦居民都生活在高度组织化的城市秩序中：贸易、海关、军政动员看似提供机会或保护，也同时限制行动边界。',
+    tasks: [
+      '为每个场景标出一个“制度提供的机会”和一个“制度制造的限制”。',
+      '比较三人是否能绕开制度：谁能协商，谁只能服从，谁被迫承担执行成本？',
+      '用一段 180 字综合判断说明：制度是保护网、交易平台，还是风险放大器？',
+    ],
+    discussionMoves: [
+      '先让学生用便利贴写下“谁在制定规则”，再按官府、市场、战争三类重排证据。',
+      '追问每条规则的受益者与承担者是否相同，避免只把制度写成背景。',
+      '要求发言者补一句“如果制度突然失灵，普通人的第一反应会是什么”。',
+    ],
+    rubric: [
+      '能准确点名制度主体、执行机制与普通人的行动边界',
+      '能比较机会与限制如何同时出现，而不是只做单向评价',
+      '至少使用三种场景证据，并能说明证据与判断之间的关系',
+      '结论能承认制度稳定、市场机会与个人风险之间的张力',
+    ],
+  },
+  {
+    title: '知识如何穿过纸张、师承与市场',
+    subtitle: '把抄写员、手稿学生和江南读书人放进同一条知识传播链。',
+    lensKey: 'knowledge-transmission',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar'],
+    drivingQuestion: '知识从哪里来、由谁复制、谁能进入网络，谁又被成本、身份或权威挡在门外？',
+    whyTheseScenarios:
+      '巴格达纸坊、廷巴克图手稿课堂和江南科举社会都围绕文字、复制与师承展开，但知识的入口分别受赞助、长途网络、考试名声和商业出版塑形。',
+    tasks: [
+      '绘制三站知识流动图：媒介、传授者、进入门槛、被排除的人。',
+      '各选择一条来源或关键术语，判断它能证明“知识传播”中的哪一环。',
+      '写一段比较：技术进步是否一定扩大知识公平？必须用两个反例或限制说明。',
+    ],
+    discussionMoves: [
+      '让学生先按“纸张/手稿/考试/师承/市场”给证据贴标签。',
+      '追问“复制得更快”与“理解得更深”是否是一回事。',
+      '安排一名学生专门寻找缺席声音：女性、贫民、外来者或非精英学习者。',
+    ],
+    rubric: [
+      '能识别知识媒介、传播场所和权威结构',
+      '能比较技术、市场、制度和师承的共同作用',
+      '能说明知识机会的不平等及其证据来源',
+      '能避免把文化繁荣简单等同于人人可学',
+    ],
+  },
+  {
+    title: '市场不是自由的真空',
+    subtitle: '从长安西市、汴京茶铺、特诺奇蒂特兰集市看交易规则如何塑造日常。',
+    lensKey: 'market-exchange',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller'],
+    drivingQuestion: '市场给普通人带来哪些选择空间，又被税赋、监管、信用、供应和征服威胁怎样塑形？',
+    whyTheseScenarios:
+      '三个场景都以城市市场为核心，但交换网络的尺度不同：丝路商品、茶铺劳作与湖城集市分别显示跨区域贸易、城市服务业和帝国贡赋秩序。',
+    tasks: [
+      '为每个场景列出一种商品或服务、一条交换规则、一项市场风险。',
+      '比较“信用”“监管”“供应”三类因素中哪一项最能改变普通人的选择。',
+      '制作一个两列表：市场带来的上升机会 / 市场暴露出的脆弱性。',
+    ],
+    discussionMoves: [
+      '用“如果价格突然翻倍”作为情境追问，迫使学生连接供给、制度与风险。',
+      '要求每组指出一个非金钱交换因素，如名声、许可、贡赋、口碑或人情。',
+      '把“市场自由吗”改写成“谁能自由，在哪个环节自由”。',
+    ],
+    rubric: [
+      '能用具体商品、服务或交换关系展开分析',
+      '能说明市场网络的空间尺度和制度边界',
+      '能同时讨论机会、监管与风险',
+      '比较结论能超越“古代也有市场”的简单发现',
+    ],
+  },
+  {
+    title: '危机消息抵达普通人的那一刻',
+    subtitle: '把边境传闻、口岸文书、空袭警报和征服流言连成风险传播路径。',
+    lensKey: 'risk-safety',
+    scenarioIds: ['tang-changan-merchant', 'qing-guangzhou-comprador', 'wwii-london-civilian', 'tenochtitlan-market-seller'],
+    drivingQuestion: '当不确定消息变成现实风险时，普通人依靠什么判断、保护自己或继续生活？',
+    whyTheseScenarios:
+      '四个场景都让远方危机进入日常：边境军情、鸦片与海关压力、空袭警报和西班牙征服流言分别展示信息不完整时的风险决策。',
+    tasks: [
+      '给每个场景写一条“消息—判断—行动—后果”的风险链。',
+      '区分短期危险与长期结构性风险，并说明哪一种更难被普通人看见。',
+      '选择两人进入 Compare Lab，用“风险与安全”镜头生成一份小组作业。',
+    ],
+    discussionMoves: [
+      '先不公布真实历史，让学生只凭场景证据判断风险，再回看真实历史对照。',
+      '追问“安全资源”来自哪里：家庭、邻里、官府、市场、宗教、专业知识还是运气。',
+      '鼓励学生说出仍不确定的信息，而不是假装拥有上帝视角。',
+    ],
+    rubric: [
+      '能区分传闻、可验证证据和后来才知道的历史结果',
+      '能解释风险来源及普通人的保护资源',
+      '能比较短期危机与长期结构性脆弱',
+      '能在判断中保留不确定性和证据边界',
+    ],
+  },
+  {
+    title: '谁在替历史发声',
+    subtitle: '用来源可信度镜头检查场景叙事的证据边界和缺席声音。',
+    lensKey: 'source-credibility',
+    scenarioIds: ['song-bianjing-apprentice', 'ming-jiangnan-scholar', 'timbuktu-manuscript-student', 'wwii-london-civilian'],
+    drivingQuestion: '我们如何知道这些普通人的生活？哪些材料接近当时声音，哪些只是后来的解释？',
+    whyTheseScenarios:
+      '这些场景的来源层混合城市记录、文人材料、手稿传统、战时档案与研究解释，适合训练学生判断“能证明什么”和“看不见什么”。',
+    tasks: [
+      '每个场景挑一条来源，标注类型、视角、可靠部分和需要谨慎的部分。',
+      '写出两个缺席声音，并说明需要哪类补充材料才能接近它们。',
+      '把一个场景叙事拆成“来源事实”“合理推论”“课堂想象”三栏。',
+    ],
+    discussionMoves: [
+      '让学生先为来源投票：最接近当时人声音 / 最适合解释结构 / 最需要谨慎。',
+      '每次学生提出判断时，追问“这句话是来源说的，还是我们推出来的”。',
+      '安排反方专门寻找过度概括、现代价值套用或单一来源依赖。',
+    ],
+    rubric: [
+      '能准确区分原始材料、机构材料和研究解释',
+      '能说明来源能证明什么、不能证明什么',
+      '能主动寻找缺席声音和补充材料需求',
+      '能把史料判断用于修正叙事，而不是只贴来源标签',
     ],
   },
 ]

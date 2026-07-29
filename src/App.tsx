@@ -23,8 +23,10 @@ import {
   Users,
 } from 'lucide-react'
 import {
+  atlasInquiryPaths,
   compareLenses,
   scenarios,
+  type AtlasInquiryPath,
   type CompareLens,
   type DecisionOption,
   type LessonPackMode,
@@ -602,6 +604,23 @@ function App() {
     setCompareScenarioBId(id)
   }
 
+  function loadCompareFromInquiryPath(path: AtlasInquiryPath) {
+    const validScenarioIds = path.scenarioIds.filter((id) => getScenarioById(id))
+    const firstScenarioId = validScenarioIds[0] ?? defaultCompareScenarioAId
+    const secondScenarioId = validScenarioIds.find((id) => id !== firstScenarioId) ?? getFallbackCompareScenarioId(firstScenarioId)
+
+    setCompareScenarioAId(firstScenarioId)
+    setCompareScenarioBId(secondScenarioId)
+    setSelectedLensKey(path.lensKey)
+
+    window.requestAnimationFrame(() => {
+      document.getElementById('compare-lab')?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      })
+    })
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -625,6 +644,10 @@ function App() {
         missionWorkState={missionWorkState}
       />
       <AtlasMissionsPanel />
+      <AtlasInquiryPathsPanel
+        onOpenScenario={selectScenario}
+        onLoadCompare={loadCompareFromInquiryPath}
+      />
       <CompareLabPanel
         scenarioA={compareScenarioA}
         scenarioB={compareScenarioB}
@@ -695,8 +718,15 @@ function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }
               <ArrowRight className="transition group-hover:translate-x-1" size={18} />
             </a>
             <a
-              href="#about"
+              href="#atlas-inquiry-paths"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-6 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+            >
+              探究路径
+              <Route size={18} />
+            </a>
+            <a
+              href="#about"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 font-semibold text-stone-300 transition hover:bg-white/[0.06] hover:text-stone-100"
             >
               项目理念
             </a>
@@ -1151,6 +1181,198 @@ function AtlasMissionsPanel() {
       </div>
     </section>
   )
+}
+
+function AtlasInquiryPathsPanel({
+  onOpenScenario,
+  onLoadCompare,
+}: {
+  onOpenScenario: (id: string) => void
+  onLoadCompare: (path: AtlasInquiryPath) => void
+}) {
+  const [expandedPathTitle, setExpandedPathTitle] = useState(atlasInquiryPaths[0]?.title ?? '')
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+
+  async function copyInquiryPack(path: AtlasInquiryPath) {
+    try {
+      await copyTextToClipboard(formatAtlasInquiryPack(path))
+      setCopyStatus(path.title)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="atlas-inquiry-paths" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="atlas-inquiry-paths-title">
+      <div className="rounded-[2rem] border border-orange-200/15 bg-orange-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-orange-100">
+          <Route size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">inquiry pathways</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="atlas-inquiry-paths-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Atlas Connections / Inquiry Pathways 7.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              五条策展式跨场景探究路径，把多个身份、比较镜头、课堂任务和讨论推进整合成可复制的 inquiry pack。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {atlasInquiryPaths.length} 条路径 · 直接连接 Compare Lab
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-5">
+          {atlasInquiryPaths.map((path) => {
+            const lens = getCompareLensByKey(path.lensKey)
+            const pathScenarios = path.scenarioIds
+              .map((id) => getScenarioById(id))
+              .filter((scenario): scenario is Scenario => Boolean(scenario))
+            const isExpanded = expandedPathTitle === path.title
+            const detailsId = `inquiry-path-${path.title.replace(/\s+/g, '-').toLowerCase()}`
+
+            return (
+              <article key={path.title} className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4 xl:col-span-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span className="rounded-full border border-orange-200/20 bg-orange-100/[0.06] px-3 py-1 text-orange-100">{lens.title}</span>
+                      <span>{pathScenarios.length} scenarios</span>
+                    </div>
+                    <h3 className="text-2xl font-semibold tracking-tight text-stone-50">{path.title}</h3>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">{path.subtitle}</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    aria-controls={detailsId}
+                    onClick={() => setExpandedPathTitle(isExpanded ? '' : path.title)}
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                  >
+                    {isExpanded ? '收起路径' : '展开路径'}
+                  </button>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2" aria-label={`${path.title} 场景列表`}>
+                  {pathScenarios.map((scenario) => (
+                    <span key={scenario.id} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-stone-300">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: scenario.accent }} />
+                      {scenario.title}
+                    </span>
+                  ))}
+                </div>
+
+                {isExpanded ? (
+                  <div id={detailsId} className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.92fr]">
+                    <div className="space-y-4">
+                      <div className="rounded-3xl border border-orange-200/15 bg-orange-100/[0.045] p-4">
+                        <h4 className="font-semibold text-orange-100">Driving question</h4>
+                        <p className="mt-2 text-sm leading-6 text-stone-300">{path.drivingQuestion}</p>
+                      </div>
+                      <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                        <h4 className="font-semibold text-stone-50">为什么是这些场景</h4>
+                        <p className="mt-2 text-sm leading-6 text-stone-400">{path.whyTheseScenarios}</p>
+                      </div>
+                      <CompareAssignmentList title="探究任务" items={path.tasks} ordered />
+                      <CompareAssignmentList title="评分标准" items={path.rubric} />
+                    </div>
+
+                    <div className="space-y-4">
+                      <CompareAssignmentList title="讨论推进" items={path.discussionMoves} />
+                      <div className="rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+                        <h4 className="font-semibold text-teal-100">Suggested evidence</h4>
+                        <div className="mt-3 space-y-3">
+                          {pathScenarios.map((scenario) => (
+                            <div key={`${path.title}-${scenario.id}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                              <div className="text-sm font-semibold text-stone-50">{scenario.title}</div>
+                              <ul className="mt-2 space-y-2 text-sm leading-6 text-stone-400">
+                                {getLensEvidenceSections(scenario, lens).slice(0, 2).map((section) => (
+                                  <li key={`${scenario.id}-${section.label}`}>
+                                    <span className="text-teal-100">{section.label}：</span>{section.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id) : undefined}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                        >
+                          打开首个场景
+                          <ArrowRight size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onLoadCompare(path)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-5 py-3 font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                        >
+                          <Scale size={18} />
+                          载入 Compare Lab
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyInquiryPack(path)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                        >
+                          {copyStatus === path.title ? <Check size={18} /> : <Copy size={18} />}
+                          {copyStatus === path.title ? 'Inquiry pack 已复制' : copyStatus === 'failed' ? '复制失败' : '复制 inquiry pack'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function formatAtlasInquiryPack(path: AtlasInquiryPath) {
+  const lens = getCompareLensByKey(path.lensKey)
+  const pathScenarios = path.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  return [
+    `TimeAtlas Inquiry Pack：${path.title}`,
+    path.subtitle,
+    '',
+    `比较镜头：${lens.title} / ${lens.shortLabel}`,
+    `Driving question：${path.drivingQuestion}`,
+    '',
+    '场景路径：',
+    ...pathScenarios.map((scenario, index) => `${index + 1}. ${scenario.title}（${scenario.era}，${scenario.location}）｜${scenario.identity}`),
+    '',
+    `为什么是这些场景：${path.whyTheseScenarios}`,
+    '',
+    '探究任务：',
+    ...path.tasks.map((task, index) => `${index + 1}. ${task}`),
+    '',
+    '讨论推进：',
+    ...path.discussionMoves.map((move) => `- ${move}`),
+    '',
+    '评分标准：',
+    ...path.rubric.map((item) => `- ${item}`),
+    '',
+    '建议证据：',
+    ...pathScenarios.flatMap((scenario) => [
+      `- ${scenario.title}：`,
+      ...getLensEvidenceSections(scenario, lens).map((section) => `  - ${section.label}｜${section.text}`),
+    ]),
+    '',
+    'Compare Lab 快速设置：',
+    `- compareA：${pathScenarios[0]?.title ?? '请选择第一个场景'}`,
+    `- compareB：${pathScenarios.find((scenario) => scenario.id !== pathScenarios[0]?.id)?.title ?? '请选择第二个场景'}`,
+    `- lens：${lens.title}`,
+  ].join('\n')
 }
 
 function getLensEvidenceSections(scenario: Scenario, lens: CompareLens) {

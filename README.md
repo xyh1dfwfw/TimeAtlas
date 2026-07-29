@@ -4,7 +4,7 @@ TimeAtlas 是一个互动历史网站。它不把历史做成单纯的年份表�
 
 ## 当前 MVP
 
-Guided Lesson Pack + Assessment Studio 6.0 包含 8 个历史身份：
+Atlas Connections / Inquiry Pathways 7.0 包含 8 个历史身份：
 
 - 唐代长安西市商人
 - 北宋汴京茶铺学徒
@@ -37,13 +37,15 @@ Guided Lesson Pack + Assessment Studio 6.0 包含 8 个历史身份：
 - Teacher Pack 6.0：基于 lessonPack、任务 rubric、来源追问和史料自检复制更完整的课堂流程、检查题、误区卡、角色讨论、exit ticket 与检查清单
 - 学习档案袋汇总全站完成数、草稿数、最近草稿，并支持复制全部学习档案
 - 跨场景挑战提供 4 个轻量比较任务和可复制模板
+- Atlas Connections / Inquiry Pathways 7.0：提供 5 条策展式跨场景探究路径，每条包含 driving question、场景路径、讨论推进、任务、rubric、建议证据和可复制 inquiry pack
+- Inquiry Pathways 可一键打开首个场景，或把路径的前两个场景与比较镜头载入 Compare Lab，并遵守 reduced motion 设置滚动定位
 - Cross-Scenario Compare Lab / Assignment Builder：选择两个不同身份和 7 个比较镜头之一（日常生活、制度约束、风险与安全、知识传播、市场与交换、来源可信度、历史选择），生成并复制课堂比较作业
 
 ## 来源层与探索体验
 
 每个历史身份现在包含 2-3 条来源或参考：原始材料、机构档案或研究著作。来源层用于说明场景依据和解释边界；互动情节仍是面向学习体验的合成叙事，不等同于单一史料复原。Source Reader 4.0 为每条来源补充简短转述摘记、史料追问、可靠性边界、视角说明和证据标签，避免使用长篇版权原文。
 
-画廊支持按标题、时代、地点、身份和主题搜索，并可按地区或主题快速筛选。Learning Workbench 4.0 会为每个任务展示任务类型徽章、交付物、预计用时、难度、输出结构、好答案标准、史料自检、工作步骤、证据检查清单、句子开头、关联来源和反思提示；用户可按任务类型或状态过滤任务，勾选证据、撰写草稿笔记、把来源证据卡追加到草稿、标记完成，并复制一段学习输出用于课堂讨论或复盘。Guided Lesson Pack 6.0 位于日常生活切片之后、Mission Board 之前，为每个身份提供可切换 quick/source/debate 模式的课堂步骤、可揭示答案的 check questions、misconception cards、discussion roles 和可复制 exit tickets。Evidence-to-Argument Studio 6.0 位于场景体验的 Source Lab / 历史岔路口之后，会汇集当前身份的来源摘记、lesson flow、check question、任务证据清单、日常生活切片、时间线事件和已选决策，帮助用户把材料组织成“主张—证据—推理—反证/不确定性”的完整论证；论证草稿同样优先保存在 localStorage，浏览器限制时回退到 sessionStorage。Teacher Pack 6.0 面板可复制整合 lessonPack、课堂讨论导入、来源追问、rubric 检查清单和史料自检的完整课堂包。Compare Lab 会把两个不同历史身份放入同一个比较镜头中，展示与该镜头相关的日常、制度、风险、知识、市场、来源或选择证据，并生成包含提示、证据清单、输出结构和评分标准的课堂作业；比较对象和镜头会写入 URL 参数，方便分享。顶部概览、学习档案袋和场景卡片用已有年份、坐标与任务状态提供紧凑的时间/地点/进度导航，不引入额外地图依赖。
+画廊支持按标题、时代、地点、身份和主题搜索，并可按地区或主题快速筛选。Learning Workbench 4.0 会为每个任务展示任务类型徽章、交付物、预计用时、难度、输出结构、好答案标准、史料自检、工作步骤、证据检查清单、句子开头、关联来源和反思提示；用户可按任务类型或状态过滤任务，勾选证据、撰写草稿笔记、把来源证据卡追加到草稿、标记完成，并复制一段学习输出用于课堂讨论或复盘。Guided Lesson Pack 6.0 位于日常生活切片之后、Mission Board 之前，为每个身份提供可切换 quick/source/debate 模式的课堂步骤、可揭示答案的 check questions、misconception cards、discussion roles 和可复制 exit tickets。Evidence-to-Argument Studio 6.0 位于场景体验的 Source Lab / 历史岔路口之后，会汇集当前身份的来源摘记、lesson flow、check question、任务证据清单、日常生活切片、时间线事件和已选决策，帮助用户把材料组织成“主张—证据—推理—反证/不确定性”的完整论证；论证草稿同样优先保存在 localStorage，浏览器限制时回退到 sessionStorage。Teacher Pack 6.0 面板可复制整合 lessonPack、课堂讨论导入、来源追问、rubric 检查清单和史料自检的完整课堂包。Inquiry Pathways 7.0 位于跨场景挑战与 Compare Lab 之间，提供“繁荣背后的秩序成本”“知识如何穿过纸张、师承与市场”“市场不是自由的真空”“危机消息抵达普通人的那一刻”“谁在替历史发声”五条策展路径；每条路径都可展开查看场景 chips、driving question、why these scenarios、探究任务、discussion moves、rubric 和 suggested evidence，并可复制完整 inquiry pack 或一键把前两个场景与对应 lens 送入 Compare Lab。Compare Lab 会把两个不同历史身份放入同一个比较镜头中，展示与该镜头相关的日常、制度、风险、知识、市场、来源或选择证据，并生成包含提示、证据清单、输出结构和评分标准的课堂作业；比较对象和镜头会写入 URL 参数，方便分享。顶部概览、学习档案袋和场景卡片用已有年份、坐标与任务状态提供紧凑的时间/地点/进度导航，不引入额外地图依赖。
 
 ## 技术栈
 
