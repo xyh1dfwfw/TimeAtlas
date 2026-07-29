@@ -29,6 +29,8 @@ import {
   scenarios,
   type AtlasInquiryPath,
   type CompareLens,
+  type ActivityPack,
+  type ActivityPackMode,
   type DecisionOption,
   type LessonPackMode,
   type Mission,
@@ -1035,6 +1037,18 @@ function ScenarioGallery({
           ...source.evidenceTags,
         ]),
         ...scenario.missions.flatMap((mission) => [mission.title, mission.taskType, mission.instruction, mission.deliverable]),
+        ...scenario.activityPacks.flatMap((activity) => [
+          activity.title,
+          activityPackModeLabels[activity.mode],
+          activity.audience,
+          activity.prompt,
+          activity.deliverable,
+          ...activity.materials,
+          ...activity.steps,
+          ...activity.successCriteria,
+          ...activity.linkedSourceTitles,
+          ...activity.linkedSceneBeatTitles,
+        ]),
       ].join(' ').toLowerCase()
       const matchesSearch = normalizedQuery ? searchableText.includes(normalizedQuery) : true
       const matchesRegion = regionFilter === 'all' || scenario.region === regionFilter
@@ -2113,6 +2127,7 @@ function ScenarioExperience({
             <SceneReaderPanel scenario={scenario} />
             <DailyLifeGrid scenario={scenario} />
             <LessonPackPanel scenario={scenario} />
+            <ActivityPackPanel scenario={scenario} />
             <MissionBoard
               scenario={scenario}
               completedMissionIds={completedMissionIds}
@@ -2575,6 +2590,274 @@ function LessonPackPanel({ scenario }: { scenario: Scenario }) {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+const activityPackModeLabels: Record<ActivityPackMode, string> = {
+  warmup: 'Warmup',
+  'source-lab': 'Source lab',
+  roleplay: 'Roleplay',
+  debate: 'Debate',
+  writing: 'Writing',
+  compare: 'Compare',
+  extension: 'Extension',
+}
+
+function formatActivitySheet(scenario: Scenario, activity: ActivityPack) {
+  const linkedSources = scenario.sources.filter((source) => activity.linkedSourceTitles.includes(source.title))
+  const linkedBeats = scenario.sceneBeats.filter((beat) => activity.linkedSceneBeatTitles.includes(beat.title))
+
+  return [
+    `TimeAtlas Activity Sheet · ${activity.title}`,
+    `${scenario.title}（${scenario.era}，${scenario.location}）`,
+    '',
+    `模式：${activityPackModeLabels[activity.mode]}`,
+    `时长：${activity.durationMinutes} 分钟`,
+    `适用对象：${activity.audience}`,
+    '',
+    `活动提示：${activity.prompt}`,
+    '',
+    '材料：',
+    ...activity.materials.map((material) => `- ${material}`),
+    '',
+    '步骤：',
+    ...activity.steps.map((step, index) => `${index + 1}. ${step}`),
+    '',
+    `交付物：${activity.deliverable}`,
+    '',
+    '成功标准：',
+    ...activity.successCriteria.map((item) => `- ${item}`),
+    '',
+    '关联场景：',
+    ...(linkedBeats.length
+      ? linkedBeats.map((beat) => `- ${beat.timeLabel}｜${beat.title}：${beat.historicalTension}`)
+      : activity.linkedSceneBeatTitles.map((title) => `- ${title}`)),
+    '',
+    '关联来源：',
+    ...(linkedSources.length
+      ? linkedSources.map((source) => `- ${source.title}（${sourceTypeLabels[source.sourceType]}）：${source.excerpt}`)
+      : activity.linkedSourceTitles.map((title) => `- ${title}`)),
+  ].join('\n')
+}
+
+function ActivityPackPanel({ scenario }: { scenario: Scenario }) {
+  const [modeFilter, setModeFilter] = useState<'all' | ActivityPackMode>('all')
+  const [selectedActivityId, setSelectedActivityId] = useState(scenario.activityPacks[0]?.id ?? '')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const modeOptions = useMemo(
+    () => [...new Set(scenario.activityPacks.map((activity) => activity.mode))] as ActivityPackMode[],
+    [scenario.activityPacks],
+  )
+  const visibleActivities = useMemo(
+    () => scenario.activityPacks.filter((activity) => modeFilter === 'all' || activity.mode === modeFilter),
+    [modeFilter, scenario.activityPacks],
+  )
+  const selectedActivity = scenario.activityPacks.find((activity) => activity.id === selectedActivityId)
+    ?? visibleActivities[0]
+    ?? scenario.activityPacks[0]
+  const selectedActivityPanelId = `activity-pack-${scenario.id}`
+
+  useEffect(() => {
+    setModeFilter('all')
+    setSelectedActivityId(scenario.activityPacks[0]?.id ?? '')
+    setCopyStatus('idle')
+  }, [scenario.id, scenario.activityPacks])
+
+  useEffect(() => {
+    if (visibleActivities.length > 0 && !visibleActivities.some((activity) => activity.id === selectedActivityId)) {
+      setSelectedActivityId(visibleActivities[0].id)
+    }
+  }, [selectedActivityId, visibleActivities])
+
+  async function copyActivitySheet() {
+    if (!selectedActivity) {
+      setCopyStatus('failed')
+      return
+    }
+
+    try {
+      await copyTextToClipboard(formatActivitySheet(scenario, selectedActivity))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  if (!selectedActivity) {
+    return null
+  }
+
+  const linkedSources = scenario.sources.filter((source) => selectedActivity.linkedSourceTitles.includes(source.title))
+  const linkedSceneBeats = scenario.sceneBeats.filter((beat) => selectedActivity.linkedSceneBeatTitles.includes(beat.title))
+
+  return (
+    <section id="activity-packs" className="rounded-[2rem] border border-orange-200/15 bg-orange-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="activity-pack-title">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-4 flex items-center gap-3 text-orange-100">
+            <Compass size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">activity pack / task launcher 10.0</span>
+          </div>
+          <h2 id="activity-pack-title" className="text-3xl font-semibold tracking-tight text-stone-50">Activity Pack / Task Launcher</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+            每个身份提供 3 个可直接启动的课堂活动：筛选模式、选择活动卡，复制 activity sheet，即可带入小组讨论、来源研读或写作任务。
+          </p>
+        </div>
+        <label className="block min-w-52">
+          <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">活动模式</span>
+          <select
+            value={modeFilter}
+            onChange={(event) => setModeFilter(event.target.value as 'all' | ActivityPackMode)}
+            className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-orange-200/60"
+            aria-label="按活动模式筛选"
+          >
+            <option value="all">全部活动</option>
+            {modeOptions.map((mode) => (
+              <option key={mode} value={mode}>{activityPackModeLabels[mode]}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+        <div className="rounded-3xl border border-white/10 bg-black/20 p-4" role="tablist" aria-label={`${scenario.title} 的活动包`}>
+          <div className="mb-3 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em] text-stone-500">
+            <span>launcher cards</span>
+            <span>{visibleActivities.length}/{scenario.activityPacks.length}</span>
+          </div>
+          <div className="grid gap-3">
+            {visibleActivities.map((activity) => {
+              const isSelected = activity.id === selectedActivity.id
+
+              return (
+                <button
+                  key={activity.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  aria-controls={selectedActivityPanelId}
+                  onClick={() => setSelectedActivityId(activity.id)}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    isSelected
+                      ? 'border-orange-200/45 bg-orange-100/[0.08]'
+                      : 'border-white/10 bg-white/[0.025] hover:border-orange-100/25 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="mb-2 inline-flex rounded-full border border-orange-200/20 bg-orange-100/[0.06] px-3 py-1 text-xs text-orange-100">
+                        {activityPackModeLabels[activity.mode]}
+                      </div>
+                      <h3 className="font-semibold leading-6 text-stone-50">{activity.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-stone-400">{activity.prompt}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-xs text-stone-400">
+                      {activity.durationMinutes}m
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <article id={selectedActivityPanelId} role="tabpanel" className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+          <div className="h-1.5" style={{ backgroundColor: scenario.accent }} />
+          <div className="p-5">
+            <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.2em] text-stone-500">
+                  <span className="rounded-full border border-orange-200/20 bg-orange-100/[0.06] px-3 py-1 text-orange-100">{activityPackModeLabels[selectedActivity.mode]}</span>
+                  <span>{selectedActivity.durationMinutes} min</span>
+                  <span>{selectedActivity.audience}</span>
+                </div>
+                <h3 className="text-2xl font-semibold tracking-tight text-stone-50">{selectedActivity.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-stone-300">{selectedActivity.prompt}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyActivitySheet()}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+              >
+                {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                {copyStatus === 'copied' ? '活动单已复制' : copyStatus === 'failed' ? '复制失败' : '复制 activity sheet'}
+              </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
+                <h4 className="font-semibold text-orange-100">Materials</h4>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {selectedActivity.materials.map((material) => (
+                    <li key={material} className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">{material}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+                <h4 className="font-semibold text-teal-100">Deliverable</h4>
+                <p className="mt-3 text-sm leading-6 text-stone-300">{selectedActivity.deliverable}</p>
+                <div className="mt-4 flex items-center gap-2 text-sm text-stone-400">
+                  <Clock3 size={16} />
+                  <span>{selectedActivity.durationMinutes} 分钟 · {selectedActivity.audience}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Steps</h4>
+                <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {selectedActivity.steps.map((step, index) => (
+                    <li key={step} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2">
+                      <span className="shrink-0 text-orange-100">{index + 1}.</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Success criteria</h4>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {selectedActivity.successCriteria.map((criterion) => (
+                    <li key={criterion} className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2">
+                      <CheckCircle2 className="mt-0.5 shrink-0 text-teal-100" size={16} />
+                      <span>{criterion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Linked scene beats</h4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(linkedSceneBeats.length ? linkedSceneBeats.map((beat) => beat.title) : selectedActivity.linkedSceneBeatTitles).map((title) => (
+                    <span key={title} className="rounded-full border border-orange-200/20 bg-orange-100/[0.06] px-3 py-1.5 text-xs text-orange-100">
+                      {title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Linked sources</h4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(linkedSources.length ? linkedSources.map((source) => source.title) : selectedActivity.linkedSourceTitles).map((title) => (
+                    <span key={title} className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1.5 text-xs text-amber-100">
+                      {title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-stone-500" aria-live="polite">
+              {copyStatus === 'failed' ? '剪贴板不可用时，请手动复制活动内容。' : 'Activity sheet 会包含提示、材料、步骤、交付物、成功标准与关联证据。'}
+            </p>
+          </div>
+        </article>
       </div>
     </section>
   )

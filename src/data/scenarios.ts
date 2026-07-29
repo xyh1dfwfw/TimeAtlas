@@ -102,6 +102,23 @@ export type AtlasInquiryPath = {
 
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
+export type ActivityPackMode = 'warmup' | 'source-lab' | 'roleplay' | 'debate' | 'writing' | 'compare' | 'extension'
+
+export type ActivityPack = {
+  id: string
+  title: string
+  mode: ActivityPackMode
+  durationMinutes: number
+  audience: string
+  prompt: string
+  materials: string[]
+  steps: string[]
+  deliverable: string
+  successCriteria: string[]
+  linkedSourceTitles: string[]
+  linkedSceneBeatTitles: string[]
+}
+
 export type LessonPack = {
   inquiryQuestion: string
   quickStart: string[]
@@ -161,6 +178,7 @@ export type Scenario = {
   realHistory: string
   interpretationNote: string
   lessonPack: LessonPack
+  activityPacks: ActivityPack[]
   missions: Mission[]
   keyTerms: KeyTerm[]
   compareAngles: CompareAngle[]
@@ -675,6 +693,50 @@ export const scenarios: Scenario[] = [
         '指出一个来源看不见的普通人声音。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'changan-market-signal-sprint',
+        title: '三分钟市场信号热身',
+        mode: 'warmup',
+        durationMinutes: 8,
+        audience: '个人快速进入或全班开场',
+        prompt: '只用一个声音、一个气味和一条规则，判断长安西市的开放如何被制度组织。',
+        materials: ['身份卡摘要', 'Scene Reader：西市门开，香料先到', '日常切片：工作、风险、机会'],
+        steps: ['圈出能证明远方连接的感官线索。', '再圈出一条限制市场自由的制度线索。', '用“开放但是____”写出一句历史判断。'],
+        deliverable: '一张 3 行 warmup 卡：感官证据 / 制度证据 / 一句判断。',
+        successCriteria: ['至少引用一个具体感官细节。', '能把开放与坊市、市署或夜禁联系起来。', '判断句包含张力，而不只是赞美繁荣。'],
+        linkedSourceTitles: ['《唐六典》', "The Golden Peaches of Samarkand: A Study of T'ang Exotics"],
+        linkedSceneBeatTitles: ['西市门开，香料先到', '繁华被重新关进方格'],
+      },
+      {
+        id: 'changan-credit-source-lab',
+        title: '赊货信用 Source Lab',
+        mode: 'source-lab',
+        durationMinutes: 18,
+        audience: '小组史料研读',
+        prompt: '判断熟人商队的信用能否抵消道路、税令和边境不确定性。',
+        materials: ['《唐六典》来源卡', 'The Silk Road: A New History 来源卡', '决策题三项选择'],
+        steps: ['把“人情信用”和“道路秩序”分成两列。', '为每列各找一条来源或 scene beat 证据。', '写出一条仍不能被来源直接证明的推论。'],
+        deliverable: '一张信用审计表，附 80 字以内的风险判断。',
+        successCriteria: ['能区分制度文本、研究解释和角色推论。', '至少使用两条不同类型证据。', '结论承认当事人信息不完整。'],
+        linkedSourceTitles: ['《唐六典》', 'The Silk Road: A New History'],
+        linkedSceneBeatTitles: ['账本上的道路消息', '繁荣时代的风险预感'],
+      },
+      {
+        id: 'changan-expansion-debate',
+        title: '合伙人经营辩论',
+        mode: 'debate',
+        durationMinutes: 24,
+        audience: '三组课堂辩论',
+        prompt: '扩张、分散、依附官府三种方案，哪一种最符合 742 年小商人的处境？',
+        materials: ['决策选项卡', '时间线：742 / 755', '关联来源标题 chips'],
+        steps: ['三组分别抽取一个经营方案。', '每组准备一条短期收益证据和一条长期风险证据。', '反驳时必须指出对方忽略的制度或道路条件。'],
+        deliverable: '一份小组立场陈述：主张、两条证据、一个不确定性。',
+        successCriteria: ['能站在角色资源和限制中发言。', '能同时处理利润、信用和制度风险。', '反驳基于证据而非现代偏好。'],
+        linkedSourceTitles: ['《唐六典》', 'The Silk Road: A New History'],
+        linkedSceneBeatTitles: ['账本上的道路消息', '繁荣时代的风险预感'],
+      },
+    ],
     missions: [
       {
         id: 'map-risk-route',
@@ -1087,6 +1149,50 @@ export const scenarios: Scenario[] = [
         '写出一条你仍无法确认的传闻。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'bianjing-rumor-triage',
+        title: '茶铺传闻分诊',
+        mode: 'warmup',
+        durationMinutes: 10,
+        audience: '两人一组快速判断',
+        prompt: '把茶铺里听到的消息分成物价、边境、朝廷三类，并给出可信度标记。',
+        materials: ['Scene Reader：热茶和传闻一起续杯', '时间线：危机逼近 / 靖康之变', '日常切片：教育、风险'],
+        steps: ['从场景中摘出三条“听来的消息”。', '标为“可用证据”“待核实传闻”或“后见历史”。', '说明哪一类最会影响学徒的去留判断。'],
+        deliverable: '一张传闻分诊表，含三类消息和可信度标记。',
+        successCriteria: ['能区分传闻、来源线索和真实历史对照。', '能解释信息如何影响普通人行动。', '不会把后来的结局直接塞进当事人头脑。'],
+        linkedSourceTitles: ['《东京梦华录》', 'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors'],
+        linkedSceneBeatTitles: ['热茶和传闻一起续杯', '繁华城市的迟疑'],
+      },
+      {
+        id: 'bianjing-go-or-stay-roleplay',
+        title: '去留圆桌 Roleplay',
+        mode: 'roleplay',
+        durationMinutes: 22,
+        audience: '四人角色扮演',
+        prompt: '学徒、师傅、熟客商人和南方亲戚分别说明为什么留下、离开或两手准备。',
+        materials: ['决策选项卡', 'Scene Reader：积蓄轻得带不走城市', 'discussion roles'],
+        steps: ['每人抽一个角色并写出自己最在意的资源。', '轮流用 45 秒陈述建议。', '全组记录每个建议的代价和信息缺口。'],
+        deliverable: '一份去留圆桌记录：四个角色建议 + 最终折中方案。',
+        successCriteria: ['发言符合角色身份和资源限制。', '能把迁徙成本写成钱、人脉、职业三类。', '最终方案说明仍存在的不确定性。'],
+        linkedSourceTitles: ['Daily Life in China on the Eve of the Mongol Invasion, 1250-1276'],
+        linkedSceneBeatTitles: ['积蓄轻得带不走城市', '繁华城市的迟疑'],
+      },
+      {
+        id: 'bianjing-fragility-writing',
+        title: '繁华但是脆弱短论',
+        mode: 'writing',
+        durationMinutes: 16,
+        audience: '个人写作或课后提交',
+        prompt: '用“繁华但是脆弱”解释汴京为什么不能自动给学徒安全感。',
+        materials: ['日常切片：工作、风险、机会', '《东京梦华录》来源卡', '真实历史对照'],
+        steps: ['先写一句核心观点。', '选择一条繁华证据和一条脆弱证据。', '补一句来源边界：材料能证明什么，不能证明什么。'],
+        deliverable: '一段 120-160 字短论。',
+        successCriteria: ['有明确观点而非情节复述。', '至少引用两条场景或来源证据。', '能说明繁华与安全之间的断裂。'],
+        linkedSourceTitles: ['《东京梦华录》', 'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors'],
+        linkedSceneBeatTitles: ['灶火点起城市的一天', '繁华城市的迟疑'],
+      },
+    ],
     missions: [
       {
         id: 'listen-for-crisis',
@@ -1501,6 +1607,50 @@ export const scenarios: Scenario[] = [
         '说明你使用的一条证据属于宏观还是个人线索。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'jiangnan-book-account-compare',
+        title: '书页与账册比较',
+        mode: 'compare',
+        durationMinutes: 14,
+        audience: '同伴比较练习',
+        prompt: '比较“读书求名”和“家计催促”两种压力如何同时塑造江南读书人的一天。',
+        materials: ['Scene Reader：书页和账册都受潮', 'Scene Reader：蒙童背书，家计催促', '日常切片：教育、工作'],
+        steps: ['为读书压力找一条证据。', '为家计压力找一条证据。', '写出两者如何互相冲突又互相依赖。'],
+        deliverable: '一张双栏比较卡：读书路径 / 家计路径 / 综合判断。',
+        successCriteria: ['能把个人志向和家庭经济连起来。', '证据来自两个不同 scene beats。', '结论不把科举写成唯一解释。'],
+        linkedSourceTitles: ['《明实录》隆庆朝相关记载', 'The Confusions of Pleasure: Commerce and Culture in Ming China'],
+        linkedSceneBeatTitles: ['书页和账册都受潮', '蒙童背书，家计催促'],
+      },
+      {
+        id: 'jiangnan-silver-source-lab',
+        title: '白银海风 Source Lab',
+        mode: 'source-lab',
+        durationMinutes: 20,
+        audience: '小组来源拼图',
+        prompt: '判断海贸、白银和商业出版如何改变一个内陆书房里的选择。',
+        materials: ['《明实录》隆庆朝相关记载', 'The Confusions of Pleasure 来源卡', 'Scene Reader：海风把远方白银吹进内陆'],
+        steps: ['找出一条国家制度变化线索。', '找出一条市场或文化消费线索。', '解释远方贸易怎样进入读书人的近身日常。'],
+        deliverable: '一张“远方—本地”因果链图。',
+        successCriteria: ['能说明白银不是孤立商品，而是交换网络。', '能区分官方记载与现代研究解释。', '能把宏观贸易落到读书、家计或出版选择。'],
+        linkedSourceTitles: ['《明实录》隆庆朝相关记载', 'The Confusions of Pleasure: Commerce and Culture in Ming China'],
+        linkedSceneBeatTitles: ['海风把远方白银吹进内陆', '半工半读的疲惫折中'],
+      },
+      {
+        id: 'jiangnan-half-study-extension',
+        title: '半工半读路径延展',
+        mode: 'extension',
+        durationMinutes: 28,
+        audience: '课后探究或拔高小组',
+        prompt: '设计一条既不完全弃学、也不盲目应试的半工半读方案，并说明它依赖的历史条件。',
+        materials: ['决策选项卡', '关键术语', 'compareAngles'],
+        steps: ['列出方案需要的三种资源：时间、钱、关系。', '为每种资源找场景证据。', '预测如果市场或考试环境变化，方案会怎样失败。'],
+        deliverable: '一份半工半读方案书，含资源表和失败条件。',
+        successCriteria: ['方案符合明代江南的制度和市场环境。', '使用至少三条证据。', '能说明机会背后的脆弱性。'],
+        linkedSourceTitles: ['The Confusions of Pleasure: Commerce and Culture in Ming China', '1587, A Year of No Significance: The Ming Dynasty in Decline'],
+        linkedSceneBeatTitles: ['蒙童背书，家计催促', '半工半读的疲惫折中'],
+      },
+    ],
     missions: [
       {
         id: 'trace-silver',
@@ -1913,6 +2063,50 @@ export const scenarios: Scenario[] = [
         '说明一条来源可能带有的立场。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'guangzhou-translation-warmup',
+        title: '翻译不是语言热身',
+        mode: 'warmup',
+        durationMinutes: 9,
+        audience: '全班开场快问快答',
+        prompt: '用一条证据说明买办助手的翻译工作为什么同时是语言、信用和制度中介。',
+        materials: ['Scene Reader：翻译不只是语言', '身份卡', '日常切片：工作'],
+        steps: ['圈出一个语言线索。', '圈出一个信用或制度线索。', '把两条线索合成一句“翻译也是____”。'],
+        deliverable: '一句概念判断和两条证据。',
+        successCriteria: ['不把买办简化为单纯翻译。', '能点出中介位置的机会和风险。', '证据具体可回到场景文本。'],
+        linkedSourceTitles: ['The Chinese Repository'],
+        linkedSceneBeatTitles: ['翻译不只是语言', '茶箱和海水气味之间'],
+      },
+      {
+        id: 'guangzhou-opium-account-debate',
+        title: '灰色账目辩论',
+        mode: 'debate',
+        durationMinutes: 25,
+        audience: '两方辩论 + 观察员',
+        prompt: '面对鸦片相关灰色收益，买办助手应保护家庭机会、远离风险，还是向制度靠拢？',
+        materials: ['决策选项卡', 'Scene Reader：灰色收益被国家权力照亮', 'The Opium War 来源卡'],
+        steps: ['正方说明为什么接受灰色收益。', '反方说明为什么风险会外溢到家庭和口岸秩序。', '观察员记录双方使用的来源边界。'],
+        deliverable: '一份辩论裁决：哪方更符合历史处境，为什么。',
+        successCriteria: ['能同时讨论个人上升、国家权力和贸易风险。', '至少引用一条来源卡和一条 scene beat。', '裁决承认证据不能直接证明个人心理。'],
+        linkedSourceTitles: ['The Opium War: Drugs, Dreams and the Making of China', 'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854'],
+        linkedSceneBeatTitles: ['灰色收益被国家权力照亮', '每个人都在算账'],
+      },
+      {
+        id: 'guangzhou-port-source-lab',
+        title: '口岸制度 Source Lab',
+        mode: 'source-lab',
+        durationMinutes: 18,
+        audience: '三人来源分工',
+        prompt: '用三条来源重建十三行口岸里“谁制定规则、谁承担风险、谁获得机会”。',
+        materials: ['The Chinese Repository', 'Trade and Diplomacy on the China Coast 来源卡', 'The Opium War 来源卡'],
+        steps: ['每人认领一条来源，标注其视角。', '把来源分别贴到规则、风险、机会三栏。', '写出一个来源共同无法看见的普通人声音。'],
+        deliverable: '三栏来源矩阵 + 一条缺席声音。',
+        successCriteria: ['能准确说明来源视角差异。', '能把贸易制度和个人处境连接。', '能指出来源沉默或偏向。'],
+        linkedSourceTitles: ['The Chinese Repository', 'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854', 'The Opium War: Drugs, Dreams and the Making of China'],
+        linkedSceneBeatTitles: ['茶箱和海水气味之间', '每个人都在算账'],
+      },
+    ],
     missions: [
       {
         id: 'follow-paper-trail',
@@ -2327,6 +2521,50 @@ export const scenarios: Scenario[] = [
         '指出“士气”叙事需要补充的证据。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'london-blackout-checklist',
+        title: '灯火管制检查清单',
+        mode: 'warmup',
+        durationMinutes: 8,
+        audience: '个人或家庭角色快速进入',
+        prompt: '把一扇窗帘当作防线，说明家庭日常如何被战争规则重新组织。',
+        materials: ['Scene Reader：一扇窗帘成为防线', '日常切片：home、risks', 'Imperial War Museums 来源卡'],
+        steps: ['列出普通家庭要完成的两项防空动作。', '写出这些动作保护了谁，也限制了谁。', '用一句话解释“家务为何变成公共安全”。'],
+        deliverable: '一张 blackout checklist，含两项动作和一条历史解释。',
+        successCriteria: ['能从小物件进入总体战。', '能说明规则与社区安全的关系。', '解释不把战争只写成战场事件。'],
+        linkedSourceTitles: ['Imperial War Museums: The Blitz collection and learning resources'],
+        linkedSceneBeatTitles: ['一扇窗帘成为防线', '社区把夜晚变成规则'],
+      },
+      {
+        id: 'london-shelter-roleplay',
+        title: '地铁站临时社会 Roleplay',
+        mode: 'roleplay',
+        durationMinutes: 22,
+        audience: '小组角色讨论',
+        prompt: '在防空洞里，居民、志愿者、儿童和怀疑者如何协商秩序与恐惧？',
+        materials: ['Scene Reader：地铁站里的临时社会', 'Mass Observation Archive 来源卡', 'lessonPack discussion roles'],
+        steps: ['每人选择一个防空洞角色。', '用一条材料说明自己的需求或担忧。', '共同制定三条临时规则，并解释其历史理由。'],
+        deliverable: '一张防空洞规则公告，附每条规则的证据依据。',
+        successCriteria: ['角色发言能体现恐惧、互助和纪律的张力。', '规则有来源或场景证据支持。', '能看到临时共同体的不平等和脆弱。'],
+        linkedSourceTitles: ['Mass Observation Archive', 'Wartime: Britain 1939-1945'],
+        linkedSceneBeatTitles: ['地铁站里的临时社会', '恐惧有时只是沉默排队'],
+      },
+      {
+        id: 'london-morale-writing',
+        title: '士气与沉默短论',
+        mode: 'writing',
+        durationMinutes: 18,
+        audience: '个人论证写作',
+        prompt: '评估“伦敦居民很坚强”这句话能证明什么，又遮蔽了哪些恐惧与疲惫。',
+        materials: ['Mass Observation Archive', 'Scene Reader：恐惧有时只是沉默排队', '真实历史对照'],
+        steps: ['先改写一个更谨慎的观点。', '引用一条坚持秩序的证据。', '再引用一条恐惧或疲惫的证据，说明边界。'],
+        deliverable: '一段 130 字史料判断短论。',
+        successCriteria: ['能避免宣传式概括。', '能使用来源可信度语言。', '能同时呈现韧性和代价。'],
+        linkedSourceTitles: ['Mass Observation Archive', 'Wartime: Britain 1939-1945'],
+        linkedSceneBeatTitles: ['恐惧有时只是沉默排队', '社区把夜晚变成规则'],
+      },
+    ],
     missions: [
       {
         id: 'inspect-blackout',
@@ -2742,6 +2980,50 @@ export const scenarios: Scenario[] = [
         '指出一条来源难以看见的劳动者经验。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'baghdad-paper-trail-warmup',
+        title: '纸张如何移动知识',
+        mode: 'warmup',
+        durationMinutes: 9,
+        audience: '全班导入',
+        prompt: '用纸浆气味、抄写劳动和城市赞助解释巴格达为什么是知识城市。',
+        materials: ['Scene Reader：纸浆气味里的知识城市', '关键术语', 'The Rise of the Arabic Book 来源卡'],
+        steps: ['指出一条技术线索：纸张或抄写。', '指出一条社会线索：市场、赞助或师承。', '合成一句“知识流动需要____”。'],
+        deliverable: '一条知识流动公式：媒介 + 人群 + 条件。',
+        successCriteria: ['能把知识传播写成社会过程。', '至少包含一条物质媒介证据。', '不把翻译运动简化为少数天才行为。'],
+        linkedSourceTitles: ['The Rise of the Arabic Book', '《群书类述》（Kitāb al-Fihrist）'],
+        linkedSceneBeatTitles: ['纸浆气味里的知识城市', '知识也有市场和赞助人'],
+      },
+      {
+        id: 'baghdad-term-source-lab',
+        title: '一个术语的 Source Lab',
+        mode: 'source-lab',
+        durationMinutes: 21,
+        audience: '小组文本细读',
+        prompt: '追踪一个医学或哲学术语从希腊文本进入阿拉伯书页时，哪些意义可能被改变。',
+        materials: ['Scene Reader：一个术语能改变一剂药', 'Greek Thought, Arabic Culture 来源卡', 'The Rise of the Arabic Book 来源卡'],
+        steps: ['选择一个“术语”作为案例。', '标出翻译者、抄写员、读者三种角色的影响。', '写出一条翻译带来的知识机会和一条风险。'],
+        deliverable: '一张术语旅行卡：来源、转换、影响、风险。',
+        successCriteria: ['能看到翻译不是机械替换。', '能讨论抄写员的主动学习空间。', '能说明来源只能支持传播结构，不能证明虚构个体。'],
+        linkedSourceTitles: ['Greek Thought, Arabic Culture', 'The Rise of the Arabic Book'],
+        linkedSceneBeatTitles: ['一个术语能改变一剂药', '在字里偷学世界'],
+      },
+      {
+        id: 'baghdad-patronage-debate',
+        title: '知识市场与赞助辩论',
+        mode: 'debate',
+        durationMinutes: 24,
+        audience: '赞助人组、抄写员组、读者组',
+        prompt: '知识传播更依赖市场需求、宫廷赞助，还是抄写员这样的劳动者？',
+        materials: ['Scene Reader：知识也有市场和赞助人', '来源层三张卡', 'compareAngles'],
+        steps: ['三组分别主张一种动力。', '每组提出两条证据和一个对其他动力的承认。', '全班投票：哪种动力最容易被来源高估或低估？'],
+        deliverable: '一份辩论结论：三种动力排序 + 证据理由。',
+        successCriteria: ['能比较技术、市场、赞助和劳动的共同作用。', '能承认单一解释不足。', '能指出来源对精英赞助的偏向。'],
+        linkedSourceTitles: ['《群书类述》（Kitāb al-Fihrist）', 'The Rise of the Arabic Book', 'Greek Thought, Arabic Culture'],
+        linkedSceneBeatTitles: ['知识也有市场和赞助人', '在字里偷学世界'],
+      },
+    ],
     missions: [
       {
         id: 'trace-paper-chain',
@@ -3154,6 +3436,50 @@ export const scenarios: Scenario[] = [
         '提出一个保护手稿的现实步骤。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'timbuktu-manuscript-warmup',
+        title: '木板第一行热身',
+        mode: 'warmup',
+        durationMinutes: 8,
+        audience: '个人观察 + 同伴分享',
+        prompt: '从木板、墨迹和背诵中找出廷巴克图学习的媒介和门槛。',
+        materials: ['Scene Reader：木板上的第一行字', '日常切片：教育', 'Timbuktu Manuscripts Project resources'],
+        steps: ['圈出一种学习媒介。', '写出谁能接触它、谁可能被挡在外面。', '用一句话定义“学习门槛”。'],
+        deliverable: '一张学习门槛便签。',
+        successCriteria: ['能识别手稿、木板或师承等具体媒介。', '能说明门槛来自成本、身份或关系。', '不把廷巴克图只写成神秘藏书地。'],
+        linkedSourceTitles: ['Timbuktu Manuscripts Project resources'],
+        linkedSceneBeatTitles: ['木板上的第一行字', '权威来自人际链条'],
+      },
+      {
+        id: 'timbuktu-chain-roleplay',
+        title: '师承链条 Roleplay',
+        mode: 'roleplay',
+        durationMinutes: 20,
+        audience: '四人学术链条扮演',
+        prompt: '老师、学生、抄写者和商旅分别说明一本手稿如何获得权威并流动。',
+        materials: ['Scene Reader：权威来自人际链条', 'Scene Reader：盐、书籍和消息同路而来', 'Timbuktu and the Songhay Empire 来源卡'],
+        steps: ['每人选择一个链条角色。', '说明自己为手稿提供了什么：记忆、校订、运输、名声或资金。', '共同画出手稿流动路径。'],
+        deliverable: '一张师承—贸易流动图，含四个角色贡献。',
+        successCriteria: ['能把知识权威与人际关系相连。', '能把贸易路线和手稿流动相连。', '每个角色都有证据支持而非空泛表演。'],
+        linkedSourceTitles: ['Timbuktu and the Songhay Empire', 'The Meanings of Timbuktu'],
+        linkedSceneBeatTitles: ['权威来自人际链条', '盐、书籍和消息同路而来'],
+      },
+      {
+        id: 'timbuktu-preservation-extension',
+        title: '手稿保护方案延展',
+        mode: 'extension',
+        durationMinutes: 30,
+        audience: '项目式小组任务',
+        prompt: '面对潮湿、盗掠、价格和政治风险，为一批手稿设计保存与传抄方案。',
+        materials: ['Scene Reader：复制也是风险管理', '来源层三张卡', '真实历史对照'],
+        steps: ['列出三类风险：物质、市场、政治或记忆断裂。', '为每类风险设计一项应对行动。', '说明行动可能牺牲的成本或公平性。'],
+        deliverable: '一份手稿保护 brief：风险表、行动表、取舍说明。',
+        successCriteria: ['能把复制视为风险管理，而非只为扩散。', '能使用来源层说明保护对象的重要性。', '能讨论谁有权接触和保存知识。'],
+        linkedSourceTitles: ['Timbuktu Manuscripts Project resources', 'Timbuktu and the Songhay Empire', 'The Meanings of Timbuktu'],
+        linkedSceneBeatTitles: ['复制也是风险管理', '盐、书籍和消息同路而来'],
+      },
+    ],
     missions: [
       {
         id: 'map-sahara-network',
@@ -3569,6 +3895,50 @@ export const scenarios: Scenario[] = [
         '指出一条征服时期来源的视角限制。',
       ],
     },
+    activityPacks: [
+      {
+        id: 'tenochtitlan-market-map',
+        title: '独木舟市场地图',
+        mode: 'warmup',
+        durationMinutes: 9,
+        audience: '全班导入或个人观察',
+        prompt: '从独木舟、湖城和集市官员三个线索，画出特诺奇蒂特兰市场如何运转。',
+        materials: ['Scene Reader：独木舟把城市喂醒', 'Scene Reader：称量、争执和市场官员', '日常切片：工作'],
+        steps: ['画出商品进入市场的路径。', '标出一个规则执行点。', '写出卖家依赖这个系统的一个机会和一个限制。'],
+        deliverable: '一张 3 节点市场地图。',
+        successCriteria: ['能把地理环境与市场供应相连。', '能指出市场官员或称量规则。', '同时呈现机会与限制。'],
+        linkedSourceTitles: ['General History of the Things of New Spain (Florentine Codex)', 'Everyday Life in the Aztec World'],
+        linkedSceneBeatTitles: ['独木舟把城市喂醒', '称量、争执和市场官员'],
+      },
+      {
+        id: 'tenochtitlan-conquest-source-lab',
+        title: '征服消息 Source Lab',
+        mode: 'source-lab',
+        durationMinutes: 22,
+        audience: '小组史料判断',
+        prompt: '判断东边来的陌生消息如何改变价格、信用和共同体关系。',
+        materials: ['Florentine Codex 来源卡', 'The Conquest of New Spain 来源卡', 'Scene Reader：东边来的陌生消息改变价格'],
+        steps: ['把消息分成“当时可听见”和“后来才知道”两类。', '找出价格或供应变化的证据。', '说明殖民叙述来源需要谨慎使用的原因。'],
+        deliverable: '一张消息—市场—来源边界分析卡。',
+        successCriteria: ['能区分当事人视角和征服后的叙述。', '能解释危机消息如何影响市场关系。', '能说明来源视角和缺席声音。'],
+        linkedSourceTitles: ['General History of the Things of New Spain (Florentine Codex)', 'The Conquest of New Spain'],
+        linkedSceneBeatTitles: ['东边来的陌生消息改变价格', '危机利润和共同体信用'],
+      },
+      {
+        id: 'tenochtitlan-crisis-ethics-debate',
+        title: '危机利润与共同体辩论',
+        mode: 'debate',
+        durationMinutes: 24,
+        audience: '市场卖家组、邻里组、官员组',
+        prompt: '危机中涨价是自保、机会，还是对共同体信用的破坏？',
+        materials: ['决策选项卡', 'Scene Reader：危机利润和共同体信用', 'Everyday Life in the Aztec World 来源卡'],
+        steps: ['三组分别从卖家、邻里和市场官员视角陈述。', '每组必须说明短期收益和长期代价。', '全班形成一条危机交易规则。'],
+        deliverable: '一条市场危机规则 + 三方理由。',
+        successCriteria: ['能站在不同角色评价同一价格行为。', '能把信用、规则和征服风险连接。', '结论避免用现代市场观直接裁判。'],
+        linkedSourceTitles: ['Everyday Life in the Aztec World', 'General History of the Things of New Spain (Florentine Codex)'],
+        linkedSceneBeatTitles: ['称量、争执和市场官员', '危机利润和共同体信用'],
+      },
+    ],
     missions: [
       {
         id: 'map-market-supply',
