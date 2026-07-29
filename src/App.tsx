@@ -4,12 +4,17 @@ import {
   ArrowRight,
   BookOpen,
   Check,
+  CheckCircle2,
+  Circle,
+  ClipboardList,
   Clock3,
   Compass,
   Landmark,
+  LibraryBig,
   MapPin,
   Route,
   ScrollText,
+  Scale,
   Share2,
   ShieldAlert,
   Sparkles,
@@ -24,6 +29,7 @@ const optionCounts = scenarios.map((scenario) => scenario.decision.options.lengt
 const minOptionCount = Math.min(...optionCounts)
 const maxOptionCount = Math.max(...optionCounts)
 const totalSourceCount = scenarios.reduce((count, scenario) => count + scenario.sources.length, 0)
+const totalMissionCount = scenarios.reduce((count, scenario) => count + scenario.missions.length, 0)
 const statItems = [
   { value: String(scenarios.length), label: '历史身份' },
   {
@@ -31,10 +37,34 @@ const statItems = [
     label: '选择分支 / 身份',
   },
   { value: String(totalSourceCount), label: '来源参考' },
+  { value: String(totalMissionCount), label: '史证任务' },
 ]
 
 function getScenarioById(id: string | null) {
   return scenarios.find((scenario) => scenario.id === id) ?? null
+}
+
+function loadMissionState() {
+  if (typeof window === 'undefined') {
+    return {} as Record<string, string[]>
+  }
+
+  try {
+    const rawState = window.sessionStorage.getItem('timeatlas:mission-progress')
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as Record<string, string[]>
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).filter((entry): entry is [string, string[]] =>
+        Array.isArray(entry[1]) && entry[1].every((missionId) => typeof missionId === 'string'),
+      ),
+    )
+  } catch {
+    return {} as Record<string, string[]>
+  }
 }
 
 function getInitialSelection() {
@@ -55,6 +85,9 @@ function App() {
   const initialSelection = useMemo(getInitialSelection, [])
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
+  const [completedMissionIdsByScenario, setCompletedMissionIdsByScenario] = useState<Record<string, string[]>>(
+    loadMissionState,
+  )
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -68,6 +101,21 @@ function App() {
         : null,
     [selectedOptionId, selectedScenario],
   )
+
+  const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
+  const completedMissionCount = completedMissionIds.length
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      window.sessionStorage.setItem('timeatlas:mission-progress', JSON.stringify(completedMissionIdsByScenario))
+    } catch {
+      // Session persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [completedMissionIdsByScenario])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -104,6 +152,20 @@ function App() {
     })
   }
 
+  function toggleMission(scenarioId: string, missionId: string) {
+    setCompletedMissionIdsByScenario((currentState) => {
+      const currentMissionIds = currentState[scenarioId] ?? []
+      const nextMissionIds = currentMissionIds.includes(missionId)
+        ? currentMissionIds.filter((id) => id !== missionId)
+        : [...currentMissionIds, missionId]
+
+      return {
+        ...currentState,
+        [scenarioId]: nextMissionIds,
+      }
+    })
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -115,6 +177,9 @@ function App() {
         scenario={selectedScenario}
         selectedOption={selectedOption}
         onSelectOption={setSelectedOptionId}
+        completedMissionIds={completedMissionIds}
+        completedMissionCount={completedMissionCount}
+        onToggleMission={toggleMission}
         prefersReducedMotion={prefersReducedMotion}
       />
       <About />
@@ -173,7 +238,7 @@ function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }
             </a>
           </div>
 
-          <div className="grid max-w-xl grid-cols-3 gap-3 pt-4">
+          <div className="grid max-w-xl grid-cols-2 gap-3 pt-4 sm:grid-cols-4">
             {statItems.map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
                 <div className="text-3xl font-semibold text-amber-200">{item.value}</div>
@@ -273,11 +338,17 @@ function ScenarioExperience({
   scenario,
   selectedOption,
   onSelectOption,
+  completedMissionIds,
+  completedMissionCount,
+  onToggleMission,
   prefersReducedMotion,
 }: {
   scenario: Scenario
   selectedOption: DecisionOption | null
   onSelectOption: (id: string) => void
+  completedMissionIds: string[]
+  completedMissionCount: number
+  onToggleMission: (scenarioId: string, missionId: string) => void
   prefersReducedMotion: boolean | null
 }) {
   const scenarioMotion = prefersReducedMotion
@@ -303,6 +374,12 @@ function ScenarioExperience({
           <div className="space-y-6">
             <NarrativePanel scenario={scenario} />
             <DailyLifeGrid scenario={scenario} />
+            <MissionBoard
+              scenario={scenario}
+              completedMissionIds={completedMissionIds}
+              completedMissionCount={completedMissionCount}
+              onToggleMission={onToggleMission}
+            />
             <DecisionPanel
               scenario={scenario}
               selectedOption={selectedOption}
@@ -398,6 +475,130 @@ function DailyLifeGrid({ scenario }: { scenario: Scenario }) {
           <p className="mt-3 leading-7 text-stone-400">{section.text}</p>
         </article>
       ))}
+    </section>
+  )
+}
+
+function MissionBoard({
+  scenario,
+  completedMissionIds,
+  completedMissionCount,
+  onToggleMission,
+}: {
+  scenario: Scenario
+  completedMissionIds: string[]
+  completedMissionCount: number
+  onToggleMission: (scenarioId: string, missionId: string) => void
+}) {
+  const completedMissionSet = useMemo(() => new Set(completedMissionIds), [completedMissionIds])
+  const missionTotal = scenario.missions.length
+  const progressLabel = `${completedMissionCount}/${missionTotal}`
+
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-4 flex items-center gap-3 text-amber-100">
+            <ClipboardList size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">evidence workbench</span>
+          </div>
+          <h2 className="text-3xl font-semibold tracking-tight text-stone-50">历史任务板</h2>
+          <p className="mt-3 max-w-2xl leading-7 text-stone-400">
+            不只读情节：完成任务、使用证据、比较角度，把这个身份放回更大的历史结构中。
+          </p>
+        </div>
+        <div
+          className="rounded-3xl border border-amber-200/20 bg-amber-200/10 px-5 py-4 text-amber-100"
+          aria-label={`当前场景任务完成进度：${progressLabel}`}
+        >
+          <div className="text-xs uppercase tracking-[0.28em] text-amber-100/70">session progress</div>
+          <div className="mt-1 text-3xl font-semibold">{progressLabel}</div>
+          <div className="text-sm text-stone-400">当前身份已完成任务</div>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="grid gap-3" role="group" aria-label={`${scenario.title} 的历史任务`}>
+          {scenario.missions.map((mission) => {
+            const isComplete = completedMissionSet.has(mission.id)
+
+            return (
+              <button
+                key={mission.id}
+                type="button"
+                aria-pressed={isComplete}
+                onClick={() => onToggleMission(scenario.id, mission.id)}
+                className={`group rounded-3xl border p-5 text-left transition ${
+                  isComplete
+                    ? 'border-teal-100/35 bg-teal-100/[0.08]'
+                    : 'border-white/10 bg-black/20 hover:border-amber-100/30 hover:bg-black/30'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className={isComplete ? 'mt-1 text-teal-100' : 'mt-1 text-stone-500 group-hover:text-amber-100'}>
+                    {isComplete ? <CheckCircle2 size={21} /> : <Circle size={21} />}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-stone-50">{mission.title}</h3>
+                    <p className="mt-2 leading-7 text-stone-400">{mission.instruction}</p>
+                    <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-stone-400">
+                      <span className="font-medium text-amber-100/90">证据用法：</span>
+                      {mission.evidenceUse}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="space-y-4">
+          <KeyTermsPanel scenario={scenario} />
+          <CompareAnglesPanel scenario={scenario} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function KeyTermsPanel({ scenario }: { scenario: Scenario }) {
+  return (
+    <section className="rounded-[1.5rem] border border-teal-200/15 bg-teal-100/[0.045] p-5">
+      <div className="mb-4 flex items-center gap-3 text-teal-100">
+        <LibraryBig size={19} />
+        <span className="text-sm uppercase tracking-[0.25em]">key terms</span>
+      </div>
+      <div className="grid gap-3">
+        {scenario.keyTerms.map((term) => (
+          <article key={term.term} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">{term.term}</h3>
+            <p className="mt-2 text-sm leading-6 text-stone-400">{term.definition}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CompareAnglesPanel({ scenario }: { scenario: Scenario }) {
+  return (
+    <section className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+      <div className="mb-4 flex items-center gap-3 text-amber-100">
+        <Scale size={19} />
+        <span className="text-sm uppercase tracking-[0.25em]">compare angles</span>
+      </div>
+      <div className="grid gap-3">
+        {scenario.compareAngles.map((angle) => (
+          <article key={angle.title} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">{angle.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-stone-400">{angle.prompt}</p>
+          </article>
+        ))}
+      </div>
+      <p className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+        <span className="font-medium text-amber-100/90">来源使用：</span>
+        {scenario.sourceEvidenceUse}
+      </p>
     </section>
   )
 }

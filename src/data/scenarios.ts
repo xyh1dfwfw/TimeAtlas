@@ -21,6 +21,23 @@ export type HistoricalSource = {
   url?: string
 }
 
+export type Mission = {
+  id: string
+  title: string
+  instruction: string
+  evidenceUse: string
+}
+
+export type KeyTerm = {
+  term: string
+  definition: string
+}
+
+export type CompareAngle = {
+  title: string
+  prompt: string
+}
+
 export type DecisionOption = {
   id: string
   label: string
@@ -55,6 +72,10 @@ export type Scenario = {
   }
   realHistory: string
   interpretationNote: string
+  missions: Mission[]
+  keyTerms: KeyTerm[]
+  compareAngles: CompareAngle[]
+  sourceEvidenceUse: string
   sources: HistoricalSource[]
 }
 
@@ -158,6 +179,43 @@ export const scenarios: Scenario[] = [
       '唐代长安确是高度国际化的帝国都城。安史之乱后，唐朝政治、财政与交通格局深刻改变，长安的世界城市地位也逐渐转向另一种形态。',
     interpretationNote:
       '本场景把长安西市的制度、商旅与异域商品压缩进一个虚构小商人的一天；具体人物与选择为叙事化合成，不对应单一史料个案。',
+    missions: [
+      {
+        id: 'map-risk-route',
+        title: '标出风险路线',
+        instruction: '从河西走廊、草原局势和西市货价之间找出一条因果链。',
+        evidenceUse: '用时间线中的“丝路交通活跃”和日常里的货价波动解释贸易风险。',
+      },
+      {
+        id: 'audit-credit',
+        title: '审一笔赊货账',
+        instruction: '判断熟人商队的信用是否足以支撑扩大赊货。',
+        evidenceUse: '对照“账本与人心”的经验知识，区分人情信用与道路秩序。',
+      },
+      {
+        id: 'compare-market-state',
+        title: '找出市场背后的官府',
+        instruction: '列出商人看似自由但受制度约束的三个环节。',
+        evidenceUse: '引用坊市、夜禁、市署或官府采购相关线索。',
+      },
+      {
+        id: 'test-prosperity',
+        title: '检验繁荣叙事',
+        instruction: '说明长安的开放世界为何同时带来机会和脆弱性。',
+        evidenceUse: '结合外来商品、跨区域秩序与安史之乱前后对照。',
+      },
+    ],
+    keyTerms: [
+      { term: '坊市制', definition: '以坊、市场和城门时段管理组织城市生活的制度安排。' },
+      { term: '丝绸之路', definition: '连接东亚、中亚和西亚的多路线贸易与文化交流网络。' },
+      { term: '粟特商人', definition: '活跃于中古欧亚贸易中的中亚商人群体，常见于唐代跨文化交流叙事。' },
+      { term: '安史之乱', definition: '755 年爆发的重大叛乱，深刻改变唐朝军事、财政与交通格局。' },
+    ],
+    compareAngles: [
+      { title: '贸易机会 vs. 道路安全', prompt: '同一条商路在什么条件下是财富通道，在什么条件下变成债务陷阱？' },
+      { title: '城市开放 vs. 城市管制', prompt: '长安的国际化气质如何与坊市、夜禁和官府监管同时存在？' },
+    ],
+    sourceEvidenceUse: '先用制度性材料理解城市监管，再用物质文化与丝路研究补足商品、路线和风险细节。',
     sources: [
       {
         title: '《唐六典》',
@@ -277,6 +335,43 @@ export const scenarios: Scenario[] = [
       '《东京梦华录》等材料呈现了北宋东京繁盛的市民生活。1127 年靖康之变使这座城市和大量普通人的命运发生剧烈转折。',
     interpretationNote:
       '本场景主要依据城市生活与靖康前夜的宏观背景推演茶铺学徒经验；茶铺人物、对话传闻和个人迁徙选择均为教育化虚构。',
+    missions: [
+      {
+        id: 'listen-for-crisis',
+        title: '筛选茶铺传闻',
+        instruction: '把客人闲谈分成物价、边境、朝廷三类信息，并判断哪类最影响你。',
+        evidenceUse: '用茶铺“信息节点”与时间线中的危机逼近建立证据链。',
+      },
+      {
+        id: 'budget-escape',
+        title: '计算南下成本',
+        instruction: '说明离开汴京会损失哪些资源，而不只是花掉路费。',
+        evidenceUse: '引用居所、工作、熟人网络和积蓄有限的情境。',
+      },
+      {
+        id: 'read-city-fragility',
+        title: '判断繁华的脆弱处',
+        instruction: '找出汴京日常中最容易被战争打断的三个系统。',
+        evidenceUse: '从汴河货运、粮价、店铺劳动和城市治安中选取证据。',
+      },
+      {
+        id: 'ordinary-choice',
+        title: '重写普通人的选择题',
+        instruction: '把“逃或留”改写成一个更真实的渐进式准备方案。',
+        evidenceUse: '用“可携带资产”和“增加选项”的反思说明普通人的策略。',
+      },
+    ],
+    keyTerms: [
+      { term: '东京汴梁', definition: '北宋都城，商业、交通和市民文化高度发达。' },
+      { term: '瓦舍', definition: '宋代城市中的娱乐消费空间，聚集表演、说唱和人群流动。' },
+      { term: '靖康之变', definition: '1127 年金军攻破东京、北宋灭亡的重大政治军事事件。' },
+      { term: '市民生活', definition: '由商业服务、娱乐、信息流通和雇佣劳动构成的城市日常经验。' },
+    ],
+    compareAngles: [
+      { title: '城市机会 vs. 迁徙成本', prompt: '为什么提前离开可能更安全，却不一定更“划算”？' },
+      { title: '宏大危机 vs. 日常惯性', prompt: '战争临近时，哪些日常牵引会让普通人继续留在城市？' },
+    ],
+    sourceEvidenceUse: '以《东京梦华录》校准城市生活细节，再把宋代社会史研究用于解释危机前夜的结构性限制。',
     sources: [
       {
         title: '《东京梦华录》',
@@ -396,6 +491,43 @@ export const scenarios: Scenario[] = [
       '明代中后期江南商业、出版和海外白银流动显著发展。读书人与商业社会并非完全隔绝，地方社会中存在大量复合身份。',
     interpretationNote:
       '本场景把江南商业化、科举压力与隆庆开关后的海贸变化合并呈现；读书人的具体职业组合是时代趋势下的合成人物。',
+    missions: [
+      {
+        id: 'trace-silver',
+        title: '追踪白银流入',
+        instruction: '说明海贸开放如何间接影响一个江南读书人的职业选择。',
+        evidenceUse: '连接隆庆开关、商号账务和地方市场扩张。',
+      },
+      {
+        id: 'weigh-exam',
+        title: '评估科举押注',
+        instruction: '列出继续备考的身份收益和家庭成本。',
+        evidenceUse: '用赴考路费、录取名额有限和社会评价体面作为证据。',
+      },
+      {
+        id: 'identify-hybrid-role',
+        title: '辨认复合身份',
+        instruction: '找出你同时像士人、雇员和商业技术人的证据。',
+        evidenceUse: '引用书房、账房、塾师、誊账和出版/契约线索。',
+      },
+      {
+        id: 'debate-reputation',
+        title: '讨论名声风险',
+        instruction: '解释为什么靠近商业不只是经济选择，也是名誉选择。',
+        evidenceUse: '对照“逐利”讥评与地方社会对识字者的实际需求。',
+      },
+    ],
+    keyTerms: [
+      { term: '科举', definition: '以经典考试选拔官员的制度，也是明代士人身份想象的核心通道。' },
+      { term: '隆庆开关', definition: '1567 年后明廷部分放开民间海外贸易，月港贸易活跃。' },
+      { term: '白银流入', definition: '全球贸易推动美洲和日本白银进入中国市场，影响税收与商业。' },
+      { term: '士商关系', definition: '读书人身份与商业活动之间既互斥又互需的社会关系。' },
+    ],
+    compareAngles: [
+      { title: '功名正途 vs. 市场生路', prompt: '为什么“不中举”不等于无路可走，却仍会造成身份焦虑？' },
+      { title: '地方社会 vs. 全球贸易', prompt: '远洋白银和海贸政策如何改变内陆书房里的选择？' },
+    ],
+    sourceEvidenceUse: '用实录把政策时间点钉牢，再用晚明商业文化研究解释士人与市场的重叠空间。',
     sources: [
       {
         title: '《明实录》隆庆朝相关记载',
@@ -515,6 +647,43 @@ export const scenarios: Scenario[] = [
       '广州十三行体系连接清朝制度与全球贸易。鸦片贸易和禁烟运动最终引发鸦片战争，深刻改变中国近代史进程。',
     interpretationNote:
       '本场景从买办助手视角呈现十三行制度与鸦片危机的夹缝经验；文书委托与个人抉择为虚构，用于展示制度风险而非具体案件复原。',
+    missions: [
+      {
+        id: 'follow-paper-trail',
+        title: '追一条文书链',
+        instruction: '把可疑货物从外商委托到官府追查的风险节点列出来。',
+        evidenceUse: '用翻译、记账、撮合交易和“文书成为证据”的结果说明。',
+      },
+      {
+        id: 'map-middleman',
+        title: '画出中介位置',
+        instruction: '说明买办助手夹在官府、行商、外商和走私网络之间的原因。',
+        evidenceUse: '引用日常风险与十三行制度的真实历史对照。',
+      },
+      {
+        id: 'price-opium-risk',
+        title: '给灰色收益定价',
+        instruction: '比较高报酬与政治危机带来的不对称代价。',
+        evidenceUse: '用禁烟风暴、客户网络和清查风险建立判断。',
+      },
+      {
+        id: 'translate-systems',
+        title: '翻译两个制度',
+        instruction: '指出至少两个“语言问题”背后的制度冲突。',
+        evidenceUse: '从礼节、法律、价格和贸易规则不可互译处举例。',
+      },
+    ],
+    keyTerms: [
+      { term: '十三行', definition: '清代广州对外贸易中承担中外贸易管理与中介职能的行商体系。' },
+      { term: '买办', definition: '在中外贸易中提供语言、账务、撮合和制度转换服务的中介角色。' },
+      { term: '鸦片贸易', definition: '以鸦片走私和白银外流为核心的贸易危机，最终引发战争。' },
+      { term: '一口通商', definition: '清廷限制西方商人在广州一地进行贸易的制度格局。' },
+    ],
+    compareAngles: [
+      { title: '全球机会 vs. 主权危机', prompt: '为什么口岸世界能同时带来新技能、新财富和国家层面的风险？' },
+      { title: '中介能力 vs. 中介责任', prompt: '当你只“翻译和记账”时，是否仍要承担交易后果？' },
+    ],
+    sourceEvidenceUse: '用口岸英文材料观察当时人的贸易视角，再用外交与鸦片战争研究界定制度冲突。',
     sources: [
       {
         title: 'The Chinese Repository',
@@ -634,6 +803,43 @@ export const scenarios: Scenario[] = [
       '伦敦大轰炸期间，平民防空、灯火管制、地铁避难和社区互助成为英国战时社会的重要经验，也影响战后公共政策想象。',
     interpretationNote:
       '本场景依据伦敦大轰炸中的平民防护、配给和互助经验塑造普通居民；邻居与轮班选择为合成情境，不代表单一档案个案。',
+    missions: [
+      {
+        id: 'inspect-blackout',
+        title: '检查灯火管制',
+        instruction: '说明一扇窗帘为什么会成为城市防御的一部分。',
+        evidenceUse: '引用遮光窗、玻璃胶带和空袭风险，连接私人空间与总体战。',
+      },
+      {
+        id: 'ration-table',
+        title: '重建配给餐桌',
+        instruction: '用配给限制解释家庭日常如何被战争制度重新组织。',
+        evidenceUse: '从糖、肉、黄油限制和排队生活中提取证据。',
+      },
+      {
+        id: 'shelter-decision',
+        title: '比较避难选择',
+        instruction: '评估地铁站、家附近防空处和社区轮班各自的风险。',
+        evidenceUse: '结合决策选项中的短期结果与长期影响。',
+      },
+      {
+        id: 'read-morale',
+        title: '辨认平民士气',
+        instruction: '找出恐惧、玩笑、排队沉默和互助如何共同构成韧性。',
+        evidenceUse: '用氛围、广播信息和 Mass Observation 类材料的平民视角。',
+      },
+    ],
+    keyTerms: [
+      { term: '伦敦大轰炸', definition: '1940-1941 年德国空军对伦敦等英国城市的持续轰炸。' },
+      { term: '灯火管制', definition: '通过遮蔽夜间光源降低敌机定位城市目标可能性的民防措施。' },
+      { term: '配给制度', definition: '战时政府限制和分配关键食品、燃料及物资的制度。' },
+      { term: '总体战', definition: '动员军事、工业、家庭和社会生活各层面的战争形态。' },
+    ],
+    compareAngles: [
+      { title: '自保 vs. 互助', prompt: '平民在长期空袭下如何平衡个人安全与社区责任？' },
+      { title: '私人日常 vs. 国家战争', prompt: '配给本、窗帘和地铁站如何把家庭生活接入国家战争机器？' },
+    ],
+    sourceEvidenceUse: '用博物馆资料确认民防制度与事件框架，用平民档案和社会史研究补足情绪与日常细节。',
     sources: [
       {
         title: 'Imperial War Museums: The Blitz collection and learning resources',
