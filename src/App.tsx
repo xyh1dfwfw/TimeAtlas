@@ -186,6 +186,7 @@ type WorkspaceEntry = {
 type WorkspaceState = {
   atlasMissions: Record<string, WorkspaceEntry>
   inquiryPaths: Record<string, WorkspaceEntry>
+  routeNotebooks: Record<string, WorkspaceEntry>
 }
 
 type WorkspaceStats = {
@@ -258,6 +259,7 @@ function getEmptyWorkspaceState(): WorkspaceState {
   return {
     atlasMissions: {},
     inquiryPaths: {},
+    routeNotebooks: {},
   }
 }
 
@@ -338,6 +340,7 @@ function parseWorkspaceState(rawState: string | null) {
     return {
       atlasMissions: normalizeWorkspaceEntryMap(state.atlasMissions),
       inquiryPaths: normalizeWorkspaceEntryMap(state.inquiryPaths),
+      routeNotebooks: normalizeWorkspaceEntryMap(state.routeNotebooks),
     } satisfies WorkspaceState
   } catch {
     return getEmptyWorkspaceState()
@@ -554,6 +557,13 @@ function getWorkspaceEntries(workspaceState: WorkspaceState) {
       category: '探究路径',
       entry,
     })),
+    ...Object.entries(workspaceState.routeNotebooks).map(([id, entry]) => ({
+      key: `route:${id}`,
+      id,
+      title: atlasMapRoutes.find((route) => route.id === id)?.title ?? '未知路线笔记',
+      category: '路线探究笔记',
+      entry,
+    })),
   ]
 }
 
@@ -591,6 +601,24 @@ function getTotalCompletedMissions(completedMissionIdsByScenario: Record<string,
 
     return count + completedMissionIds.filter((missionId) => validMissionIds.has(missionId)).length
   }, 0)
+}
+
+function getRouteNotebookStatus(route: AtlasMapRoute, entry: WorkspaceEntry) {
+  if (entry.completed) {
+    return 'completed' as const
+  }
+
+  if (entry.notes.trim() || entry.checkedEvidence.length) {
+    return 'draft' as const
+  }
+
+  const totalItems = route.scenarioIds.length + route.evidencePrompts.length
+
+  if (totalItems > 0 && entry.checkedEvidence.length >= totalItems) {
+    return 'draft' as const
+  }
+
+  return 'not-started' as const
 }
 
 function getMissionStatus(scenarioId: string, mission: Mission, completedMissionIds: string[], missionWorkState: MissionWorkState) {
@@ -1373,6 +1401,8 @@ function App() {
       />
       <TimeSpaceAtlasPanel
         selectedScenarioId={selectedScenarioId}
+        workspaceState={workspaceState}
+        onUpdateWorkspaceState={setWorkspaceState}
         onOpenScenario={selectScenario}
         onLoadCompare={loadCompareFromInquiryPath}
       />
@@ -1832,10 +1862,14 @@ function AtlasOverview({
 
 function TimeSpaceAtlasPanel({
   selectedScenarioId,
+  workspaceState,
+  onUpdateWorkspaceState,
   onOpenScenario,
   onLoadCompare,
 }: {
   selectedScenarioId: string
+  workspaceState: WorkspaceState
+  onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (route: AtlasMapRoute) => void
 }) {
@@ -1856,10 +1890,44 @@ function TimeSpaceAtlasPanel({
   })
   const routeScenarioIds = new Set(routeScenarios.map((scenario) => scenario.id))
   const lens = getCompareLensByKey(selectedRoute.lensKey)
+  const routeNotebookEntry = workspaceState.routeNotebooks[selectedRoute.id] ?? getEmptyWorkspaceEntry()
+  const routeNotebookStatus = getRouteNotebookStatus(selectedRoute, routeNotebookEntry)
+  const routeStopItems = routeScenarios.map((scenario) => `stop:${scenario.id}`)
+  const routeEvidenceItems = selectedRoute.evidencePrompts.map((prompt) => `evidence:${prompt}`)
+
+  function updateRouteNotebookEntry(routeId: string, nextEntry: WorkspaceEntry) {
+    onUpdateWorkspaceState((currentState) => ({
+      ...currentState,
+      routeNotebooks: {
+        ...currentState.routeNotebooks,
+        [routeId]: {
+          ...nextEntry,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }))
+  }
+
+  function toggleRouteNotebookItem(item: string) {
+    const checkedEvidence = routeNotebookEntry.checkedEvidence.includes(item)
+      ? routeNotebookEntry.checkedEvidence.filter((candidate) => candidate !== item)
+      : [...routeNotebookEntry.checkedEvidence, item]
+
+    updateRouteNotebookEntry(selectedRoute.id, { ...routeNotebookEntry, checkedEvidence })
+  }
+
+  async function copyRouteNotebook(route: AtlasMapRoute, entry: WorkspaceEntry) {
+    try {
+      await copyTextToClipboard(formatAtlasMapRouteAssignment(route, entry))
+      setCopyStatus(`${route.id}:notebook`)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
 
   async function copyRouteAssignment(route: AtlasMapRoute) {
     try {
-      await copyTextToClipboard(formatAtlasMapRouteAssignment(route))
+      await copyTextToClipboard(formatAtlasMapRouteAssignment(route, workspaceState.routeNotebooks[route.id] ?? getEmptyWorkspaceEntry()))
       setCopyStatus(route.id)
     } catch {
       setCopyStatus('failed')
@@ -2023,6 +2091,15 @@ function TimeSpaceAtlasPanel({
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
+                <span className={`rounded-full border px-3 py-1 text-xs ${
+                  routeNotebookStatus === 'completed'
+                    ? 'border-teal-200/20 bg-teal-100/[0.08] text-teal-100'
+                    : routeNotebookStatus === 'draft'
+                      ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100'
+                      : 'border-white/10 bg-white/[0.035] text-stone-400'
+                }`}>
+                  Route notebook · {getStatusLabel(routeNotebookStatus)}
+                </span>
                 {selectedRoute.tags.map((tag) => <Tag key={`${selectedRoute.id}-${tag}`}>{tag}</Tag>)}
               </div>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -2049,6 +2126,96 @@ function TimeSpaceAtlasPanel({
                 >
                   {copyStatus === selectedRoute.id ? <Check size={18} /> : <Copy size={18} />}
                   {copyStatus === selectedRoute.id ? '路线作业单已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出路线作业单'}
+                </button>
+              </div>
+            </article>
+
+            <article className="rounded-[1.5rem] border border-teal-200/15 bg-teal-100/[0.045] p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-teal-100">
+                    <BookOpen size={16} />
+                    route inquiry notebook
+                  </div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">路线探究笔记：{selectedRoute.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">勾选已访问站点与证据提示，写下路线判断，再把 notebook 一起复制到学习档案或课堂提交。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateRouteNotebookEntry(selectedRoute.id, { ...routeNotebookEntry, completed: !routeNotebookEntry.completed })}
+                  aria-pressed={routeNotebookEntry.completed}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                >
+                  {routeNotebookEntry.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                  {routeNotebookEntry.completed ? '已完成' : '标记完成'}
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                  <h4 className="font-semibold text-stone-50">Stop checklist</h4>
+                  <div className="mt-3 space-y-2">
+                    {routeScenarios.map((scenario, index) => {
+                      const item = routeStopItems[index]
+
+                      return (
+                        <label key={item} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400 transition hover:border-teal-100/25">
+                          <input
+                            type="checkbox"
+                            checked={routeNotebookEntry.checkedEvidence.includes(item)}
+                            onChange={() => toggleRouteNotebookItem(item)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-teal-300 focus:ring-teal-200"
+                          />
+                          <span>{index + 1}. {scenario.title} · {scenario.year}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                  <h4 className="font-semibold text-stone-50">Evidence prompt checklist</h4>
+                  <div className="mt-3 space-y-2">
+                    {selectedRoute.evidencePrompts.map((prompt, index) => {
+                      const item = routeEvidenceItems[index]
+
+                      return (
+                        <label key={item} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400 transition hover:border-amber-100/25">
+                          <input
+                            type="checkbox"
+                            checked={routeNotebookEntry.checkedEvidence.includes(item)}
+                            onChange={() => toggleRouteNotebookItem(item)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                          />
+                          <span>{prompt}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <label className="mt-4 block">
+                <span className="font-semibold text-stone-50">Route notes / 路线笔记</span>
+                <textarea
+                  value={routeNotebookEntry.notes}
+                  onChange={(event) => updateRouteNotebookEntry(selectedRoute.id, { ...routeNotebookEntry, notes: event.target.value })}
+                  rows={6}
+                  placeholder={`路线问题：${selectedRoute.routeQuestion}\n证据判断：\n仍不确定的问题：`}
+                  className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/60"
+                />
+              </label>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-stone-500" aria-live="polite">
+                  状态：{getStatusLabel(routeNotebookStatus)} · {routeNotebookEntry.updatedAt ? `已保存：${new Date(routeNotebookEntry.updatedAt).toLocaleString()}` : '尚未保存编辑。'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void copyRouteNotebook(selectedRoute, routeNotebookEntry)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                >
+                  {copyStatus === `${selectedRoute.id}:notebook` ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === `${selectedRoute.id}:notebook` ? 'Route notebook 已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出 route notebook'}
                 </button>
               </div>
             </article>
@@ -2109,7 +2276,25 @@ function TimeSpaceAtlasPanel({
                     : 'border-white/10 bg-black/20 hover:border-emerald-100/25 hover:bg-white/[0.04]'
                 }`}
               >
-                <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{getCompareLensByKey(route.lensKey).shortLabel} · {routeStops.length} stops</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  <span>{getCompareLensByKey(route.lensKey).shortLabel} · {routeStops.length} stops</span>
+                  {(() => {
+                    const entry = workspaceState.routeNotebooks[route.id] ?? getEmptyWorkspaceEntry()
+                    const status = getRouteNotebookStatus(route, entry)
+
+                    return (
+                      <span className={`rounded-full border px-2 py-0.5 ${
+                        status === 'completed'
+                          ? 'border-teal-200/20 bg-teal-100/[0.08] text-teal-100'
+                          : status === 'draft'
+                            ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100'
+                            : 'border-white/10 bg-white/[0.035] text-stone-500'
+                      }`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    )
+                  })()}
+                </div>
                 <h3 className="mt-2 font-semibold text-stone-50">{route.title}</h3>
                 <p className="mt-2 text-xs leading-5 text-stone-500">{route.subtitle}</p>
                 <div className="mt-3 flex -space-x-1">
@@ -2130,11 +2315,13 @@ function TimeSpaceAtlasPanel({
   )
 }
 
-function formatAtlasMapRouteAssignment(route: AtlasMapRoute) {
+function formatAtlasMapRouteAssignment(route: AtlasMapRoute, entry = getEmptyWorkspaceEntry()) {
   const lens = getCompareLensByKey(route.lensKey)
   const routeScenarios = route.scenarioIds
     .map((id) => getScenarioById(id))
     .filter((scenario): scenario is Scenario => Boolean(scenario))
+  const stopItems = routeScenarios.map((scenario) => `stop:${scenario.id}`)
+  const evidenceItems = route.evidencePrompts.map((prompt) => `evidence:${prompt}`)
 
   return [
     `TimeAtlas Route Explorer：${route.title}`,
@@ -2153,6 +2340,16 @@ function formatAtlasMapRouteAssignment(route: AtlasMapRoute) {
     '',
     '交付物：',
     ...route.deliverables.map((deliverable) => `- ${deliverable}`),
+    '',
+    'Route Inquiry Notebook：',
+    `- 状态：${getStatusLabel(getRouteNotebookStatus(route, entry))}`,
+    `- 更新时间：${entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未记录时间'}`,
+    '- Stop checklist：',
+    ...routeScenarios.map((scenario, index) => `  - [${entry.checkedEvidence.includes(stopItems[index]) ? 'x' : ' '}] ${index + 1}. ${scenario.title}（${scenario.year}，${scenario.location}）`),
+    '- Evidence prompt checklist：',
+    ...route.evidencePrompts.map((prompt, index) => `  - [${entry.checkedEvidence.includes(evidenceItems[index]) ? 'x' : ' '}] ${prompt}`),
+    '- Route notes：',
+    entry.notes.trim() || '  尚未填写',
     '',
     '建议证据起点：',
     ...routeScenarios.flatMap((scenario) => [

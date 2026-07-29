@@ -110,6 +110,7 @@ export type AtlasMapRoute = {
   mapFocus: string
   classroomUse: string
   assignmentPrompt: string
+  evidencePrompts: string[]
   deliverables: string[]
   tags: string[]
 }
@@ -555,6 +556,11 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     mapFocus: '地图上连接伊斯兰世界、撒哈拉贸易网络与江南出版/科举社会，时间线从 9 世纪延伸到 16 世纪。',
     classroomUse: '适合让学生先看空间距离，再比较纸张、手稿、师承、商业出版和考试制度。',
     assignmentPrompt: '制作一张三站知识流动图：每站标出媒介、进入门槛、权威来源和被排除的学习者。',
+    evidencePrompts: [
+      '每一站用一条 Scene Reader 证据说明知识如何被媒介或城市空间承载。',
+      '从 Source Reader 中选择一条能显示权威、师承或制度门槛的材料。',
+      '比较三站中谁最容易被排除在知识网络之外，并解释证据边界。',
+    ],
     deliverables: ['三站知识流动图', '两条来源证据', '一句关于“技术是否带来知识公平”的判断'],
     tags: ['知识城市', '纸张', '手稿', '考试', '教育门槛'],
   },
@@ -568,6 +574,11 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     mapFocus: '路线从唐宋城市服务与丝路商品，延伸到清末口岸和美洲湖城集市，强调交易网络的空间尺度差异。',
     classroomUse: '适合启动市场比较、商品链追踪或“谁能自由交易”讨论。',
     assignmentPrompt: '为每个市场场景写一条“商品/服务—规则—风险—普通人策略”的证据链。',
+    evidencePrompts: [
+      '每一站标出一种商品、服务或交易关系，并说明它依赖的空间网络。',
+      '用一条制度或来源证据解释市场自由被怎样限定。',
+      '找出至少一个普通人为应对税赋、信用或监管而采取的策略。',
+    ],
     deliverables: ['四格市场证据链', '机会/限制双列表', '一段市场自由度比较'],
     tags: ['市场', '贸易', '口岸', '信用', '监管'],
   },
@@ -581,6 +592,11 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     mapFocus: '路线跨越欧亚、美洲与战时欧洲，强调消息从远方事件转化为个人安全决策的过程。',
     classroomUse: '适合先遮住真实历史结局，让学生只凭场景证据判断风险，再回看时间线。',
     assignmentPrompt: '给每个场景写一条“消息—判断—行动—后果”的风险链，并标出仍不确定的信息。',
+    evidencePrompts: [
+      '每一站记录消息来自哪里，以及当事人为什么无法完全确认。',
+      '勾选能显示风险进入日常生活的 Scene Reader 或 Source Reader 证据。',
+      '区分当事人当时能知道的信息与我们事后才知道的结局。',
+    ],
     deliverables: ['四条风险传播链', '短期/长期风险区分', '不确定信息清单'],
     tags: ['危机新闻', '风险', '安全', '传闻', '警报'],
   },
@@ -594,6 +610,11 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     mapFocus: '路线把前工业城市服务、工业工厂制度和战时民防并置，突出时间、规章与身体风险。',
     classroomUse: '适合劳动史、安全史或制度约束单元，帮助学生避免只把辛苦写成个人品格问题。',
     assignmentPrompt: '比较三人的一天：谁控制时间，谁承担身体风险，谁拥有协商空间？',
+    evidencePrompts: [
+      '每一站找出时间表、规章或警报如何安排身体行动。',
+      '选择一条能体现“保护”和“控制”同时存在的证据。',
+      '说明普通人的协商空间在哪里，以及哪些制度边界无法越过。',
+    ],
     deliverables: ['时间控制图', '保护/控制判断表', '180 字安全边界论证'],
     tags: ['劳动纪律', '安全', '工厂', '学徒', '民防'],
   },
@@ -607,6 +628,11 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     mapFocus: '路线把古代贸易城市、殖民接触市场、清末口岸和工业化城市放在一张长时段交换图上。',
     classroomUse: '适合做长时段比较：不要只问“有没有贸易”，而要问交换网络如何重组劳动和风险。',
     assignmentPrompt: '选择两座城市，比较远方交换如何改变本地工作节奏、价格风险或制度压力。',
+    evidencePrompts: [
+      '为两座城市各记录一条远方商品、劳动力或帝国压力进入日常的证据。',
+      '比较交换网络改变了谁的工作节奏、收入风险或安全边界。',
+      '写出一条仍需更多来源验证的全球交换联系线。',
+    ],
     deliverables: ['两城比较卡', '一条商品/劳动联系线', '一个关于全球交换代价的判断'],
     tags: ['工业城市', '全球交换', '城市劳动', '商品链', '帝国压力'],
   },
