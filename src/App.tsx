@@ -43,6 +43,7 @@ const defaultCompareLensKey = compareLenses[0]?.key ?? 'daily-life'
 const missionProgressStorageKey = 'timeatlas:mission-progress'
 const missionWorkStorageKey = 'timeatlas:mission-work'
 const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
+const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
@@ -69,23 +70,31 @@ const missionTaskTypeOptions = [
 const sortedScenarios = [...scenarios].sort((first, second) => first.year - second.year)
 const atlasMissions = [
   {
+    id: 'cross-era-risk-chain',
     title: '跨时代风险链',
     prompt: '选两个身份，比较“远方消息”如何改变普通人的工作或安全感。',
+    checklist: ['选择两个不同时代身份', '各写出一条风险或消息证据', '比较消息抵达后的行动变化', '形成一句跨时代结论'],
     template: '身份 A：\n关键证据：\n身份 B：\n关键证据：\n共同点 / 差异：\n我的结论：',
   },
   {
+    id: 'institutions-and-markets',
     title: '制度与市场',
     prompt: '找出三个场景中市场被制度塑形的证据，说明自由与约束如何并存。',
+    checklist: ['选择三个市场相关场景', '为每个场景标出制度线索', '区分机会与限制', '写出综合判断'],
     template: '场景 1：证据 + 解释\n场景 2：证据 + 解释\n场景 3：证据 + 解释\n综合判断：',
   },
   {
+    id: 'how-knowledge-flows',
     title: '知识如何流动',
     prompt: '从书籍、文书、口耳传闻或档案中任选三条线索，解释知识传播的条件。',
+    checklist: ['选出三条知识传播线索', '说明媒介或场所', '标出进入门槛', '写出仍不确定的问题'],
     template: '线索一：\n线索二：\n线索三：\n传播需要的条件：\n仍不确定的问题：',
   },
   {
+    id: 'ordinary-choice-boundaries',
     title: '普通人的选择边界',
     prompt: '比较一个“冒险选择”和一个“保守选择”，判断它们各自依赖哪些历史条件。',
+    checklist: ['选择一个冒险选择', '选择一个保守选择', '列出各自依赖的历史条件', '推演条件变化后的选择变化'],
     template: '冒险选择：\n依赖条件：\n保守选择：\n依赖条件：\n如果条件变化，选择会怎样改变：',
   },
 ]
@@ -148,6 +157,47 @@ type ArgumentDraft = {
 
 type ArgumentDraftState = Record<string, ArgumentDraft>
 
+
+type WorkspaceEntry = {
+  notes: string
+  checkedEvidence: string[]
+  completed: boolean
+  updatedAt?: string
+}
+
+type WorkspaceState = {
+  atlasMissions: Record<string, WorkspaceEntry>
+  inquiryPaths: Record<string, WorkspaceEntry>
+}
+
+type WorkspaceStats = {
+  totalEntries: number
+  draftEntries: number
+  completedEntries: number
+  checkedEvidenceCount: number
+  recentEntries: {
+    key: string
+    title: string
+    category: string
+    entry: WorkspaceEntry
+  }[]
+}
+
+function getEmptyWorkspaceEntry(): WorkspaceEntry {
+  return {
+    notes: '',
+    checkedEvidence: [],
+    completed: false,
+  }
+}
+
+function getEmptyWorkspaceState(): WorkspaceState {
+  return {
+    atlasMissions: {},
+    inquiryPaths: {},
+  }
+}
+
 function getMissionWorkKey(scenarioId: string, missionId: string) {
   return `${scenarioId}:${missionId}`
 }
@@ -178,6 +228,56 @@ function parseMissionWorkState(rawState: string | null) {
     )
   } catch {
     return {} as MissionWorkState
+  }
+}
+
+
+function normalizeWorkspaceEntry(value: unknown): WorkspaceEntry | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+
+  const entry = value as Partial<WorkspaceEntry>
+  const notes = typeof entry.notes === 'string' ? entry.notes : ''
+  const checkedEvidence = Array.isArray(entry.checkedEvidence)
+    ? entry.checkedEvidence.filter((item): item is string => typeof item === 'string')
+    : []
+  const completed = typeof entry.completed === 'boolean' ? entry.completed : false
+  const updatedAt = typeof entry.updatedAt === 'string' ? entry.updatedAt : undefined
+
+  return { notes, checkedEvidence, completed, updatedAt }
+}
+
+function normalizeWorkspaceEntryMap(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {} as Record<string, WorkspaceEntry>
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) => {
+      const normalizedEntry = normalizeWorkspaceEntry(entry)
+
+      return normalizedEntry ? [[key, normalizedEntry]] : []
+    }),
+  )
+}
+
+function parseWorkspaceState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return getEmptyWorkspaceState()
+    }
+
+    const state = parsedState as Partial<WorkspaceState>
+
+    return {
+      atlasMissions: normalizeWorkspaceEntryMap(state.atlasMissions),
+      inquiryPaths: normalizeWorkspaceEntryMap(state.inquiryPaths),
+    } satisfies WorkspaceState
+  } catch {
+    return getEmptyWorkspaceState()
   }
 }
 
@@ -308,6 +408,69 @@ function persistArgumentDraftState(state: ArgumentDraftState) {
   getSafeStorage('sessionStorage')?.setItem(argumentStudioStorageKey, serializedState)
 }
 
+
+function loadWorkspaceState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseWorkspaceState(localStorage?.getItem(workspaceStorageKey) ?? null)
+
+  if (getWorkspaceEntries(localState).length > 0) {
+    return localState
+  }
+
+  return parseWorkspaceState(sessionStorage?.getItem(workspaceStorageKey) ?? null)
+}
+
+function persistWorkspaceState(state: WorkspaceState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(workspaceStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(workspaceStorageKey, serializedState)
+}
+
+function getWorkspaceEntries(workspaceState: WorkspaceState) {
+  return [
+    ...Object.entries(workspaceState.atlasMissions).map(([id, entry]) => ({
+      key: `atlas:${id}`,
+      id,
+      title: atlasMissions.find((mission) => mission.id === id)?.title ?? '未知跨场景挑战',
+      category: '跨场景挑战',
+      entry,
+    })),
+    ...Object.entries(workspaceState.inquiryPaths).map(([id, entry]) => ({
+      key: `inquiry:${id}`,
+      id,
+      title: atlasInquiryPaths.find((path) => path.id === id)?.title ?? '未知探究路径',
+      category: '探究路径',
+      entry,
+    })),
+  ]
+}
+
+function hasWorkspaceEntryActivity(entry: WorkspaceEntry) {
+  return Boolean(entry.completed || entry.notes.trim() || entry.checkedEvidence.length)
+}
+
+function getWorkspaceStats(workspaceState: WorkspaceState): WorkspaceStats {
+  const activeEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
+
+  return {
+    totalEntries: activeEntries.length,
+    draftEntries: activeEntries.filter(({ entry }) => !entry.completed && (entry.notes.trim() || entry.checkedEvidence.length)).length,
+    completedEntries: activeEntries.filter(({ entry }) => entry.completed).length,
+    checkedEvidenceCount: activeEntries.reduce((count, { entry }) => count + entry.checkedEvidence.length, 0),
+    recentEntries: [...activeEntries]
+      .sort((first, second) => (second.entry.updatedAt ?? '').localeCompare(first.entry.updatedAt ?? ''))
+      .slice(0, 4),
+  }
+}
+
+
 function countScenarioMissionWork(scenario: Scenario, missionWorkState: MissionWorkState) {
   return scenario.missions.filter((mission) => {
     const work = missionWorkState[getMissionWorkKey(scenario.id, mission.id)]
@@ -352,8 +515,21 @@ function getEmptyArgumentDraft(): ArgumentDraft {
 function formatLearningArchive(
   missionWorkState: MissionWorkState,
   completedMissionIdsByScenario: Record<string, string[]>,
+  workspaceState: WorkspaceState,
 ) {
-  const lines = ['TimeAtlas Learning Archive', `导出时间：${new Date().toLocaleString()}`, '']
+  const workspaceStats = getWorkspaceStats(workspaceState)
+  const lines = [
+    'TimeAtlas Learning Archive',
+    `导出时间：${new Date().toLocaleString()}`,
+    '',
+    '全站概览：',
+    `- 场景任务完成：${getTotalCompletedMissions(completedMissionIdsByScenario)}/${totalMissionCount}`,
+    `- 跨场景工作区条目：${workspaceStats.totalEntries}`,
+    `- 跨场景已完成：${workspaceStats.completedEntries}`,
+    `- 跨场景草稿：${workspaceStats.draftEntries}`,
+    `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
+    '',
+  ]
 
   scenarios.forEach((scenario) => {
     const completedMissionIds = completedMissionIdsByScenario[scenario.id] ?? []
@@ -384,8 +560,28 @@ function formatLearningArchive(
     }
   })
 
-  if (lines.length <= 3) {
-    lines.push('尚未保存任何任务草稿或完成记录。')
+  const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
+
+  if (workspaceEntries.length > 0) {
+    lines.push('跨场景工作区：')
+    workspaceEntries.forEach(({ title, category, entry }) => {
+      const checkedEvidence = entry.checkedEvidence.length
+        ? entry.checkedEvidence.map((item) => `    - ${item}`).join('\n')
+        : '    - 尚未勾选'
+
+      lines.push(
+        `  - ${title}（${category} / ${entry.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未记录时间'}`,
+        '    清单 / 证据：',
+        checkedEvidence,
+        `    草稿：${entry.notes.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (lines.length <= 12) {
+    lines.push('尚未保存任何任务草稿、跨场景草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -454,6 +650,7 @@ function App() {
   )
   const [missionWorkState, setMissionWorkState] = useState<MissionWorkState>(loadMissionWorkState)
   const [argumentDraftState, setArgumentDraftState] = useState<ArgumentDraftState>(loadArgumentDraftState)
+  const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -483,6 +680,7 @@ function App() {
     () => getTotalCompletedMissions(completedMissionIdsByScenario),
     [completedMissionIdsByScenario],
   )
+  const workspaceStats = useMemo(() => getWorkspaceStats(workspaceState), [workspaceState])
   const missionWorkCountByScenario = useMemo(
     () =>
       Object.fromEntries(
@@ -526,6 +724,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [argumentDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistWorkspaceState(workspaceState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [workspaceState])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -642,9 +852,16 @@ function App() {
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
+        workspaceState={workspaceState}
+        workspaceStats={workspaceStats}
       />
-      <AtlasMissionsPanel />
+      <AtlasMissionsPanel
+        workspaceState={workspaceState}
+        onUpdateWorkspaceState={setWorkspaceState}
+      />
       <AtlasInquiryPathsPanel
+        workspaceState={workspaceState}
+        onUpdateWorkspaceState={setWorkspaceState}
         onOpenScenario={selectScenario}
         onLoadCompare={loadCompareFromInquiryPath}
       />
@@ -792,12 +1009,24 @@ function ScenarioGallery({
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
     return scenarios.filter((scenario) => {
-      const matchesSearch = normalizedQuery
-        ? [scenario.title, scenario.era, scenario.location, scenario.identity, scenario.theme]
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedQuery)
-        : true
+      const searchableText = [
+        scenario.title,
+        scenario.era,
+        scenario.location,
+        scenario.identity,
+        scenario.theme,
+        ...scenario.keyTerms.flatMap((term) => [term.term, term.definition]),
+        ...scenario.sources.flatMap((source) => [
+          source.title,
+          source.creator,
+          source.relevance,
+          source.excerpt,
+          source.perspective,
+          ...source.evidenceTags,
+        ]),
+        ...scenario.missions.flatMap((mission) => [mission.title, mission.taskType, mission.instruction, mission.deliverable]),
+      ].join(' ').toLowerCase()
+      const matchesSearch = normalizedQuery ? searchableText.includes(normalizedQuery) : true
       const matchesRegion = regionFilter === 'all' || scenario.region === regionFilter
       const matchesTheme = themeFilter === 'all' || scenario.theme.includes(themeFilter)
 
@@ -1044,9 +1273,13 @@ function AtlasOverview({
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
+  workspaceState,
+  workspaceStats,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
+  workspaceState: WorkspaceState
+  workspaceStats: WorkspaceStats
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -1064,7 +1297,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -1083,7 +1316,7 @@ function PortfolioPanel({
             学习档案袋
           </h2>
           <p className="mt-3 leading-7 text-stone-400">
-            汇总所有身份中的草稿、证据勾选和完成记录，便于课堂提交或阶段复盘。
+            汇总所有身份与跨场景工作区中的草稿、证据勾选和完成记录，便于课堂提交或阶段复盘。
           </p>
           <button
             type="button"
@@ -1101,6 +1334,9 @@ function PortfolioPanel({
               { label: '已完成', value: completedCount },
               { label: '有草稿', value: draftCount },
               { label: '已触达身份', value: activeScenarioCount },
+              { label: '跨场景条目', value: workspaceStats.totalEntries },
+              { label: '跨场景完成', value: workspaceStats.completedEntries },
+              { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
                 <div className="text-3xl font-semibold text-teal-100">{item.value}</div>
@@ -1110,9 +1346,15 @@ function PortfolioPanel({
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-            <h3 className="font-semibold text-stone-50">最近草稿</h3>
-            {recentEntries.length > 0 ? (
+            <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 ? (
               <div className="mt-3 space-y-2">
+                {workspaceStats.recentEntries.map(({ key, title, category, entry }) => (
+                  <div key={key} className="rounded-2xl border border-orange-200/15 bg-orange-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                    <div className="font-medium text-stone-100">{title}</div>
+                    <div>{category} · {entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未记录时间'} · {entry.completed ? '已完成' : '草稿'}</div>
+                  </div>
+                ))}
                 {recentEntries.map(([key, work]) => {
                   const [scenarioId, missionId] = key.split(':')
                   const scenario = getScenarioById(scenarioId)
@@ -1127,7 +1369,7 @@ function PortfolioPanel({
                 })}
               </div>
             ) : (
-              <p className="mt-3 text-sm leading-6 text-stone-500">还没有草稿。进入任一历史任务后写下第一条证据即可生成档案。</p>
+              <p className="mt-3 text-sm leading-6 text-stone-500">还没有草稿。进入任一历史任务或跨场景工作区后写下第一条证据即可生成档案。</p>
             )}
           </div>
         </div>
@@ -1136,13 +1378,57 @@ function PortfolioPanel({
   )
 }
 
-function AtlasMissionsPanel() {
+function AtlasMissionsPanel({
+  workspaceState,
+  onUpdateWorkspaceState,
+}: {
+  workspaceState: WorkspaceState
+  onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
+}) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const completedCount = atlasMissions.filter((mission) => workspaceState.atlasMissions[mission.id]?.completed).length
 
-  async function copyTemplate(title: string, template: string) {
+  function updateMissionEntry(missionId: string, nextEntry: WorkspaceEntry) {
+    onUpdateWorkspaceState((currentState) => ({
+      ...currentState,
+      atlasMissions: {
+        ...currentState.atlasMissions,
+        [missionId]: {
+          ...nextEntry,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }))
+  }
+
+  function toggleMissionChecklist(missionId: string, item: string) {
+    const currentEntry = workspaceState.atlasMissions[missionId] ?? getEmptyWorkspaceEntry()
+    const checkedEvidence = currentEntry.checkedEvidence.includes(item)
+      ? currentEntry.checkedEvidence.filter((candidate) => candidate !== item)
+      : [...currentEntry.checkedEvidence, item]
+
+    updateMissionEntry(missionId, { ...currentEntry, checkedEvidence })
+  }
+
+  async function copyTemplate(mission: typeof atlasMissions[number], entry: WorkspaceEntry) {
+    const checklist = mission.checklist.map((item) => `- [${entry.checkedEvidence.includes(item) ? 'x' : ' '}] ${item}`).join('\n')
+    const text = [
+      `TimeAtlas 跨场景任务：${mission.title}`,
+      mission.prompt,
+      '',
+      '检查清单：',
+      checklist,
+      '',
+      '模板：',
+      mission.template,
+      '',
+      '我的草稿：',
+      entry.notes.trim() || '尚未填写',
+    ].join('\n')
+
     try {
-      await copyTextToClipboard(`TimeAtlas 跨场景任务：${title}\n\n${template}`)
-      setCopyStatus(title)
+      await copyTextToClipboard(text)
+      setCopyStatus(mission.id)
     } catch {
       setCopyStatus('failed')
     }
@@ -1155,27 +1441,79 @@ function AtlasMissionsPanel() {
           <Compass size={20} />
           <span className="text-sm uppercase tracking-[0.3em]">atlas missions</span>
         </div>
-        <h2 id="atlas-missions-title" className="text-3xl font-semibold tracking-tight text-stone-50">
-          跨场景挑战
-        </h2>
-        <p className="mt-3 max-w-3xl leading-7 text-stone-400">
-          这些任务不保存状态，只提供跨时代比较提示和可复制模板，适合小组讨论或单元总结。
-        </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="atlas-missions-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              跨场景挑战 · Atlas Workspace 8.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              跨时代比较任务现在可编辑、可勾选、可标记完成，并会优先保存在本机 localStorage；受限时回退 sessionStorage。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-amber-200/20 bg-amber-200/10 px-4 py-3 text-sm text-amber-100">
+            {completedCount}/{atlasMissions.length} 已完成
+          </div>
+        </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {atlasMissions.map((mission) => (
-            <article key={mission.title} className="rounded-3xl border border-white/10 bg-black/20 p-4">
-              <h3 className="font-semibold text-stone-50">{mission.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-stone-400">{mission.prompt}</p>
-              <button
-                type="button"
-                onClick={() => void copyTemplate(mission.title, mission.template)}
-                className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
-              >
-                {copyStatus === mission.title ? <Check size={16} /> : <Copy size={16} />}
-                {copyStatus === mission.title ? '模板已复制' : '复制模板'}
-              </button>
-            </article>
-          ))}
+          {atlasMissions.map((mission) => {
+            const entry = workspaceState.atlasMissions[mission.id] ?? getEmptyWorkspaceEntry()
+
+            return (
+              <article key={mission.id} className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-stone-50">{mission.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{mission.prompt}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateMissionEntry(mission.id, { ...entry, completed: !entry.completed })}
+                    aria-pressed={entry.completed}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-3 py-1.5 text-xs font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                  >
+                    {entry.completed ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                    {entry.completed ? '已完成' : '完成'}
+                  </button>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {mission.checklist.map((item) => (
+                    <label key={item} className="flex cursor-pointer gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2 text-sm leading-5 text-stone-400 transition hover:border-amber-100/25">
+                      <input
+                        type="checkbox"
+                        checked={entry.checkedEvidence.includes(item)}
+                        onChange={() => toggleMissionChecklist(mission.id, item)}
+                        className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                      />
+                      <span>{item}</span>
+                    </label>
+                  ))}
+                </div>
+                <label className="mt-4 block">
+                  <span className="text-sm font-semibold text-stone-100">草稿笔记</span>
+                  <textarea
+                    value={entry.notes}
+                    onChange={(event) => updateMissionEntry(mission.id, { ...entry, notes: event.target.value })}
+                    rows={5}
+                    placeholder={mission.template}
+                    className="mt-2 w-full rounded-3xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+                  />
+                </label>
+                <div className="mt-4 flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void copyTemplate(mission, entry)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+                  >
+                    {copyStatus === mission.id ? <Check size={16} /> : <Copy size={16} />}
+                    {copyStatus === mission.id ? '模板与草稿已复制' : '复制模板 + 草稿'}
+                  </button>
+                  <p className="text-xs text-stone-500" aria-live="polite">
+                    {entry.updatedAt ? `已保存：${new Date(entry.updatedAt).toLocaleString()}` : '尚未保存编辑。'}
+                  </p>
+                </div>
+              </article>
+            )
+          })}
         </div>
         {copyStatus === 'failed' ? <p className="mt-3 text-sm text-stone-500">复制失败，请手动复制模板内容。</p> : null}
       </div>
@@ -1184,19 +1522,46 @@ function AtlasMissionsPanel() {
 }
 
 function AtlasInquiryPathsPanel({
+  workspaceState,
+  onUpdateWorkspaceState,
   onOpenScenario,
   onLoadCompare,
 }: {
+  workspaceState: WorkspaceState
+  onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
   onOpenScenario: (id: string) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
 }) {
-  const [expandedPathTitle, setExpandedPathTitle] = useState(atlasInquiryPaths[0]?.title ?? '')
+  const [expandedPathId, setExpandedPathId] = useState(atlasInquiryPaths[0]?.id ?? '')
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const completedCount = atlasInquiryPaths.filter((path) => workspaceState.inquiryPaths[path.id]?.completed).length
 
-  async function copyInquiryPack(path: AtlasInquiryPath) {
+  function updatePathEntry(pathId: string, nextEntry: WorkspaceEntry) {
+    onUpdateWorkspaceState((currentState) => ({
+      ...currentState,
+      inquiryPaths: {
+        ...currentState.inquiryPaths,
+        [pathId]: {
+          ...nextEntry,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }))
+  }
+
+  function togglePathChecklist(pathId: string, item: string) {
+    const currentEntry = workspaceState.inquiryPaths[pathId] ?? getEmptyWorkspaceEntry()
+    const checkedEvidence = currentEntry.checkedEvidence.includes(item)
+      ? currentEntry.checkedEvidence.filter((candidate) => candidate !== item)
+      : [...currentEntry.checkedEvidence, item]
+
+    updatePathEntry(pathId, { ...currentEntry, checkedEvidence })
+  }
+
+  async function copyInquiryPack(path: AtlasInquiryPath, entry: WorkspaceEntry) {
     try {
-      await copyTextToClipboard(formatAtlasInquiryPack(path))
-      setCopyStatus(path.title)
+      await copyTextToClipboard(formatAtlasInquiryPack(path, entry))
+      setCopyStatus(path.id)
     } catch {
       setCopyStatus('failed')
     }
@@ -1212,14 +1577,14 @@ function AtlasInquiryPathsPanel({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 id="atlas-inquiry-paths-title" className="text-3xl font-semibold tracking-tight text-stone-50">
-              Atlas Connections / Inquiry Pathways 7.0
+              Atlas Connections / Inquiry Pathways 8.0
             </h2>
             <p className="mt-3 max-w-3xl leading-7 text-stone-400">
-              五条策展式跨场景探究路径，把多个身份、比较镜头、课堂任务和讨论推进整合成可复制的 inquiry pack。
+              五条策展式跨场景探究路径现在接入 Atlas Workspace：可勾选路径任务、保存探究草稿、标记完成，并复制 inquiry pack + user draft。
             </p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
-            {atlasInquiryPaths.length} 条路径 · 直接连接 Compare Lab
+            {atlasInquiryPaths.length} 条路径 · {completedCount} 条已完成 · 直接连接 Compare Lab
           </div>
         </div>
 
@@ -1229,29 +1594,43 @@ function AtlasInquiryPathsPanel({
             const pathScenarios = path.scenarioIds
               .map((id) => getScenarioById(id))
               .filter((scenario): scenario is Scenario => Boolean(scenario))
-            const isExpanded = expandedPathTitle === path.title
-            const detailsId = `inquiry-path-${path.title.replace(/\s+/g, '-').toLowerCase()}`
+            const isExpanded = expandedPathId === path.id
+            const detailsId = `inquiry-path-${path.id}`
+            const entry = workspaceState.inquiryPaths[path.id] ?? getEmptyWorkspaceEntry()
+            const checklist = [...path.tasks, ...path.rubric.map((item) => `评分：${item}`)]
 
             return (
-              <article key={path.title} className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4 xl:col-span-5">
+              <article key={path.id} className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4 xl:col-span-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
                       <span className="rounded-full border border-orange-200/20 bg-orange-100/[0.06] px-3 py-1 text-orange-100">{lens.title}</span>
                       <span>{pathScenarios.length} scenarios</span>
+                      {entry.completed ? <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-3 py-1 text-teal-100">已完成</span> : null}
                     </div>
                     <h3 className="text-2xl font-semibold tracking-tight text-stone-50">{path.title}</h3>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">{path.subtitle}</p>
                   </div>
-                  <button
-                    type="button"
-                    aria-expanded={isExpanded}
-                    aria-controls={detailsId}
-                    onClick={() => setExpandedPathTitle(isExpanded ? '' : path.title)}
-                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
-                  >
-                    {isExpanded ? '收起路径' : '展开路径'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updatePathEntry(path.id, { ...entry, completed: !entry.completed })}
+                      aria-pressed={entry.completed}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                    >
+                      {entry.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                      {entry.completed ? '已完成' : '标记完成'}
+                    </button>
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={detailsId}
+                      onClick={() => setExpandedPathId(isExpanded ? '' : path.id)}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                    >
+                      {isExpanded ? '收起路径' : '展开路径'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2" aria-label={`${path.title} 场景列表`}>
@@ -1276,6 +1655,35 @@ function AtlasInquiryPathsPanel({
                       </div>
                       <CompareAssignmentList title="探究任务" items={path.tasks} ordered />
                       <CompareAssignmentList title="评分标准" items={path.rubric} />
+                      <div className="rounded-3xl border border-orange-200/15 bg-orange-100/[0.045] p-4">
+                        <h4 className="font-semibold text-orange-100">路径工作清单</h4>
+                        <div className="mt-3 space-y-2">
+                          {checklist.map((item) => (
+                            <label key={item} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400 transition hover:border-orange-100/25">
+                              <input
+                                type="checkbox"
+                                checked={entry.checkedEvidence.includes(item)}
+                                onChange={() => togglePathChecklist(path.id, item)}
+                                className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                              />
+                              <span>{item}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <label className="block rounded-3xl border border-white/10 bg-black/20 p-4">
+                        <span className="font-semibold text-stone-50">User draft / 探究草稿</span>
+                        <textarea
+                          value={entry.notes}
+                          onChange={(event) => updatePathEntry(path.id, { ...entry, notes: event.target.value })}
+                          rows={6}
+                          placeholder="记录你的路径比较、证据判断、讨论结论或仍不确定的问题……"
+                          className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-orange-200/60"
+                        />
+                        <p className="mt-2 text-xs text-stone-500" aria-live="polite">
+                          {entry.updatedAt ? `已保存：${new Date(entry.updatedAt).toLocaleString()}` : '草稿会自动保存在本机。'}
+                        </p>
+                      </label>
                     </div>
 
                     <div className="space-y-4">
@@ -1284,7 +1692,7 @@ function AtlasInquiryPathsPanel({
                         <h4 className="font-semibold text-teal-100">Suggested evidence</h4>
                         <div className="mt-3 space-y-3">
                           {pathScenarios.map((scenario) => (
-                            <div key={`${path.title}-${scenario.id}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                            <div key={`${path.id}-${scenario.id}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
                               <div className="text-sm font-semibold text-stone-50">{scenario.title}</div>
                               <ul className="mt-2 space-y-2 text-sm leading-6 text-stone-400">
                                 {getLensEvidenceSections(scenario, lens).slice(0, 2).map((section) => (
@@ -1316,11 +1724,11 @@ function AtlasInquiryPathsPanel({
                         </button>
                         <button
                           type="button"
-                          onClick={() => void copyInquiryPack(path)}
+                          onClick={() => void copyInquiryPack(path, entry)}
                           className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
                         >
-                          {copyStatus === path.title ? <Check size={18} /> : <Copy size={18} />}
-                          {copyStatus === path.title ? 'Inquiry pack 已复制' : copyStatus === 'failed' ? '复制失败' : '复制 inquiry pack'}
+                          {copyStatus === path.id ? <Check size={18} /> : <Copy size={18} />}
+                          {copyStatus === path.id ? 'Inquiry pack + draft 已复制' : copyStatus === 'failed' ? '复制失败' : '复制 inquiry pack + draft'}
                         </button>
                       </div>
                     </div>
@@ -1335,11 +1743,14 @@ function AtlasInquiryPathsPanel({
   )
 }
 
-function formatAtlasInquiryPack(path: AtlasInquiryPath) {
+function formatAtlasInquiryPack(path: AtlasInquiryPath, entry = getEmptyWorkspaceEntry()) {
   const lens = getCompareLensByKey(path.lensKey)
   const pathScenarios = path.scenarioIds
     .map((id) => getScenarioById(id))
     .filter((scenario): scenario is Scenario => Boolean(scenario))
+  const checkedItems = entry.checkedEvidence.length
+    ? entry.checkedEvidence.map((item) => `- [x] ${item}`)
+    : ['- 尚未勾选路径任务或评分标准']
 
   return [
     `TimeAtlas Inquiry Pack：${path.title}`,
@@ -1367,6 +1778,14 @@ function formatAtlasInquiryPack(path: AtlasInquiryPath) {
       `- ${scenario.title}：`,
       ...getLensEvidenceSections(scenario, lens).map((section) => `  - ${section.label}｜${section.text}`),
     ]),
+    '',
+    'Atlas Workspace 8.0 用户进度：',
+    `- 状态：${entry.completed ? '已完成' : '草稿 / 未完成'}`,
+    `- 更新时间：${entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未记录时间'}`,
+    ...checkedItems,
+    '',
+    'User draft：',
+    entry.notes.trim() || '尚未填写',
     '',
     'Compare Lab 快速设置：',
     `- compareA：${pathScenarios[0]?.title ?? '请选择第一个场景'}`,

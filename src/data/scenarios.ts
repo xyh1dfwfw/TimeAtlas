@@ -77,6 +77,7 @@ export type CompareLens = {
 }
 
 export type AtlasInquiryPath = {
+  id: string
   title: string
   subtitle: string
   lensKey: CompareLensKey
@@ -342,6 +343,7 @@ export const compareLenses: CompareLens[] = [
 
 export const atlasInquiryPaths: AtlasInquiryPath[] = [
   {
+    id: 'order-costs-of-prosperity',
     title: '繁荣背后的秩序成本',
     subtitle: '从帝国都城、海关口岸到战时城市，追问“开放”需要谁来承担风险。',
     lensKey: 'institutional-constraints',
@@ -367,6 +369,7 @@ export const atlasInquiryPaths: AtlasInquiryPath[] = [
     ],
   },
   {
+    id: 'knowledge-through-paper-mentorship-market',
     title: '知识如何穿过纸张、师承与市场',
     subtitle: '把抄写员、手稿学生和江南读书人放进同一条知识传播链。',
     lensKey: 'knowledge-transmission',
@@ -392,6 +395,7 @@ export const atlasInquiryPaths: AtlasInquiryPath[] = [
     ],
   },
   {
+    id: 'markets-not-free-vacuum',
     title: '市场不是自由的真空',
     subtitle: '从长安西市、汴京茶铺、特诺奇蒂特兰集市看交易规则如何塑造日常。',
     lensKey: 'market-exchange',
@@ -417,6 +421,7 @@ export const atlasInquiryPaths: AtlasInquiryPath[] = [
     ],
   },
   {
+    id: 'crisis-news-reaches-ordinary-people',
     title: '危机消息抵达普通人的那一刻',
     subtitle: '把边境传闻、口岸文书、空袭警报和征服流言连成风险传播路径。',
     lensKey: 'risk-safety',
@@ -442,6 +447,7 @@ export const atlasInquiryPaths: AtlasInquiryPath[] = [
     ],
   },
   {
+    id: 'who-speaks-for-history',
     title: '谁在替历史发声',
     subtitle: '用来源可信度镜头检查场景叙事的证据边界和缺席声音。',
     lensKey: 'source-credibility',
