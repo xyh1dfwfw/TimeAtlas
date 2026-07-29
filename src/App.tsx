@@ -1209,6 +1209,15 @@ function MissionBoard({
     }
   }
 
+  function appendEvidenceCard(source: Scenario['sources'][number]) {
+    const evidenceCard = formatEvidenceCard(source, scenario.title)
+    const nextNotes = selectedMissionWork.notes.trim()
+      ? `${selectedMissionWork.notes}\n\n${evidenceCard}`
+      : evidenceCard
+
+    updateSelectedMissionWork({ ...selectedMissionWork, notes: nextNotes })
+  }
+
   async function copyLearningOutput() {
     if (!selectedMission) {
       setCopyStatus('failed')
@@ -1220,9 +1229,10 @@ function MissionBoard({
       : '- 尚未勾选证据'
     const outputTemplate = selectedMission.outputTemplate.map((item) => `- ${item}`).join('\n')
     const linkedSourceText = linkedSources.length
-      ? linkedSources.map((source) => `- ${source.title}（${source.creator}）：${source.relevance}`).join('\n')
+      ? linkedSources.map((source) => formatEvidenceCard(source, scenario.title)).join('\n\n')
       : '- 使用当前场景来源层'
-    const learningOutput = `TimeAtlas 学习输出\n场景：${scenario.title}\n任务：${selectedMission.title}\n任务类型：${selectedMission.taskType}\n交付物：${selectedMission.deliverable}\n输出结构：\n${outputTemplate}\n关联来源：\n${linkedSourceText}\n证据清单：\n${checkedEvidence}\n草稿笔记：\n${selectedMissionWork.notes || '尚未填写'}\n反思：${selectedMission.reflectionPrompt}`
+    const selfCheckText = sourceReaderSelfCheck.map((item) => `- ${item}`).join('\n')
+    const learningOutput = `TimeAtlas 学习输出\n场景：${scenario.title}\n任务：${selectedMission.title}\n任务类型：${selectedMission.taskType}\n交付物：${selectedMission.deliverable}\n输出结构：\n${outputTemplate}\n关联来源：\n${linkedSourceText}\n证据清单：\n${checkedEvidence}\n草稿笔记：\n${selectedMissionWork.notes || '尚未填写'}\n史料自检：\n${selfCheckText}\n反思：${selectedMission.reflectionPrompt}`
 
     try {
       await copyTextToClipboard(learningOutput)
@@ -1402,6 +1412,17 @@ function MissionBoard({
                     </li>
                   ))}
                 </ul>
+                <div className="mt-4 rounded-2xl border border-teal-100/15 bg-black/20 p-3">
+                  <h5 className="text-sm font-semibold text-teal-100">史料自检</h5>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-stone-400">
+                    {sourceReaderSelfCheck.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <Check size={14} className="mt-0.5 shrink-0 text-teal-100/80" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
 
@@ -1481,7 +1502,30 @@ function MissionBoard({
                       <span>{source.creator}</span>
                     </div>
                     <h5 className="font-medium text-stone-100">{source.title}</h5>
-                    <p className="mt-1 text-sm leading-6 text-stone-400">{source.relevance}</p>
+                    <p className="mt-1 text-sm leading-6 text-stone-400">{source.excerpt}</p>
+                    <dl className="mt-3 grid gap-2 text-xs leading-5 text-stone-500 sm:grid-cols-2">
+                      <div>
+                        <dt className="font-medium text-stone-300">视角</dt>
+                        <dd>{source.perspective}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-stone-300">边界</dt>
+                        <dd>{source.reliabilityNote}</dd>
+                      </div>
+                    </dl>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {source.evidenceTags.map((tag) => (
+                        <Tag key={tag}>{tag}</Tag>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => appendEvidenceCard(source)}
+                      className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+                    >
+                      <ScrollText size={14} />
+                      加入草稿证据
+                    </button>
                   </article>
                 ))}
               </div>
@@ -1661,20 +1705,69 @@ const sourceTypeLabels: Record<Scenario['sources'][number]['sourceType'], string
   scholarship: '研究著作',
 }
 
+const sourceReaderSelfCheck = ['已点名引用来源', '已区分事实与推论', '已说明来源限制或缺席声音']
+
+function formatEvidenceCard(source: Scenario['sources'][number], scenarioTitle: string) {
+  return [
+    `【证据卡】${scenarioTitle} · ${source.title}`,
+    `类型：${sourceTypeLabels[source.sourceType]} / ${source.creator}`,
+    `可用线索：${source.excerpt}`,
+    `视角：${source.perspective}`,
+    `可靠边界：${source.reliabilityNote}`,
+    `追问：${source.sourceQuestion}`,
+    `标签：${source.evidenceTags.join('、')}`,
+  ].join('\n')
+}
+
 function SourcesPanel({ scenario }: { scenario: Scenario }) {
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | Scenario['sources'][number]['sourceType']>('all')
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const visibleSources = scenario.sources.filter(
+    (source) => sourceTypeFilter === 'all' || source.sourceType === sourceTypeFilter,
+  )
+
+  async function copyEvidenceCard(source: Scenario['sources'][number]) {
+    try {
+      await copyTextToClipboard(formatEvidenceCard(source, scenario.title))
+      setCopyStatus(source.title)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
   return (
-    <section className="mt-6 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6">
+    <section className="mt-6 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6" aria-labelledby="source-lab-title">
       <div className="mb-5 flex items-center gap-3 text-teal-100">
         <ScrollText size={20} />
-        <span className="text-sm uppercase tracking-[0.3em]">sources & boundaries</span>
+        <span className="text-sm uppercase tracking-[0.3em]">source lab 4.0</span>
       </div>
       <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
         <div>
-          <h3 className="text-2xl font-semibold tracking-tight text-stone-50">可信来源层</h3>
+          <h3 id="source-lab-title" className="text-2xl font-semibold tracking-tight text-stone-50">Evidence Lab / Source Reader</h3>
           <p className="mt-3 leading-7 text-stone-400">{scenario.interpretationNote}</p>
+          <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+            先问“这条来源能证明什么”，再问“它看不见谁”。下方摘记均为教学化转述，避免长篇原文引用。
+          </p>
+          <label className="mt-4 block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">来源类型筛选</span>
+            <select
+              value={sourceTypeFilter}
+              onChange={(event) => setSourceTypeFilter(event.target.value as 'all' | Scenario['sources'][number]['sourceType'])}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+            >
+              <option value="all">全部来源</option>
+              <option value="primary">原始材料</option>
+              <option value="institution">机构档案</option>
+              <option value="scholarship">研究著作</option>
+            </select>
+          </label>
+          <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+            当前显示 {visibleSources.length}/{scenario.sources.length} 条来源。
+            {copyStatus === 'failed' ? ' 复制失败，请手动选择证据卡内容。' : copyStatus ? ` 已复制：${copyStatus}` : ''}
+          </p>
         </div>
         <div className="grid gap-3">
-          {scenario.sources.map((source) => {
+          {visibleSources.map((source) => {
             const content = (
               <article className="rounded-3xl border border-white/10 bg-black/25 p-5 transition hover:border-teal-100/25 hover:bg-black/35">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -1685,16 +1778,48 @@ function SourcesPanel({ scenario }: { scenario: Scenario }) {
                 </div>
                 <h4 className="font-semibold leading-6 text-stone-50">{source.title}</h4>
                 <p className="mt-2 text-sm leading-6 text-stone-400">{source.relevance}</p>
+                <div className="mt-4 rounded-2xl border border-amber-200/15 bg-amber-100/[0.055] p-4">
+                  <div className="text-xs uppercase tracking-[0.22em] text-amber-100/70">转述摘记</div>
+                  <p className="mt-2 text-sm leading-6 text-stone-300">{source.excerpt}</p>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm leading-6 text-stone-400">
+                  <div>
+                    <dt className="font-semibold text-teal-100">视角</dt>
+                    <dd>{source.perspective}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-teal-100">可靠边界</dt>
+                    <dd>{source.reliabilityNote}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-teal-100">史料追问</dt>
+                    <dd>{source.sourceQuestion}</dd>
+                  </div>
+                </dl>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {source.evidenceTags.map((tag) => (
+                    <Tag key={tag}>{tag}</Tag>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyEvidenceCard(source)}
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+                  >
+                    {copyStatus === source.title ? <Check size={16} /> : <Copy size={16} />}
+                    {copyStatus === source.title ? '证据卡已复制' : '复制证据卡'}
+                  </button>
+                  {source.url ? (
+                    <a href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-sm font-semibold text-stone-300 transition hover:border-teal-100/25 hover:bg-white/[0.07]">
+                      打开资料入口
+                    </a>
+                  ) : null}
+                </div>
               </article>
             )
 
-            return source.url ? (
-              <a key={source.title} href={source.url} target="_blank" rel="noreferrer" className="block">
-                {content}
-              </a>
-            ) : (
-              <div key={source.title}>{content}</div>
-            )
+            return <div key={source.title}>{content}</div>
           })}
         </div>
       </div>
