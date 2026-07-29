@@ -23,13 +23,14 @@ const defaultScenarioId = scenarios[1]?.id ?? scenarios[0].id
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
 const maxOptionCount = Math.max(...optionCounts)
+const totalSourceCount = scenarios.reduce((count, scenario) => count + scenario.sources.length, 0)
 const statItems = [
   { value: String(scenarios.length), label: '历史身份' },
   {
     value: minOptionCount === maxOptionCount ? String(minOptionCount) : `${minOptionCount}-${maxOptionCount}`,
     label: '选择分支 / 身份',
   },
-  { value: String(new Set(scenarios.map((scenario) => scenario.region)).size), label: '地理区域' },
+  { value: String(totalSourceCount), label: '来源参考' },
 ]
 
 function getScenarioById(id: string | null) {
@@ -481,7 +482,55 @@ function DecisionPanel({
       <div className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-5">
         <h3 className="font-semibold text-stone-50">真实历史对照</h3>
         <p className="mt-2 leading-7 text-stone-400">{scenario.realHistory}</p>
-        <p className="mt-3 text-sm leading-6 text-stone-500">{scenario.sourceNote}</p>
+      </div>
+
+      <SourcesPanel scenario={scenario} />
+    </section>
+  )
+}
+
+const sourceTypeLabels: Record<Scenario['sources'][number]['sourceType'], string> = {
+  primary: '原始材料',
+  institution: '机构档案',
+  scholarship: '研究著作',
+}
+
+function SourcesPanel({ scenario }: { scenario: Scenario }) {
+  return (
+    <section className="mt-6 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6">
+      <div className="mb-5 flex items-center gap-3 text-teal-100">
+        <ScrollText size={20} />
+        <span className="text-sm uppercase tracking-[0.3em]">sources & boundaries</span>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
+        <div>
+          <h3 className="text-2xl font-semibold tracking-tight text-stone-50">可信来源层</h3>
+          <p className="mt-3 leading-7 text-stone-400">{scenario.interpretationNote}</p>
+        </div>
+        <div className="grid gap-3">
+          {scenario.sources.map((source) => {
+            const content = (
+              <article className="rounded-3xl border border-white/10 bg-black/25 p-5 transition hover:border-teal-100/25 hover:bg-black/35">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-teal-100/20 bg-teal-100/10 px-3 py-1 text-xs font-medium text-teal-100">
+                    {sourceTypeLabels[source.sourceType]}
+                  </span>
+                  <span className="text-xs text-stone-500">{source.creator}</span>
+                </div>
+                <h4 className="font-semibold leading-6 text-stone-50">{source.title}</h4>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{source.relevance}</p>
+              </article>
+            )
+
+            return source.url ? (
+              <a key={source.title} href={source.url} target="_blank" rel="noreferrer" className="block">
+                {content}
+              </a>
+            ) : (
+              <div key={source.title}>{content}</div>
+            )
+          })}
+        </div>
       </div>
     </section>
   )
@@ -586,7 +635,7 @@ function About() {
             TimeAtlas 的第一版先故意不做“大而全”的百科或地图，而是把焦点放在具体的人：他在哪里醒来，能吃什么，怕什么，有什么选择，又被什么制度限制。
           </p>
           <p>
-            所有情节都是教育化简化，不声称替代严肃史学。后续版本会为每个场景补充引用来源、地图图层、多语言和更多历史身份。
+            所有情节都是教育化简化，不声称替代严肃史学。每个场景现在附有来源参考与解释边界，帮助区分史料依据、研究视角和叙事化合成。
           </p>
         </div>
       </div>

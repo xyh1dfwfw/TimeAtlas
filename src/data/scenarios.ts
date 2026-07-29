@@ -13,6 +13,14 @@ export type TimelineEvent = {
   text: string
 }
 
+export type HistoricalSource = {
+  title: string
+  creator: string
+  sourceType: 'primary' | 'institution' | 'scholarship'
+  relevance: string
+  url?: string
+}
+
 export type DecisionOption = {
   id: string
   label: string
@@ -46,7 +54,8 @@ export type Scenario = {
     options: DecisionOption[]
   }
   realHistory: string
-  sourceNote: string
+  interpretationNote: string
+  sources: HistoricalSource[]
 }
 
 export const scenarios: Scenario[] = [
@@ -147,7 +156,28 @@ export const scenarios: Scenario[] = [
     },
     realHistory:
       '唐代长安确是高度国际化的帝国都城。安史之乱后，唐朝政治、财政与交通格局深刻改变，长安的世界城市地位也逐渐转向另一种形态。',
-    sourceNote: '建议后续补充《唐六典》、唐代城市考古资料、丝绸之路贸易研究等来源。',
+    interpretationNote:
+      '本场景把长安西市的制度、商旅与异域商品压缩进一个虚构小商人的一天；具体人物与选择为叙事化合成，不对应单一史料个案。',
+    sources: [
+      {
+        title: '《唐六典》',
+        creator: '唐代官修政书',
+        sourceType: 'primary',
+        relevance: '提供唐代官制、市署与城市管理制度背景，可辅助理解坊市秩序和商业监管。',
+      },
+      {
+        title: "The Golden Peaches of Samarkand: A Study of T'ang Exotics",
+        creator: 'Edward H. Schafer',
+        sourceType: 'scholarship',
+        relevance: '梳理唐代外来物品、香料和异域风尚，支撑长安国际化日常氛围。',
+      },
+      {
+        title: 'The Silk Road: A New History',
+        creator: 'Valerie Hansen',
+        sourceType: 'scholarship',
+        relevance: '以出土文书和路线节点讨论丝路贸易网络，帮助界定商队与道路风险的历史边界。',
+      },
+    ],
   },
   {
     id: 'song-bianjing-apprentice',
@@ -245,7 +275,28 @@ export const scenarios: Scenario[] = [
     },
     realHistory:
       '《东京梦华录》等材料呈现了北宋东京繁盛的市民生活。1127 年靖康之变使这座城市和大量普通人的命运发生剧烈转折。',
-    sourceNote: '建议后续补充《东京梦华录》、宋代城市史、靖康之变研究。',
+    interpretationNote:
+      '本场景主要依据城市生活与靖康前夜的宏观背景推演茶铺学徒经验；茶铺人物、对话传闻和个人迁徙选择均为教育化虚构。',
+    sources: [
+      {
+        title: '《东京梦华录》',
+        creator: '孟元老',
+        sourceType: 'primary',
+        relevance: '记录北宋东京街市、饮食、瓦舍、节令和市民生活，是场景日常细节的核心参照。',
+      },
+      {
+        title: 'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors',
+        creator: 'Denis Twitchett 与 Paul Jakov Smith 编',
+        sourceType: 'scholarship',
+        relevance: '提供宋代政治、经济和社会结构综述，帮助把城市繁荣放入北宋末局势中。',
+      },
+      {
+        title: 'Daily Life in China on the Eve of the Mongol Invasion, 1250-1276',
+        creator: 'Jacques Gernet',
+        sourceType: 'scholarship',
+        relevance: '虽聚焦南宋杭州，但对宋代城市商业、茶酒铺与市民生活有可比参考价值。',
+      },
+    ],
   },
   {
     id: 'ming-jiangnan-scholar',
@@ -343,7 +394,28 @@ export const scenarios: Scenario[] = [
     },
     realHistory:
       '明代中后期江南商业、出版和海外白银流动显著发展。读书人与商业社会并非完全隔绝，地方社会中存在大量复合身份。',
-    sourceNote: '建议后续补充明代江南社会经济史、科举史、隆庆开关与白银贸易研究。',
+    interpretationNote:
+      '本场景把江南商业化、科举压力与隆庆开关后的海贸变化合并呈现；读书人的具体职业组合是时代趋势下的合成人物。',
+    sources: [
+      {
+        title: '《明实录》隆庆朝相关记载',
+        creator: '明代官修实录',
+        sourceType: 'primary',
+        relevance: '可追溯隆庆年间海禁调整与月港开放等政策背景。',
+      },
+      {
+        title: 'The Confusions of Pleasure: Commerce and Culture in Ming China',
+        creator: 'Timothy Brook',
+        sourceType: 'scholarship',
+        relevance: '讨论明代商业化、消费文化和士商关系，是江南社会氛围的重要依据。',
+      },
+      {
+        title: '1587, A Year of No Significance: The Ming Dynasty in Decline',
+        creator: 'Ray Huang',
+        sourceType: 'scholarship',
+        relevance: '帮助理解晚明制度、财政与士人处境，作为科举和地方社会压力的背景读物。',
+      },
+    ],
   },
   {
     id: 'qing-guangzhou-comprador',
@@ -441,7 +513,28 @@ export const scenarios: Scenario[] = [
     },
     realHistory:
       '广州十三行体系连接清朝制度与全球贸易。鸦片贸易和禁烟运动最终引发鸦片战争，深刻改变中国近代史进程。',
-    sourceNote: '建议后续补充十三行研究、鸦片战争史、全球贸易史材料。',
+    interpretationNote:
+      '本场景从买办助手视角呈现十三行制度与鸦片危机的夹缝经验；文书委托与个人抉择为虚构，用于展示制度风险而非具体案件复原。',
+    sources: [
+      {
+        title: 'The Chinese Repository',
+        creator: '19世纪广州英文期刊',
+        sourceType: 'primary',
+        relevance: '保留口岸外侨、贸易和中外关系观察，可作为十三行时代英文材料参照。',
+      },
+      {
+        title: 'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854',
+        creator: 'John King Fairbank',
+        sourceType: 'scholarship',
+        relevance: '分析广州贸易制度向条约口岸体系转变的外交与商业背景。',
+      },
+      {
+        title: 'The Opium War: Drugs, Dreams and the Making of China',
+        creator: 'Julia Lovell',
+        sourceType: 'scholarship',
+        relevance: '以近现代视角综述鸦片贸易、禁烟运动与战争影响，帮助界定叙事的危机边界。',
+      },
+    ],
   },
   {
     id: 'wwii-london-civilian',
@@ -539,6 +632,29 @@ export const scenarios: Scenario[] = [
     },
     realHistory:
       '伦敦大轰炸期间，平民防空、灯火管制、地铁避难和社区互助成为英国战时社会的重要经验，也影响战后公共政策想象。',
-    sourceNote: '建议后续补充 Imperial War Museums、Mass Observation 档案和二战英国社会史研究。',
+    interpretationNote:
+      '本场景依据伦敦大轰炸中的平民防护、配给和互助经验塑造普通居民；邻居与轮班选择为合成情境，不代表单一档案个案。',
+    sources: [
+      {
+        title: 'Imperial War Museums: The Blitz collection and learning resources',
+        creator: 'Imperial War Museums',
+        sourceType: 'institution',
+        relevance: '提供伦敦大轰炸、防空、灯火管制和民防体系的博物馆级资料入口。',
+        url: 'https://www.iwm.org.uk/history/the-blitz-around-britain',
+      },
+      {
+        title: 'Mass Observation Archive',
+        creator: 'University of Sussex Special Collections',
+        sourceType: 'institution',
+        relevance: '保存英国平民战时日记、问卷和观察材料，支撑普通人情绪与日常经验维度。',
+        url: 'https://massobs.org.uk/',
+      },
+      {
+        title: 'Wartime: Britain 1939-1945',
+        creator: 'Juliet Gardiner',
+        sourceType: 'scholarship',
+        relevance: '综合战时英国社会史，覆盖配给、避难、家庭与社区生活。',
+      },
+    ],
   },
 ]
