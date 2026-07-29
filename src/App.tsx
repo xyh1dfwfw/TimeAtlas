@@ -8,6 +8,7 @@ import {
   Circle,
   ClipboardList,
   Clock3,
+  Copy,
   Compass,
   Landmark,
   LibraryBig,
@@ -26,6 +27,7 @@ import './App.css'
 
 const defaultScenarioId = scenarios[1]?.id ?? scenarios[0].id
 const missionProgressStorageKey = 'timeatlas:mission-progress'
+const missionWorkStorageKey = 'timeatlas:mission-work'
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
@@ -79,6 +81,47 @@ function parseMissionState(rawState: string | null) {
   }
 }
 
+type MissionWorkEntry = {
+  notes: string
+  checkedEvidence: string[]
+  updatedAt?: string
+}
+
+type MissionWorkState = Record<string, MissionWorkEntry>
+
+function getMissionWorkKey(scenarioId: string, missionId: string) {
+  return `${scenarioId}:${missionId}`
+}
+
+function parseMissionWorkState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as MissionWorkState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const entry = value as Partial<MissionWorkEntry>
+        const notes = typeof entry.notes === 'string' ? entry.notes : ''
+        const checkedEvidence = Array.isArray(entry.checkedEvidence)
+          ? entry.checkedEvidence.filter((item): item is string => typeof item === 'string')
+          : []
+        const updatedAt = typeof entry.updatedAt === 'string' ? entry.updatedAt : undefined
+
+        return [[key, { notes, checkedEvidence, updatedAt } satisfies MissionWorkEntry]]
+      }),
+    )
+  } catch {
+    return {} as MissionWorkState
+  }
+}
+
 function getSafeStorage(kind: 'localStorage' | 'sessionStorage') {
   if (typeof window === 'undefined') {
     return null
@@ -86,7 +129,7 @@ function getSafeStorage(kind: 'localStorage' | 'sessionStorage') {
 
   try {
     const storage = window[kind]
-    const probeKey = `${missionProgressStorageKey}:probe`
+    const probeKey = `timeatlas:${kind}:probe`
 
     storage.setItem(probeKey, '1')
     storage.removeItem(probeKey)
@@ -121,6 +164,38 @@ function persistMissionState(state: Record<string, string[]>) {
   getSafeStorage('sessionStorage')?.setItem(missionProgressStorageKey, serializedState)
 }
 
+function loadMissionWorkState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseMissionWorkState(localStorage?.getItem(missionWorkStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseMissionWorkState(sessionStorage?.getItem(missionWorkStorageKey) ?? null)
+}
+
+function persistMissionWorkState(state: MissionWorkState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(missionWorkStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(missionWorkStorageKey, serializedState)
+}
+
+function countScenarioMissionWork(scenario: Scenario, missionWorkState: MissionWorkState) {
+  return scenario.missions.filter((mission) => {
+    const work = missionWorkState[getMissionWorkKey(scenario.id, mission.id)]
+
+    return Boolean(work?.notes.trim() || work?.checkedEvidence.length)
+  }).length
+}
+
 function getTotalCompletedMissions(completedMissionIdsByScenario: Record<string, string[]>) {
   return scenarios.reduce((count, scenario) => {
     const validMissionIds = new Set(scenario.missions.map((mission) => mission.id))
@@ -151,6 +226,7 @@ function App() {
   const [completedMissionIdsByScenario, setCompletedMissionIdsByScenario] = useState<Record<string, string[]>>(
     loadMissionState,
   )
+  const [missionWorkState, setMissionWorkState] = useState<MissionWorkState>(loadMissionWorkState)
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -171,6 +247,13 @@ function App() {
     () => getTotalCompletedMissions(completedMissionIdsByScenario),
     [completedMissionIdsByScenario],
   )
+  const missionWorkCountByScenario = useMemo(
+    () =>
+      Object.fromEntries(
+        scenarios.map((scenario) => [scenario.id, countScenarioMissionWork(scenario, missionWorkState)]),
+      ) as Record<string, number>,
+    [missionWorkState],
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -183,6 +266,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [completedMissionIdsByScenario])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistMissionWorkState(missionWorkState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [missionWorkState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -239,10 +334,16 @@ function App() {
       <div className="fixed inset-0 -z-10 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:72px_72px]" />
 
       <Hero prefersReducedMotion={prefersReducedMotion} />
-      <ScenarioGallery selectedScenarioId={selectedScenarioId} onSelect={selectScenario} />
+      <ScenarioGallery
+        selectedScenarioId={selectedScenarioId}
+        completedMissionIdsByScenario={completedMissionIdsByScenario}
+        missionWorkCountByScenario={missionWorkCountByScenario}
+        onSelect={selectScenario}
+      />
       <AtlasOverview
         selectedScenarioId={selectedScenarioId}
         totalCompletedMissionCount={totalCompletedMissionCount}
+        missionWorkCountByScenario={missionWorkCountByScenario}
         onSelect={selectScenario}
       />
       <ScenarioExperience
@@ -251,7 +352,9 @@ function App() {
         onSelectOption={setSelectedOptionId}
         completedMissionIds={completedMissionIds}
         completedMissionCount={completedMissionCount}
+        missionWorkState={missionWorkState}
         onToggleMission={toggleMission}
+        onUpdateMissionWork={setMissionWorkState}
         prefersReducedMotion={prefersReducedMotion}
       />
       <About />
@@ -353,9 +456,13 @@ function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }
 
 function ScenarioGallery({
   selectedScenarioId,
+  completedMissionIdsByScenario,
+  missionWorkCountByScenario,
   onSelect,
 }: {
   selectedScenarioId: string
+  completedMissionIdsByScenario: Record<string, string[]>
+  missionWorkCountByScenario: Record<string, number>
   onSelect: (id: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -439,6 +546,9 @@ function ScenarioGallery({
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {filteredScenarios.map((scenario) => {
             const isSelected = selectedScenarioId === scenario.id
+            const completedCount = completedMissionIdsByScenario[scenario.id]?.length ?? 0
+            const draftedCount = missionWorkCountByScenario[scenario.id] ?? 0
+            const progressLabel = `${completedCount}/${scenario.missions.length}`
 
             return (
               <button
@@ -468,6 +578,18 @@ function ScenarioGallery({
                     <Tag>{scenario.region}</Tag>
                     <Tag>{scenario.year}</Tag>
                   </div>
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="flex items-center justify-between gap-3 text-xs text-stone-400">
+                      <span>任务完成 {progressLabel}</span>
+                      <span>{draftedCount} 个草稿</span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/35" aria-hidden="true">
+                      <div
+                        className="h-full rounded-full bg-amber-300"
+                        style={{ width: `${scenario.missions.length ? (completedCount / scenario.missions.length) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </button>
             )
@@ -491,10 +613,12 @@ function ScenarioGallery({
 function AtlasOverview({
   selectedScenarioId,
   totalCompletedMissionCount,
+  missionWorkCountByScenario,
   onSelect,
 }: {
   selectedScenarioId: string
   totalCompletedMissionCount: number
+  missionWorkCountByScenario: Record<string, number>
   onSelect: (id: string) => void
 }) {
   const progressLabel = `${totalCompletedMissionCount}/${totalMissionCount}`
@@ -516,6 +640,9 @@ function AtlasOverview({
           <div className="mt-5 flex items-end gap-4">
             <div className="text-5xl font-semibold text-amber-200">{progressLabel}</div>
             <div className="pb-2 text-sm text-stone-400">全部史证任务</div>
+          </div>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-3 py-1.5 text-sm text-teal-100">
+            已有 {Object.values(missionWorkCountByScenario).reduce((sum, count) => sum + count, 0)} 个任务草稿
           </div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/35" aria-hidden="true">
             <div
@@ -563,6 +690,7 @@ function AtlasOverview({
             <div className="space-y-3">
               {sortedScenarios.map((scenario) => {
                 const isSelected = scenario.id === selectedScenarioId
+                const draftedCount = missionWorkCountByScenario[scenario.id] ?? 0
 
                 return (
                   <button
@@ -576,9 +704,12 @@ function AtlasOverview({
                     }`}
                   >
                     <span className="w-14 shrink-0 text-sm font-semibold text-amber-100">{scenario.year}</span>
-                    <span>
+                    <span className="min-w-0 flex-1">
                       <span className="block font-medium text-stone-50">{scenario.title}</span>
                       <span className="block text-sm text-stone-500">{scenario.location}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-xs text-stone-400">
+                      {draftedCount} 草稿
                     </span>
                   </button>
                 )
@@ -597,7 +728,9 @@ function ScenarioExperience({
   onSelectOption,
   completedMissionIds,
   completedMissionCount,
+  missionWorkState,
   onToggleMission,
+  onUpdateMissionWork,
   prefersReducedMotion,
 }: {
   scenario: Scenario
@@ -605,7 +738,9 @@ function ScenarioExperience({
   onSelectOption: (id: string) => void
   completedMissionIds: string[]
   completedMissionCount: number
+  missionWorkState: MissionWorkState
   onToggleMission: (scenarioId: string, missionId: string) => void
+  onUpdateMissionWork: React.Dispatch<React.SetStateAction<MissionWorkState>>
   prefersReducedMotion: boolean | null
 }) {
   const scenarioMotion = prefersReducedMotion
@@ -635,7 +770,9 @@ function ScenarioExperience({
               scenario={scenario}
               completedMissionIds={completedMissionIds}
               completedMissionCount={completedMissionCount}
+              missionWorkState={missionWorkState}
               onToggleMission={onToggleMission}
+              onUpdateMissionWork={onUpdateMissionWork}
             />
             <DecisionPanel
               scenario={scenario}
@@ -740,16 +877,77 @@ function MissionBoard({
   scenario,
   completedMissionIds,
   completedMissionCount,
+  missionWorkState,
   onToggleMission,
+  onUpdateMissionWork,
 }: {
   scenario: Scenario
   completedMissionIds: string[]
   completedMissionCount: number
+  missionWorkState: MissionWorkState
   onToggleMission: (scenarioId: string, missionId: string) => void
+  onUpdateMissionWork: React.Dispatch<React.SetStateAction<MissionWorkState>>
 }) {
+  const [selectedMissionId, setSelectedMissionId] = useState(scenario.missions[0]?.id ?? '')
   const completedMissionSet = useMemo(() => new Set(completedMissionIds), [completedMissionIds])
   const missionTotal = scenario.missions.length
   const progressLabel = `${completedMissionCount}/${missionTotal}`
+  const selectedMission = scenario.missions.find((mission) => mission.id === selectedMissionId) ?? scenario.missions[0]
+  const selectedMissionWorkKey = selectedMission ? getMissionWorkKey(scenario.id, selectedMission.id) : ''
+  const selectedMissionWork = missionWorkState[selectedMissionWorkKey] ?? { notes: '', checkedEvidence: [] }
+  const draftedMissionCount = countScenarioMissionWork(scenario, missionWorkState)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    if (!scenario.missions.some((mission) => mission.id === selectedMissionId)) {
+      setSelectedMissionId(scenario.missions[0]?.id ?? '')
+    }
+  }, [scenario, selectedMissionId])
+
+  function updateSelectedMissionWork(nextEntry: MissionWorkEntry) {
+    if (!selectedMission) {
+      return
+    }
+
+    onUpdateMissionWork((currentState) => ({
+      ...currentState,
+      [selectedMissionWorkKey]: {
+        ...nextEntry,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidenceItem(item: string) {
+    const checkedEvidence = selectedMissionWork.checkedEvidence.includes(item)
+      ? selectedMissionWork.checkedEvidence.filter((candidate) => candidate !== item)
+      : [...selectedMissionWork.checkedEvidence, item]
+
+    updateSelectedMissionWork({ ...selectedMissionWork, checkedEvidence })
+  }
+
+  async function copyLearningOutput() {
+    if (!selectedMission || typeof navigator === 'undefined' || !navigator.clipboard) {
+      setCopyStatus('failed')
+      return
+    }
+
+    const checkedEvidence = selectedMissionWork.checkedEvidence.length
+      ? selectedMissionWork.checkedEvidence.map((item) => `- ${item}`).join('\n')
+      : '- 尚未勾选证据'
+    const learningOutput = `TimeAtlas 学习输出\n场景：${scenario.title}\n任务：${selectedMission.title}\n交付物：${selectedMission.deliverable}\n证据清单：\n${checkedEvidence}\n草稿笔记：\n${selectedMissionWork.notes || '尚未填写'}\n反思：${selectedMission.reflectionPrompt}`
+
+    try {
+      await navigator.clipboard.writeText(learningOutput)
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  if (!selectedMission) {
+    return null
+  }
 
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20">
@@ -761,33 +959,36 @@ function MissionBoard({
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-stone-50">历史任务板</h2>
           <p className="mt-3 max-w-2xl leading-7 text-stone-400">
-            不只读情节：完成任务、使用证据、比较角度，把这个身份放回更大的历史结构中。
+            不只读情节：选择任务、勾选证据、保存草稿，再复制一段可带走的学习输出。
           </p>
         </div>
         <div
           className="rounded-3xl border border-amber-200/20 bg-amber-200/10 px-5 py-4 text-amber-100"
-          aria-label={`当前场景任务完成进度：${progressLabel}`}
+          aria-label={`当前场景任务完成进度：${progressLabel}，已有 ${draftedMissionCount} 个草稿`}
         >
           <div className="text-xs uppercase tracking-[0.28em] text-amber-100/70">session progress</div>
           <div className="mt-1 text-3xl font-semibold">{progressLabel}</div>
-          <div className="text-sm text-stone-400">当前身份已完成任务</div>
+          <div className="text-sm text-stone-400">当前身份已完成任务 · {draftedMissionCount} 个草稿</div>
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-        <div className="grid gap-3" role="group" aria-label={`${scenario.title} 的历史任务`}>
+      <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
+        <div className="grid content-start gap-3" role="group" aria-label={`${scenario.title} 的历史任务`}>
           {scenario.missions.map((mission) => {
             const isComplete = completedMissionSet.has(mission.id)
+            const isSelected = selectedMission.id === mission.id
+            const work = missionWorkState[getMissionWorkKey(scenario.id, mission.id)]
+            const hasDraft = Boolean(work?.notes.trim() || work?.checkedEvidence.length)
 
             return (
               <button
                 key={mission.id}
                 type="button"
-                aria-pressed={isComplete}
-                onClick={() => onToggleMission(scenario.id, mission.id)}
+                aria-pressed={isSelected}
+                onClick={() => setSelectedMissionId(mission.id)}
                 className={`group rounded-3xl border p-5 text-left transition ${
-                  isComplete
-                    ? 'border-teal-100/35 bg-teal-100/[0.08]'
+                  isSelected
+                    ? 'border-amber-200/45 bg-amber-200/10'
                     : 'border-white/10 bg-black/20 hover:border-amber-100/30 hover:bg-black/30'
                 }`}
               >
@@ -795,13 +996,21 @@ function MissionBoard({
                   <div className={isComplete ? 'mt-1 text-teal-100' : 'mt-1 text-stone-500 group-hover:text-amber-100'}>
                     {isComplete ? <CheckCircle2 size={21} /> : <Circle size={21} />}
                   </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-stone-50">{mission.title}</h3>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-xl font-semibold text-stone-50">{mission.title}</h3>
+                      {hasDraft ? (
+                        <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-2.5 py-1 text-xs text-teal-100">
+                          草稿已保存
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-2 leading-7 text-stone-400">{mission.instruction}</p>
-                    <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-stone-400">
-                      <span className="font-medium text-amber-100/90">证据用法：</span>
-                      {mission.evidenceUse}
-                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-400">
+                      <Tag>{mission.difficulty}</Tag>
+                      <Tag>{mission.estimatedMinutes} 分钟</Tag>
+                      <Tag>{isComplete ? '已完成' : '进行中'}</Tag>
+                    </div>
                   </div>
                 </div>
               </button>
@@ -810,6 +1019,107 @@ function MissionBoard({
         </div>
 
         <div className="space-y-4">
+          <section className="rounded-[1.5rem] border border-amber-200/15 bg-[#13100c]/85 p-5" aria-labelledby="active-mission-title">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="mb-2 flex flex-wrap gap-2 text-xs text-stone-400">
+                  <Tag>{selectedMission.difficulty}</Tag>
+                  <Tag>{selectedMission.estimatedMinutes} 分钟</Tag>
+                </div>
+                <h3 id="active-mission-title" className="text-2xl font-semibold tracking-tight text-stone-50">
+                  {selectedMission.title}
+                </h3>
+                <p className="mt-2 leading-7 text-stone-400">{selectedMission.instruction}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onToggleMission(scenario.id, selectedMission.id)}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+              >
+                {completedMissionSet.has(selectedMission.id) ? <CheckCircle2 size={17} /> : <Circle size={17} />}
+                {completedMissionSet.has(selectedMission.id) ? '已标记完成' : '标记完成'}
+              </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-amber-100">交付物</h4>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{selectedMission.deliverable}</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-amber-100">证据用法</h4>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{selectedMission.evidenceUse}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <div>
+                <h4 className="font-semibold text-stone-50">工作步骤</h4>
+                <ol className="mt-3 space-y-3">
+                  {selectedMission.steps.map((step, index) => (
+                    <li key={step} className="flex gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-300 text-xs font-semibold text-stone-950">
+                        {index + 1}
+                      </span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-stone-50">证据清单</h4>
+                <div className="mt-3 space-y-2">
+                  {selectedMission.evidenceChecklist.map((item) => {
+                    const isChecked = selectedMissionWork.checkedEvidence.includes(item)
+
+                    return (
+                      <label key={item} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400 transition hover:border-teal-100/25">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleEvidenceItem(item)}
+                          className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                        />
+                        <span>{item}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="font-semibold text-stone-50">草稿笔记</span>
+              <textarea
+                value={selectedMissionWork.notes}
+                onChange={(event) => updateSelectedMissionWork({ ...selectedMissionWork, notes: event.target.value })}
+                rows={5}
+                placeholder="写下你的证据链、疑问或课堂讨论要点……"
+                className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 leading-7 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+              />
+            </label>
+
+            <div className="mt-4 rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h4 className="font-semibold text-stone-50">反思提示</h4>
+              <p className="mt-2 text-sm leading-6 text-stone-400">{selectedMission.reflectionPrompt}</p>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-stone-500" aria-live="polite">
+                {selectedMissionWork.updatedAt ? `已保存：${new Date(selectedMissionWork.updatedAt).toLocaleString()}` : '草稿会自动保存在本机。'}
+              </p>
+              <button
+                type="button"
+                onClick={copyLearningOutput}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+              >
+                {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                {copyStatus === 'copied' ? '学习输出已复制' : copyStatus === 'failed' ? '复制失败' : '复制学习输出'}
+              </button>
+            </div>
+          </section>
+
           <KeyTermsPanel scenario={scenario} />
           <CompareAnglesPanel scenario={scenario} />
         </div>
