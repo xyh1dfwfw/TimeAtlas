@@ -47,6 +47,19 @@ const missionProgressStorageKey = 'timeatlas:mission-progress'
 const missionWorkStorageKey = 'timeatlas:mission-work'
 const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
+const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
+const defaultScenarioSectionId = 'experience'
+const sectionIds = {
+  experience: defaultScenarioSectionId,
+  sceneReader: 'scene-reader',
+  lessonPack: 'lesson-pack',
+  activityPacks: 'activity-packs',
+  missionBoard: 'mission-board',
+  decisionPanel: 'decision-panel',
+  argumentStudio: 'argument-studio',
+  sourceReader: 'source-reader',
+  compareLab: 'compare-lab',
+} as const
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
@@ -188,6 +201,26 @@ type WorkspaceStats = {
 
 type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
+type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
+
+type GuidedSessionRoute = {
+  id: string
+  title: string
+  minutes: 15 | 30 | 45 | 75
+  scenario: Scenario
+  purpose: string
+  steps: {
+    title: string
+    minutes: number
+    description: string
+    hash: ScenarioSectionId
+  }[]
+  resources: string[]
+  linkedSourceTitles: string[]
+  deliverable: string
+}
+
+type GuidedSessionProgressState = Record<string, string[]>
 
 type LibraryTask = {
   id: string
@@ -346,6 +379,24 @@ function parseArgumentDraftState(rawState: string | null) {
   }
 }
 
+function parseGuidedSessionProgressState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as GuidedSessionProgressState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).filter((entry): entry is [string, string[]] =>
+        Array.isArray(entry[1]) && entry[1].every((stepId) => typeof stepId === 'string'),
+      ),
+    )
+  } catch {
+    return {} as GuidedSessionProgressState
+  }
+}
+
 function getSafeStorage(kind: 'localStorage' | 'sessionStorage') {
   if (typeof window === 'undefined') {
     return null
@@ -434,6 +485,30 @@ function persistArgumentDraftState(state: ArgumentDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(argumentStudioStorageKey, serializedState)
+}
+
+function loadGuidedSessionProgressState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseGuidedSessionProgressState(localStorage?.getItem(guidedSessionProgressStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseGuidedSessionProgressState(sessionStorage?.getItem(guidedSessionProgressStorageKey) ?? null)
+}
+
+function persistGuidedSessionProgressState(state: GuidedSessionProgressState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(guidedSessionProgressStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(guidedSessionProgressStorageKey, serializedState)
 }
 
 
@@ -640,6 +715,48 @@ function getDurationBandLabel(band: DurationBand) {
   }[band]
 }
 
+function scrollToSection(hash: ScenarioSectionId, prefersReducedMotion: boolean | null) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.requestAnimationFrame(() => {
+    document.getElementById(hash)?.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    })
+  })
+}
+
+function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
+  if (source === 'mission') {
+    return sectionIds.missionBoard
+  }
+
+  if (source === 'activity') {
+    return sectionIds.activityPacks
+  }
+
+  if (source === 'lesson') {
+    return sectionIds.lessonPack
+  }
+
+  return defaultScenarioSectionId
+}
+
+function buildScenarioUrl(scenarioId: string, hash: ScenarioSectionId = defaultScenarioSectionId) {
+  if (typeof window === 'undefined') {
+    return `?scenario=${scenarioId}#${hash}`
+  }
+
+  const url = new URL(window.location.href)
+  url.searchParams.set('scenario', scenarioId)
+  url.searchParams.delete('option')
+  url.hash = hash
+
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
 function formatGenericLibraryTaskSheet(task: LibraryTask) {
   return [
     `TimeAtlas Task Library / Assignment Launcher 11.0：${task.title}`,
@@ -681,6 +798,111 @@ function formatLessonFlowSheet(scenario: Scenario, mode: LessonPackMode) {
   ].join('\n')
 }
 
+function buildGuidedSessionRoutes() {
+  return scenarios.flatMap((scenario, scenarioIndex): GuidedSessionRoute[] => {
+    const quickMission = scenario.missions[0]
+    const sourceMission = scenario.missions.find((mission) => mission.linkedSourceTitles.length > 0) ?? quickMission
+    const activity = scenario.activityPacks[0]
+    const sourceActivity = scenario.activityPacks.find((candidate) => candidate.mode === 'source-lab') ?? scenario.activityPacks[1] ?? activity
+    const comparePath = atlasInquiryPaths.find((path) => path.scenarioIds.includes(scenario.id))
+    const compareScenario = comparePath?.scenarioIds
+      .map((id) => getScenarioById(id))
+      .find((candidate): candidate is Scenario => Boolean(candidate && candidate.id !== scenario.id))
+      ?? scenarios.find((candidate) => candidate.id !== scenario.id)
+      ?? scenario
+    const keyScene = scenario.sceneBeats[0]
+    const routePrefix = `guided:${scenario.id}`
+
+    return [
+      {
+        id: `${routePrefix}:15`,
+        title: `${scenario.title} · 15 分钟快速进入`,
+        minutes: 15,
+        scenario,
+        purpose: '用一个身份卡、一个 scene beat 和一个快速选择建立历史现场感。',
+        steps: [
+          { title: '定位身份与时代', minutes: 3, description: `${scenario.era} / ${scenario.location} / ${scenario.identity}`, hash: sectionIds.experience },
+          { title: '朗读关键场景', minutes: 5, description: keyScene ? `${keyScene.title}：${keyScene.learnerPrompt}` : scenario.atmosphere, hash: sectionIds.sceneReader },
+          { title: '完成一个出口判断', minutes: 4, description: scenario.lessonPack.exitTickets[0] ?? scenario.lessonPack.inquiryQuestion, hash: sectionIds.lessonPack },
+          { title: '选择一个行动', minutes: 3, description: scenario.decision.prompt, hash: sectionIds.decisionPanel },
+        ],
+        resources: [scenario.lessonPack.inquiryQuestion, keyScene?.title, scenario.decision.prompt].filter((item): item is string => Boolean(item)),
+        linkedSourceTitles: scenario.sources.slice(0, 1).map((source) => source.title),
+        deliverable: '一句 60 字出口判断 + 一个历史选择。',
+      },
+      {
+        id: `${routePrefix}:30`,
+        title: `${scenario.title} · 30 分钟证据小课`,
+        minutes: 30,
+        scenario,
+        purpose: '把 Scene Reader、来源卡和一个任务串成可提交的证据说明。',
+        steps: [
+          { title: '读取场景张力', minutes: 6, description: keyScene ? keyScene.evidenceHook : scenario.sourceEvidenceUse, hash: sectionIds.sceneReader },
+          { title: '检查来源边界', minutes: 8, description: scenario.sources[0]?.sourceQuestion ?? scenario.interpretationNote, hash: sectionIds.sourceReader },
+          { title: '完成任务步骤', minutes: 12, description: sourceMission?.instruction ?? '选择一个来源型任务并写出证据链。', hash: sectionIds.missionBoard },
+          { title: '复制或保存学习输出', minutes: 4, description: sourceMission?.deliverable ?? '复制学习输出用于课堂讨论。', hash: sectionIds.missionBoard },
+        ],
+        resources: [keyScene?.title, scenario.sources[0]?.title, sourceMission?.title].filter((item): item is string => Boolean(item)),
+        linkedSourceTitles: sourceMission?.linkedSourceTitles.length ? sourceMission.linkedSourceTitles : scenario.sources.slice(0, 2).map((source) => source.title),
+        deliverable: sourceMission?.deliverable ?? '一段来源型证据说明。',
+      },
+      {
+        id: `${routePrefix}:45`,
+        title: `${scenario.title} · 45 分钟活动工作坊`,
+        minutes: 45,
+        scenario,
+        purpose: '把 lesson flow、activity pack、任务草稿与论证工作室连成一个完整课堂 chunk。',
+        steps: [
+          { title: '启动课堂流程', minutes: 8, description: scenario.lessonPack.classroomFlow.source.title, hash: sectionIds.lessonPack },
+          { title: '开展活动包', minutes: Math.min(sourceActivity?.durationMinutes ?? 16, 18), description: sourceActivity?.prompt ?? activity?.prompt ?? scenario.lessonPack.inquiryQuestion, hash: sectionIds.activityPacks },
+          { title: '写入任务草稿', minutes: 12, description: quickMission?.instruction ?? '选择任务并写下证据、推论和疑问。', hash: sectionIds.missionBoard },
+          { title: '生成主张证据', minutes: 7, description: '在 Argument Studio 勾选材料，形成主张—证据—推理。', hash: sectionIds.argumentStudio },
+        ],
+        resources: [scenario.lessonPack.classroomFlow.source.title, sourceActivity?.title, quickMission?.title, 'Evidence-to-Argument Studio'].filter((item): item is string => Boolean(item)),
+        linkedSourceTitles: [...new Set([...(sourceActivity?.linkedSourceTitles ?? []), ...scenario.sources.slice(0, 2).map((source) => source.title)])],
+        deliverable: sourceActivity?.deliverable ?? quickMission?.deliverable ?? '一份活动单草稿 + 论证起点。',
+      },
+      {
+        id: `${routePrefix}:75`,
+        title: `${scenario.title} · 75 分钟跨场景探究`,
+        minutes: 75,
+        scenario,
+        purpose: '从当前身份出发，加入第二个身份和 Compare Lab，完成一份跨场景比较作业。',
+        steps: [
+          { title: '快速进入当前身份', minutes: 10, description: scenario.summary, hash: sectionIds.experience },
+          { title: '完成来源与任务准备', minutes: 18, description: sourceMission?.instruction ?? scenario.sourceEvidenceUse, hash: sectionIds.missionBoard },
+          { title: '连接第二个身份', minutes: 15, description: `对照：${compareScenario.title}（${compareScenario.era}）`, hash: sectionIds.sceneReader },
+          { title: '载入比较镜头', minutes: 22, description: comparePath ? comparePath.drivingQuestion : compareLenses[scenarioIndex % compareLenses.length].prompt, hash: sectionIds.compareLab },
+          { title: '导出比较作业', minutes: 10, description: comparePath?.subtitle ?? '复制 Compare Lab 作业并写出综合判断。', hash: sectionIds.compareLab },
+        ],
+        resources: [sourceMission?.title, compareScenario.title, comparePath?.title ?? 'Compare Lab', scenario.sources[0]?.title].filter((item): item is string => Boolean(item)),
+        linkedSourceTitles: [...new Set([...(sourceMission?.linkedSourceTitles ?? []), ...scenario.sources.slice(0, 2).map((source) => source.title), ...compareScenario.sources.slice(0, 1).map((source) => source.title)])],
+        deliverable: comparePath?.tasks[0] ?? `比较 ${scenario.title} 与 ${compareScenario.title} 的证据作业。`,
+      },
+    ]
+  })
+}
+
+function formatGuidedSessionRoute(route: GuidedSessionRoute, checkedStepIds: string[] = []) {
+  return [
+    `TimeAtlas Guided Session Builder：${route.title}`,
+    `建议时长：${route.minutes} 分钟`,
+    `当前场景：${route.scenario.title}（${route.scenario.era}，${route.scenario.location}）`,
+    `目标：${route.purpose}`,
+    '',
+    '健康分块步骤：',
+    ...route.steps.map((step, index) => `- [${checkedStepIds.includes(`${route.id}:step:${index}`) ? 'x' : ' '}] ${index + 1}. ${step.title}（${step.minutes} 分钟）#${step.hash}：${step.description}`),
+    '',
+    '关联当前场景资源：',
+    ...(route.resources.length ? route.resources.map((resource) => `- ${resource}`) : ['- 当前身份卡与场景摘要']),
+    '',
+    '关联来源：',
+    ...(route.linkedSourceTitles.length ? route.linkedSourceTitles.map((title) => `- ${title}`) : ['- 当前场景来源层']),
+    '',
+    `交付物：${route.deliverable}`,
+  ].join('\n')
+}
+
 function formatCompareLensTemplate(lens: CompareLens) {
   return [
     `TimeAtlas Compare Lens Template：${lens.title}`,
@@ -705,7 +927,7 @@ function buildTaskLibraryTasks({
   onLoadCompare,
   onLoadCompareLens,
 }: {
-  onOpenScenario: (id: string) => void
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
 }): LibraryTask[] {
@@ -732,7 +954,7 @@ function buildTaskLibraryTasks({
         sourceBased: mission.linkedSourceTitles.length > 0 || mission.evidenceChecklist.length > 0,
         searchText: '',
         primaryActionLabel: '打开场景',
-        onPrimaryAction: () => onOpenScenario(scenario.id),
+        onPrimaryAction: () => onOpenScenario(scenario.id, getOpenScenarioHash(task.source)),
         formatSheet: () => formatGenericLibraryTaskSheet(task),
       }
 
@@ -759,7 +981,7 @@ function buildTaskLibraryTasks({
         sourceBased: activity.mode === 'source-lab' || activity.linkedSourceTitles.length > 0,
         searchText: '',
         primaryActionLabel: '打开场景',
-        onPrimaryAction: () => onOpenScenario(scenario.id),
+        onPrimaryAction: () => onOpenScenario(scenario.id, getOpenScenarioHash(task.source)),
         formatSheet: () => formatActivitySheet(scenario, activity),
       }
 
@@ -787,7 +1009,7 @@ function buildTaskLibraryTasks({
         sourceBased: mode === 'source',
         searchText: '',
         primaryActionLabel: '打开场景',
-        onPrimaryAction: () => onOpenScenario(scenario.id),
+        onPrimaryAction: () => onOpenScenario(scenario.id, getOpenScenarioHash(task.source)),
         formatSheet: () => formatLessonFlowSheet(scenario, mode),
       }
 
@@ -819,7 +1041,7 @@ function buildTaskLibraryTasks({
       primaryActionLabel: '载入 Compare Lab',
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadCompare(path),
-      onSecondaryAction: () => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id) : undefined,
+      onSecondaryAction: () => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id, sectionIds.sceneReader) : undefined,
       formatSheet: () => formatAtlasInquiryPack(path),
     }
 
@@ -921,6 +1143,9 @@ function App() {
   const [missionWorkState, setMissionWorkState] = useState<MissionWorkState>(loadMissionWorkState)
   const [argumentDraftState, setArgumentDraftState] = useState<ArgumentDraftState>(loadArgumentDraftState)
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
+  const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
+    loadGuidedSessionProgressState,
+  )
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -1008,6 +1233,18 @@ function App() {
   }, [workspaceState])
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistGuidedSessionProgressState(guidedSessionProgressState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [guidedSessionProgressState])
+
+  useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
       return
     }
@@ -1040,17 +1277,19 @@ function App() {
     }
   }, [compareScenarioA, compareScenarioB, selectedLens, selectedOption, selectedScenario])
 
-  function selectScenario(id: string) {
+  function selectScenario(id: string, hash: ScenarioSectionId = defaultScenarioSectionId) {
     if (!getScenarioById(id)) {
       return
     }
 
     setSelectedScenarioId(id)
     setSelectedOptionId(null)
-    document.getElementById('experience')?.scrollIntoView({
-      behavior: prefersReducedMotion ? 'auto' : 'smooth',
-      block: 'start',
-    })
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildScenarioUrl(id, hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
   }
 
   function toggleMission(scenarioId: string, missionId: string) {
@@ -1094,7 +1333,7 @@ function App() {
     setSelectedLensKey(path.lensKey)
 
     window.requestAnimationFrame(() => {
-      document.getElementById('compare-lab')?.scrollIntoView({
+      document.getElementById(sectionIds.compareLab)?.scrollIntoView({
         behavior: prefersReducedMotion ? 'auto' : 'smooth',
         block: 'start',
       })
@@ -1105,7 +1344,7 @@ function App() {
     setSelectedLensKey(lens.key)
 
     window.requestAnimationFrame(() => {
-      document.getElementById('compare-lab')?.scrollIntoView({
+      document.getElementById(sectionIds.compareLab)?.scrollIntoView({
         behavior: prefersReducedMotion ? 'auto' : 'smooth',
         block: 'start',
       })
@@ -1140,6 +1379,12 @@ function App() {
         onOpenScenario={selectScenario}
         onLoadCompare={loadCompareFromInquiryPath}
         onLoadCompareLens={loadCompareLens}
+      />
+      <GuidedSessionPanel
+        selectedScenarioId={selectedScenario.id}
+        progressState={guidedSessionProgressState}
+        onUpdateProgressState={setGuidedSessionProgressState}
+        onOpenScenario={selectScenario}
       />
       <AtlasMissionsPanel
         workspaceState={workspaceState}
@@ -1690,7 +1935,7 @@ function TaskLibraryPanel({
   onLoadCompare,
   onLoadCompareLens,
 }: {
-  onOpenScenario: (id: string) => void
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
 }) {
@@ -1898,6 +2143,220 @@ function TaskLibraryPanel({
   )
 }
 
+function GuidedSessionPanel({
+  selectedScenarioId,
+  progressState,
+  onUpdateProgressState,
+  onOpenScenario,
+}: {
+  selectedScenarioId: string
+  progressState: GuidedSessionProgressState
+  onUpdateProgressState: React.Dispatch<React.SetStateAction<GuidedSessionProgressState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [durationFilter, setDurationFilter] = useState<'all' | GuidedSessionRoute['minutes']>('all')
+  const [scenarioFilter, setScenarioFilter] = useState(selectedScenarioId)
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const routes = useMemo(buildGuidedSessionRoutes, [])
+
+  useEffect(() => {
+    setScenarioFilter(selectedScenarioId)
+  }, [selectedScenarioId])
+
+  const visibleRoutes = routes.filter((route) => {
+    const matchesScenario = scenarioFilter === 'all' || route.scenario.id === scenarioFilter
+    const matchesDuration = durationFilter === 'all' || route.minutes === durationFilter
+
+    return matchesScenario && matchesDuration
+  })
+
+  function toggleStep(routeId: string, stepIndex: number) {
+    const stepId = `${routeId}:step:${stepIndex}`
+
+    onUpdateProgressState((currentState) => {
+      const currentRouteProgress = currentState[routeId] ?? []
+      const nextRouteProgress = currentRouteProgress.includes(stepId)
+        ? currentRouteProgress.filter((candidate) => candidate !== stepId)
+        : [...currentRouteProgress, stepId]
+
+      return {
+        ...currentState,
+        [routeId]: nextRouteProgress,
+      }
+    })
+  }
+
+  async function copyRoute(route: GuidedSessionRoute) {
+    try {
+      await copyTextToClipboard(formatGuidedSessionRoute(route, progressState[route.id] ?? []))
+      setCopyStatus(route.id)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="guided-session-builder" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="guided-session-builder-title">
+      <div className="rounded-[2rem] border border-violet-200/15 bg-violet-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-violet-100">
+          <Route size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">guided session builder</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="guided-session-builder-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Guided Session Builder / Healthy Chunking
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有 scenario、Scene Reader、Lesson Pack、Activity Packs、Mission Board、Source Reader 与 Compare Lab 自动生成 15/30/45/75 分钟路线卡，帮你把一次历史学习切成健康小块。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {visibleRoutes.length}/{routes.length} 条路线 · 勾选进度本机保存
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_0.55fr]">
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">场景</span>
+            <select
+              value={scenarioFilter}
+              onChange={(event) => setScenarioFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-violet-200/60"
+            >
+              <option value="all">全部场景</option>
+              {scenarios.map((scenario) => (
+                <option key={scenario.id} value={scenario.id}>{scenario.title}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">健康时长</span>
+            <select
+              value={durationFilter}
+              onChange={(event) => setDurationFilter(event.target.value === 'all' ? 'all' : Number(event.target.value) as GuidedSessionRoute['minutes'])}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-violet-200/60"
+            >
+              <option value="all">全部时长</option>
+              <option value={15}>15 分钟</option>
+              <option value={30}>30 分钟</option>
+              <option value={45}>45 分钟</option>
+              <option value={75}>75 分钟</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          {visibleRoutes.slice(0, 12).map((route) => {
+            const checkedStepIds = progressState[route.id] ?? []
+            const completedCount = route.steps.filter((_, index) => checkedStepIds.includes(`${route.id}:step:${index}`)).length
+            const firstStepHash = route.steps[0]?.hash ?? defaultScenarioSectionId
+
+            return (
+              <article key={route.id} className="flex min-h-full flex-col overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+                <div className="h-1.5" style={{ backgroundColor: route.scenario.accent }} />
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                        <span className="rounded-full border border-violet-200/20 bg-violet-100/[0.06] px-3 py-1 text-violet-100">{route.minutes} min</span>
+                        <span>{route.scenario.era}</span>
+                        <span>{completedCount}/{route.steps.length} steps</span>
+                      </div>
+                      <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">{route.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-stone-400">{route.purpose}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenScenario(route.scenario.id, firstStepHash)}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+                    >
+                      开始路线
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {route.steps.map((step, index) => {
+                      const stepId = `${route.id}:step:${index}`
+                      const isChecked = checkedStepIds.includes(stepId)
+
+                      return (
+                        <label key={stepId} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400 transition hover:border-violet-100/25">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleStep(route.id, index)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-violet-300 focus:ring-violet-200"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold text-stone-100">{index + 1}. {step.title} · {step.minutes}m</span>
+                            <span className="block">{step.description}</span>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault()
+                                onOpenScenario(route.scenario.id, step.hash)
+                              }}
+                              className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-violet-100 transition hover:bg-white/[0.06]"
+                            >
+                              跳到 #{step.hash}
+                              <ArrowRight size={13} />
+                            </button>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                      <h4 className="font-semibold text-violet-100">当前场景资源</h4>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {route.resources.map((resource) => <Tag key={resource}>{resource}</Tag>)}
+                      </div>
+                    </div>
+                    <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                      <h4 className="font-semibold text-amber-100">Linked sources</h4>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {route.linkedSourceTitles.map((title) => (
+                          <span key={title} className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1.5 text-xs text-amber-100">{title}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                    <span className="font-semibold text-teal-100">交付物：</span>{route.deliverable}
+                  </div>
+
+                  <div className="mt-auto flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-stone-500" aria-live="polite">
+                      {copyStatus === route.id ? '路线卡已复制。' : copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : '复制会包含勾选状态、步骤 hash、资源与来源。'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void copyRoute(route)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-violet-200/25 bg-violet-100/[0.08] px-5 py-3 font-semibold text-violet-100 transition hover:bg-violet-100/[0.14]"
+                    >
+                      {copyStatus === route.id ? <Check size={18} /> : <Copy size={18} />}
+                      {copyStatus === route.id ? '路线卡已复制' : '复制 / 导出路线卡'}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+
+        {visibleRoutes.length > 12 ? (
+          <p className="mt-4 text-sm text-stone-500">已显示前 12 条路线；可按场景或时长继续收窄。</p>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 function AtlasMissionsPanel({
   workspaceState,
   onUpdateWorkspaceState,
@@ -1964,7 +2423,7 @@ function AtlasMissionsPanel({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 id="atlas-missions-title" className="text-3xl font-semibold tracking-tight text-stone-50">
-              跨场景挑战 · Atlas Workspace 8.0
+              跨场景挑战 · Atlas Workspace
             </h2>
             <p className="mt-3 max-w-3xl leading-7 text-stone-400">
               跨时代比较任务现在可编辑、可勾选、可标记完成，并会优先保存在本机 localStorage；受限时回退 sessionStorage。
@@ -2049,7 +2508,7 @@ function AtlasInquiryPathsPanel({
 }: {
   workspaceState: WorkspaceState
   onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
-  onOpenScenario: (id: string) => void
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
 }) {
   const [expandedPathId, setExpandedPathId] = useState(atlasInquiryPaths[0]?.id ?? '')
@@ -2228,7 +2687,7 @@ function AtlasInquiryPathsPanel({
                       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                         <button
                           type="button"
-                          onClick={() => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id) : undefined}
+                          onClick={() => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id, sectionIds.sceneReader) : undefined}
                           className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
                         >
                           打开首个场景
@@ -2299,7 +2758,7 @@ function formatAtlasInquiryPack(path: AtlasInquiryPath, entry = getEmptyWorkspac
       ...getLensEvidenceSections(scenario, lens).map((section) => `  - ${section.label}｜${section.text}`),
     ]),
     '',
-    'Atlas Workspace 8.0 用户进度：',
+    'Atlas Workspace 用户进度：',
     `- 状态：${entry.completed ? '已完成' : '草稿 / 未完成'}`,
     `- 更新时间：${entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未记录时间'}`,
     ...checkedItems,
@@ -2425,7 +2884,7 @@ function CompareLabPanel({
   }
 
   return (
-    <section id="compare-lab" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="compare-lab-title">
+    <section id={sectionIds.compareLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="compare-lab-title">
       <div className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5">
         <div className="mb-4 flex items-center gap-3 text-teal-100">
           <Scale size={20} />
@@ -2608,7 +3067,7 @@ function ScenarioExperience({
       }
 
   return (
-    <section id="experience" className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
+    <section id={sectionIds.experience} className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
       <AnimatePresence mode="wait">
         <motion.div key={scenario.id} {...scenarioMotion} className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
           <aside className="space-y-6">
@@ -2781,7 +3240,7 @@ function SceneReaderPanel({ scenario }: { scenario: Scenario }) {
   }
 
   return (
-    <section className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="scene-reader-title">
+    <section id={sectionIds.sceneReader} className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="scene-reader-title">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-4 flex items-center gap-3 text-teal-100">
@@ -2954,7 +3413,7 @@ function LessonPackPanel({ scenario }: { scenario: Scenario }) {
   }
 
   return (
-    <section className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="lesson-pack-title">
+    <section id={sectionIds.lessonPack} className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="lesson-pack-title">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-4 flex items-center gap-3 text-amber-100">
@@ -3195,7 +3654,7 @@ function ActivityPackPanel({ scenario }: { scenario: Scenario }) {
   const linkedSceneBeats = scenario.sceneBeats.filter((beat) => selectedActivity.linkedSceneBeatTitles.includes(beat.title))
 
   return (
-    <section id="activity-packs" className="rounded-[2rem] border border-orange-200/15 bg-orange-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="activity-pack-title">
+    <section id={sectionIds.activityPacks} className="rounded-[2rem] border border-orange-200/15 bg-orange-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="activity-pack-title">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-4 flex items-center gap-3 text-orange-100">
@@ -3495,7 +3954,7 @@ function MissionBoard({
   }
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20">
+    <section id={sectionIds.missionBoard} className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-4 flex items-center gap-3 text-amber-100">
@@ -4025,7 +4484,7 @@ function ArgumentStudioPanel({
   }
 
   return (
-    <section className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="argument-studio-title">
+    <section id={sectionIds.argumentStudio} className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="argument-studio-title">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-4 flex items-center gap-3 text-teal-100">
@@ -4240,7 +4699,7 @@ function DecisionPanel({
     : { initial: { opacity: 0 }, animate: { opacity: 1 } }
 
   return (
-    <section className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.055] p-6">
+    <section id={sectionIds.decisionPanel} className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.055] p-6">
       <div className="mb-5 flex items-center gap-3 text-amber-100">
         <ShieldAlert size={20} />
         <span className="text-sm uppercase tracking-[0.3em]">历史岔路口</span>
@@ -4345,7 +4804,7 @@ function SourcesPanel({ scenario }: { scenario: Scenario }) {
   }
 
   return (
-    <section className="mt-6 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6" aria-labelledby="source-lab-title">
+    <section id={sectionIds.sourceReader} className="mt-6 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6" aria-labelledby="source-lab-title">
       <div className="mb-5 flex items-center gap-3 text-teal-100">
         <ScrollText size={20} />
         <span className="text-sm uppercase tracking-[0.3em]">source lab 4.0</span>
