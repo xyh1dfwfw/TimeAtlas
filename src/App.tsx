@@ -22,10 +22,21 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { scenarios, type DecisionOption, type Mission, type MissionTaskType, type Scenario } from './data/scenarios'
+import {
+  compareLenses,
+  scenarios,
+  type CompareLens,
+  type DecisionOption,
+  type Mission,
+  type MissionTaskType,
+  type Scenario,
+} from './data/scenarios'
 import './App.css'
 
 const defaultScenarioId = scenarios[1]?.id ?? scenarios[0].id
+const defaultCompareScenarioAId = scenarios[0]?.id ?? defaultScenarioId
+const defaultCompareScenarioBId = scenarios.find((scenario) => scenario.id !== defaultCompareScenarioAId)?.id ?? defaultScenarioId
+const defaultCompareLensKey = compareLenses[0]?.key ?? 'daily-life'
 const missionProgressStorageKey = 'timeatlas:mission-progress'
 const missionWorkStorageKey = 'timeatlas:mission-work'
 
@@ -86,6 +97,14 @@ const statItems = [
 
 function getScenarioById(id: string | null) {
   return scenarios.find((scenario) => scenario.id === id) ?? null
+}
+
+function getCompareLensByKey(key: string | null) {
+  return compareLenses.find((lens) => lens.key === key) ?? compareLenses[0]
+}
+
+function getFallbackCompareScenarioId(excludedId: string) {
+  return scenarios.find((scenario) => scenario.id !== excludedId)?.id ?? excludedId
 }
 
 function parseMissionState(rawState: string | null) {
@@ -315,11 +334,35 @@ function getInitialSelection() {
   return { scenarioId: scenario.id, optionId: option?.id ?? null }
 }
 
+function getInitialCompareSelection() {
+  if (typeof window === 'undefined') {
+    return {
+      compareAId: defaultCompareScenarioAId,
+      compareBId: defaultCompareScenarioBId,
+      lensKey: defaultCompareLensKey,
+    }
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const scenarioA = getScenarioById(params.get('compareA')) ?? getScenarioById(defaultCompareScenarioAId) ?? scenarios[0]
+  const requestedScenarioB = getScenarioById(params.get('compareB'))
+  const scenarioB = requestedScenarioB && requestedScenarioB.id !== scenarioA.id
+    ? requestedScenarioB
+    : getScenarioById(getFallbackCompareScenarioId(scenarioA.id)) ?? scenarioA
+  const lens = getCompareLensByKey(params.get('lens'))
+
+  return { compareAId: scenarioA.id, compareBId: scenarioB.id, lensKey: lens.key }
+}
+
 function App() {
   const prefersReducedMotion = useReducedMotion()
   const initialSelection = useMemo(getInitialSelection, [])
+  const initialCompareSelection = useMemo(getInitialCompareSelection, [])
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
+  const [compareScenarioAId, setCompareScenarioAId] = useState(initialCompareSelection.compareAId)
+  const [compareScenarioBId, setCompareScenarioBId] = useState(initialCompareSelection.compareBId)
+  const [selectedLensKey, setSelectedLensKey] = useState(initialCompareSelection.lensKey)
   const [completedMissionIdsByScenario, setCompletedMissionIdsByScenario] = useState<Record<string, string[]>>(
     loadMissionState,
   )
@@ -337,6 +380,15 @@ function App() {
         : null,
     [selectedOptionId, selectedScenario],
   )
+  const compareScenarioA = useMemo(
+    () => getScenarioById(compareScenarioAId) ?? scenarios[0],
+    [compareScenarioAId],
+  )
+  const compareScenarioB = useMemo(
+    () => getScenarioById(compareScenarioBId) ?? getScenarioById(getFallbackCompareScenarioId(compareScenarioA.id)) ?? compareScenarioA,
+    [compareScenarioA, compareScenarioBId],
+  )
+  const selectedLens = useMemo(() => getCompareLensByKey(selectedLensKey), [selectedLensKey])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -377,12 +429,23 @@ function App() {
   }, [missionWorkState])
 
   useEffect(() => {
+    if (compareScenarioA.id !== compareScenarioB.id) {
+      return
+    }
+
+    setCompareScenarioBId(getFallbackCompareScenarioId(compareScenarioA.id))
+  }, [compareScenarioA.id, compareScenarioB.id])
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
 
     const params = new URLSearchParams(window.location.search)
     params.set('scenario', selectedScenario.id)
+    params.set('compareA', compareScenarioA.id)
+    params.set('compareB', compareScenarioB.id)
+    params.set('lens', selectedLens.key)
 
     if (selectedOption) {
       params.set('option', selectedOption.id)
@@ -396,7 +459,7 @@ function App() {
     if (nextUrl !== currentUrl) {
       window.history.replaceState(null, '', nextUrl)
     }
-  }, [selectedOption, selectedScenario])
+  }, [compareScenarioA, compareScenarioB, selectedLens, selectedOption, selectedScenario])
 
   function selectScenario(id: string) {
     if (!getScenarioById(id)) {
@@ -425,6 +488,23 @@ function App() {
     })
   }
 
+  function selectCompareScenarioA(id: string) {
+    if (!getScenarioById(id)) {
+      return
+    }
+
+    setCompareScenarioAId(id)
+    setCompareScenarioBId((currentId) => (currentId === id ? getFallbackCompareScenarioId(id) : currentId))
+  }
+
+  function selectCompareScenarioB(id: string) {
+    if (!getScenarioById(id) || id === compareScenarioAId) {
+      return
+    }
+
+    setCompareScenarioBId(id)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -448,6 +528,14 @@ function App() {
         missionWorkState={missionWorkState}
       />
       <AtlasMissionsPanel />
+      <CompareLabPanel
+        scenarioA={compareScenarioA}
+        scenarioB={compareScenarioB}
+        selectedLens={selectedLens}
+        onSelectScenarioA={selectCompareScenarioA}
+        onSelectScenarioB={selectCompareScenarioB}
+        onSelectLens={setSelectedLensKey}
+      />
       <ScenarioExperience
         scenario={selectedScenario}
         selectedOption={selectedOption}
@@ -963,6 +1051,256 @@ function AtlasMissionsPanel() {
         {copyStatus === 'failed' ? <p className="mt-3 text-sm text-stone-500">复制失败，请手动复制模板内容。</p> : null}
       </div>
     </section>
+  )
+}
+
+function getLensEvidenceSections(scenario: Scenario, lens: CompareLens) {
+  const dailyLifeByKey = Object.fromEntries(scenario.dailyLife.map((section) => [section.key, section])) as Partial<
+    Record<Scenario['dailyLife'][number]['key'], Scenario['dailyLife'][number]>
+  >
+  const firstOption = scenario.decision.options[0]
+  const firstSource = scenario.sources[0]
+
+  const sectionsByLens: Record<CompareLens['key'], { label: string; text: string }[]> = {
+    'daily-life': scenario.dailyLife.slice(0, 4).map((section) => ({ label: section.label, text: `${section.title}：${section.text}` })),
+    'institutional-constraints': [
+      { label: '身份边界', text: `${scenario.identity} / ${scenario.role}` },
+      { label: '制度线索', text: scenario.realHistory },
+      { label: '比较角度', text: scenario.compareAngles[0]?.prompt ?? scenario.sourceEvidenceUse },
+      { label: '任务线索', text: scenario.missions.find((mission) => mission.taskType === '角色判断' || mission.taskType === '方案设计')?.instruction ?? scenario.interpretationNote },
+    ],
+    'risk-safety': [
+      { label: dailyLifeByKey.risks?.label ?? '风险', text: dailyLifeByKey.risks ? `${dailyLifeByKey.risks.title}：${dailyLifeByKey.risks.text}` : scenario.atmosphere },
+      { label: '岔路口', text: scenario.decision.context },
+      { label: '短期风险', text: firstOption ? `${firstOption.label}：${firstOption.immediate}` : scenario.realHistory },
+      { label: '长期影响', text: firstOption?.longTerm ?? scenario.realHistory },
+    ],
+    'knowledge-transmission': [
+      { label: dailyLifeByKey.education?.label ?? '学习', text: dailyLifeByKey.education ? `${dailyLifeByKey.education.title}：${dailyLifeByKey.education.text}` : scenario.interpretationNote },
+      { label: '关键术语', text: scenario.keyTerms.map((term) => `${term.term}：${term.definition}`).join('；') },
+      { label: '来源线索', text: scenario.sources.map((source) => source.title).join(' / ') },
+      { label: '解释边界', text: scenario.sourceEvidenceUse },
+    ],
+    'market-exchange': [
+      { label: dailyLifeByKey.work?.label ?? '工作', text: dailyLifeByKey.work ? `${dailyLifeByKey.work.title}：${dailyLifeByKey.work.text}` : scenario.role },
+      { label: dailyLifeByKey.freedoms?.label ?? '行动空间', text: dailyLifeByKey.freedoms ? `${dailyLifeByKey.freedoms.title}：${dailyLifeByKey.freedoms.text}` : scenario.summary },
+      { label: '主题', text: scenario.theme },
+      { label: '交换相关任务', text: scenario.missions.find((mission) => mission.taskType === '比较分析' || mission.taskType === '因果链')?.instruction ?? scenario.decision.context },
+    ],
+    'source-credibility': [
+      { label: '来源类型', text: scenario.sources.map((source) => `${source.title}（${sourceTypeLabels[source.sourceType]}）`).join('；') },
+      { label: '代表摘记', text: firstSource ? `${firstSource.title}：${firstSource.excerpt}` : scenario.interpretationNote },
+      { label: '视角', text: firstSource?.perspective ?? scenario.interpretationNote },
+      { label: '可靠边界', text: firstSource?.reliabilityNote ?? scenario.sourceEvidenceUse },
+    ],
+    'historical-choice': [
+      { label: '选择情境', text: scenario.decision.context },
+      { label: '可选行动', text: scenario.decision.options.map((option) => `${option.label}（${option.stance}）`).join('；') },
+      { label: '真实历史对照', text: scenario.realHistory },
+      { label: '反思角度', text: scenario.compareAngles[0]?.prompt ?? scenario.interpretationNote },
+    ],
+  }
+
+  return sectionsByLens[lens.key]
+}
+
+function formatCompareAssignment(scenarioA: Scenario, scenarioB: Scenario, lens: CompareLens) {
+  return [
+    `TimeAtlas 跨场景比较作业：${lens.title}`,
+    '',
+    `比较对象：${scenarioA.title}（${scenarioA.era}，${scenarioA.location}） × ${scenarioB.title}（${scenarioB.era}，${scenarioB.location}）`,
+    '',
+    `作业提示：${lens.prompt}`,
+    '',
+    '证据清单：',
+    ...lens.evidenceChecklist.map((item) => `- ${item}`),
+    '',
+    '输出结构：',
+    ...lens.outputTemplate.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    '评分标准：',
+    ...lens.rubric.map((item) => `- ${item}`),
+    '',
+    '建议引用证据：',
+    `- ${scenarioA.title}：${getLensEvidenceSections(scenarioA, lens).map((section) => `${section.label}｜${section.text}`).join('；')}`,
+    `- ${scenarioB.title}：${getLensEvidenceSections(scenarioB, lens).map((section) => `${section.label}｜${section.text}`).join('；')}`,
+  ].join('\n')
+}
+
+function CompareLabPanel({
+  scenarioA,
+  scenarioB,
+  selectedLens,
+  onSelectScenarioA,
+  onSelectScenarioB,
+  onSelectLens,
+}: {
+  scenarioA: Scenario
+  scenarioB: Scenario
+  selectedLens: CompareLens
+  onSelectScenarioA: (id: string) => void
+  onSelectScenarioB: (id: string) => void
+  onSelectLens: (key: CompareLens['key']) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const scenarioAEvidence = getLensEvidenceSections(scenarioA, selectedLens)
+  const scenarioBEvidence = getLensEvidenceSections(scenarioB, selectedLens)
+
+  async function copyAssignment() {
+    try {
+      await copyTextToClipboard(formatCompareAssignment(scenarioA, scenarioB, selectedLens))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="compare-lab" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="compare-lab-title">
+      <div className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-teal-100">
+          <Scale size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">compare lab</span>
+        </div>
+        <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+          <div>
+            <h2 id="compare-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              跨场景比较实验室 / 作业生成器
+            </h2>
+            <p className="mt-3 leading-7 text-stone-400">
+              选择两个不同历史身份和一个比较镜头，TimeAtlas 会抽取相关字段，生成可直接用于课堂的比较作业。
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">比较对象 A</span>
+                <select
+                  value={scenarioA.id}
+                  onChange={(event) => onSelectScenarioA(event.target.value)}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  {scenarios.map((scenario) => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.title} · {scenario.era}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">比较对象 B</span>
+                <select
+                  value={scenarioB.id}
+                  onChange={(event) => onSelectScenarioB(event.target.value)}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  {scenarios.map((scenario) => (
+                    <option key={scenario.id} value={scenario.id} disabled={scenario.id === scenarioA.id}>
+                      {scenario.title} · {scenario.era}{scenario.id === scenarioA.id ? '（已选 A）' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">比较镜头</span>
+                <select
+                  value={selectedLens.key}
+                  onChange={(event) => onSelectLens(event.target.value as CompareLens['key'])}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  {compareLenses.map((lens) => (
+                    <option key={lens.key} value={lens.key}>
+                      {lens.title} · {lens.shortLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-5 rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-teal-100">当前镜头</h3>
+              <p className="mt-2 text-sm leading-6 text-stone-400">{selectedLens.description}</p>
+              <p className="mt-3 rounded-2xl border border-teal-100/15 bg-teal-100/[0.045] p-3 text-sm leading-6 text-stone-300">
+                {selectedLens.prompt}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-2">
+              {[{ scenario: scenarioA, evidence: scenarioAEvidence }, { scenario: scenarioB, evidence: scenarioBEvidence }].map(({ scenario, evidence }) => (
+                <article key={scenario.id} className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+                  <div className="h-1.5" style={{ backgroundColor: scenario.accent }} />
+                  <div className="p-5">
+                    <div className="mb-3 text-xs uppercase tracking-[0.25em] text-stone-500">{scenario.era} · {scenario.location}</div>
+                    <h3 className="text-2xl font-semibold tracking-tight text-stone-50">{scenario.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{scenario.identity} · {scenario.role}</p>
+                    <div className="mt-4 space-y-3">
+                      {evidence.map((section) => (
+                        <div key={`${scenario.id}-${section.label}`} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                          <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-100/80">{section.label}</div>
+                          <p className="mt-2 text-sm leading-6 text-stone-400">{section.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <section className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-5" aria-labelledby="compare-assignment-title">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 id="compare-assignment-title" className="text-2xl font-semibold tracking-tight text-stone-50">
+                    课堂比较作业
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">复制后可直接发给学生，也可作为小组讨论单。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyAssignment()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '作业已复制' : copyStatus === 'failed' ? '复制失败' : '复制作业'}
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4 lg:col-span-3">
+                  <h4 className="font-semibold text-amber-100">提示</h4>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedLens.prompt}</p>
+                </div>
+                <CompareAssignmentList title="证据清单" items={selectedLens.evidenceChecklist} />
+                <CompareAssignmentList title="输出结构" items={selectedLens.outputTemplate} ordered />
+                <CompareAssignmentList title="评分标准" items={selectedLens.rubric} />
+              </div>
+              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '剪贴板不可用时，请手动复制本区内容。' : '比较对象和镜头会同步到地址栏，便于分享或下次打开。'}
+              </p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CompareAssignmentList({ title, items, ordered = false }: { title: string; items: string[]; ordered?: boolean }) {
+  const listClassName = 'mt-3 space-y-2 text-sm leading-6 text-stone-400'
+  const content = items.map((item, index) => (
+    <li key={item} className="flex gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+      <span className="shrink-0 text-teal-100">{ordered ? `${index + 1}.` : '•'}</span>
+      <span>{item}</span>
+    </li>
+  ))
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+      <h4 className="font-semibold text-teal-100">{title}</h4>
+      {ordered ? <ol className={listClassName}>{content}</ol> : <ul className={listClassName}>{content}</ul>}
+    </div>
   )
 }
 
