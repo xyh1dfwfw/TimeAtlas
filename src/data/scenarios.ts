@@ -76,6 +76,31 @@ export type CompareLens = {
   rubric: string[]
 }
 
+export type LessonPackMode = 'quick' | 'source' | 'debate'
+
+export type LessonPack = {
+  inquiryQuestion: string
+  quickStart: string[]
+  classroomFlow: Record<LessonPackMode, {
+    title: string
+    steps: string[]
+  }>
+  checkQuestions: {
+    question: string
+    answer: string
+    teacherNote: string
+  }[]
+  misconceptions: {
+    misconception: string
+    correction: string
+  }[]
+  discussionRoles: {
+    role: string
+    task: string
+  }[]
+  exitTickets: string[]
+}
+
 export type DecisionOption = {
   id: string
   label: string
@@ -110,6 +135,7 @@ export type Scenario = {
   }
   realHistory: string
   interpretationNote: string
+  lessonPack: LessonPack
   missions: Mission[]
   keyTerms: KeyTerm[]
   compareAngles: CompareAngle[]
@@ -402,6 +428,53 @@ export const scenarios: Scenario[] = [
       '唐代长安确是高度国际化的帝国都城。安史之乱后，唐朝政治、财政与交通格局深刻改变，长安的世界城市地位也逐渐转向另一种形态。',
     interpretationNote:
       '本场景把长安西市的制度、商旅与异域商品压缩进一个虚构小商人的一天；具体人物与选择为叙事化合成，不对应单一史料个案。',
+    lessonPack: {
+      inquiryQuestion: '长安商人的“开放世界”到底依赖哪些制度与道路条件？',
+      quickStart: [
+        '30 秒定位：742 年、长安西市、香料与织物铺。',
+        '圈出一个机会线索和一个风险线索。',
+        '用一句话预测：赊货扩大生意会卡在哪里？',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟快速进入',
+          steps: ['读身份卡与决策题', '两人互找“机会/风险”证据', '全班投票选一个经营策略'],
+        },
+        source: {
+          title: '20 分钟来源研读',
+          steps: ['比较《唐六典》与丝路研究的视角', '标出制度事实与商业推论', '写一句有边界的繁荣判断'],
+        },
+        debate: {
+          title: '25 分钟经营辩论',
+          steps: ['三组分别支持扩张、分散、官府采购', '每组必须引用一条来源和一条日常证据', '结尾说明最大不确定性'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '为什么“熟人商队可信”仍不足以保证赊货安全？',
+          answer: '因为信用还依赖道路安全、边境局势、官府监管和市场需求。',
+          teacherNote: '引导学生把个人信任和跨区域秩序分开。',
+        },
+        {
+          question: '《唐六典》更适合证明什么？',
+          answer: '适合证明市场监管和官署框架，不直接证明小商人心理。',
+          teacherNote: '强调规范性制度文本与街头执行之间有距离。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '唐代长安开放就等于商人完全自由。', correction: '开放与坊市、夜禁、税令和官府采购等管制同时存在。' },
+        { misconception: '丝路贸易总是稳定发财。', correction: '商路收益依赖地方秩序，动荡会把库存变成债务。' },
+      ],
+      discussionRoles: [
+        { role: '商人合伙人', task: '主张最稳妥的库存策略。' },
+        { role: '市署官吏', task: '指出市场监管会改变哪些选择。' },
+        { role: '商队代表', task: '解释远途贸易为何仍值得冒险。' },
+      ],
+      exitTickets: [
+        '写一句：长安繁荣最依赖的条件是____，证据是____。',
+        '指出一个来源看不见的普通人声音。',
+      ],
+    },
     missions: [
       {
         id: 'map-risk-route',
@@ -725,6 +798,53 @@ export const scenarios: Scenario[] = [
       '《东京梦华录》等材料呈现了北宋东京繁盛的市民生活。1127 年靖康之变使这座城市和大量普通人的命运发生剧烈转折。',
     interpretationNote:
       '本场景主要依据城市生活与靖康前夜的宏观背景推演茶铺学徒经验；茶铺人物、对话传闻和个人迁徙选择均为教育化虚构。',
+    lessonPack: {
+      inquiryQuestion: '汴京的繁华为什么不能自动转化为普通人的安全？',
+      quickStart: [
+        '定位 1126 年前夜：茶铺、传闻、南下成本。',
+        '找出一条繁华证据和一条脆弱证据。',
+        '判断学徒该先攒钱、留守还是求助熟客。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟城市脆弱性',
+          steps: ['浏览日常切片', '给每条传闻打“可信/待查”标记', '写一句风险判断'],
+        },
+        source: {
+          title: '20 分钟城市材料读法',
+          steps: ['用《东京梦华录》找市民生活细节', '用靖康背景解释材料的时间边界', '区分繁华描写和危机预测'],
+        },
+        debate: {
+          title: '25 分钟去留辩论',
+          steps: ['留守组、南下组、观望组准备证据', '每组说明钱、人脉与消息限制', '全班评估哪种选择最像普通人'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '茶铺为什么是信息节点？',
+          answer: '客人流动带来官场、商旅和街坊传闻，学徒可听到但难核实。',
+          teacherNote: '提醒学生传闻是线索，不等同于事实。',
+        },
+        {
+          question: '靖康之变如何改变对繁华城市的理解？',
+          answer: '它显示商业活力无法单独抵御军事和政治崩溃。',
+          teacherNote: '把日常繁荣与国家防御结构连接。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '城市越繁华，普通人越安全。', correction: '繁华需要城防、财政和秩序支撑，危机中反而暴露脆弱性。' },
+        { misconception: '学徒只要听到传闻就能做正确选择。', correction: '信息不完整，迁移还受钱、亲友和身份限制。' },
+      ],
+      discussionRoles: [
+        { role: '茶铺学徒', task: '说明自己的钱和消息限制。' },
+        { role: '熟客商人', task: '判断哪些传闻值得相信。' },
+        { role: '城中家人', task: '提出留守的现实理由。' },
+      ],
+      exitTickets: [
+        '用“繁华但是____”完成一句历史判断。',
+        '写出一条你仍无法确认的传闻。',
+      ],
+    },
     missions: [
       {
         id: 'listen-for-crisis',
@@ -1050,6 +1170,53 @@ export const scenarios: Scenario[] = [
       '明代中后期江南商业、出版和海外白银流动显著发展。读书人与商业社会并非完全隔绝，地方社会中存在大量复合身份。',
     interpretationNote:
       '本场景把江南商业化、科举压力与隆庆开关后的海贸变化合并呈现；读书人的具体职业组合是时代趋势下的合成人物。',
+    lessonPack: {
+      inquiryQuestion: '明代江南读书人的身份为何会在科举、商业与海贸之间摇摆？',
+      quickStart: [
+        '定位江南商业化与科举压力。',
+        '选出一个“读书人”证据和一个“市场人”证据。',
+        '预测参与商业会带来哪种名声风险。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟身份拼图',
+          steps: ['读角色与日常', '把线索贴到“科举/商业/海贸”三栏', '写一条复合身份判断'],
+        },
+        source: {
+          title: '20 分钟政策与社会',
+          steps: ['用政策时间点固定隆庆开关背景', '用商业文化研究解释士商交叠', '标出从宏观到个人的推论'],
+        },
+        debate: {
+          title: '25 分钟名声风险辩论',
+          steps: ['科举优先组与经商兼顾组对辩', '每组必须处理家庭责任', '结尾承认最难证明的一点'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '为什么读书人与商业不是完全隔绝？',
+          answer: '江南商业、出版和宗族经济让读书人可能参与账务、书籍和贸易网络。',
+          teacherNote: '避免把“四民”理想秩序当成全部现实。',
+        },
+        {
+          question: '白银流入能直接证明某个读书人经商吗？',
+          answer: '不能，只能说明区域经济条件，需要日常和身份线索补足。',
+          teacherNote: '训练宏观证据到个体叙事的边界意识。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '士人只能读书应考，不能接触市场。', correction: '现实中地方士人常与出版、田产、账务和商业网络相连。' },
+        { misconception: '海贸开放会让所有人立即受益。', correction: '收益经过地域、身份、资本和政策限制分配。' },
+      ],
+      discussionRoles: [
+        { role: '读书人本人', task: '平衡科举前途与家庭收入。' },
+        { role: '族中长辈', task: '维护名声和宗族期待。' },
+        { role: '书坊/商人伙伴', task: '说明市场机会和风险。' },
+      ],
+      exitTickets: [
+        '写出一个“制度期待”和一个“现实压力”。',
+        '说明你使用的一条证据属于宏观还是个人线索。',
+      ],
+    },
     missions: [
       {
         id: 'trace-silver',
@@ -1373,6 +1540,53 @@ export const scenarios: Scenario[] = [
       '广州十三行体系连接清朝制度与全球贸易。鸦片贸易和禁烟运动最终引发鸦片战争，深刻改变中国近代史进程。',
     interpretationNote:
       '本场景从买办助手视角呈现十三行制度与鸦片危机的夹缝经验；文书委托与个人抉择为虚构，用于展示制度风险而非具体案件复原。',
+    lessonPack: {
+      inquiryQuestion: '十三行买办助手为什么既有机会又处在制度夹缝中？',
+      quickStart: [
+        '定位广州口岸、十三行、鸦片危机。',
+        '画出清廷、行商、外商、助手四方关系。',
+        '判断一份账簿最可能保护谁、伤害谁。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟关系图',
+          steps: ['读决策题', '把角色连成责任链', '标出一个信息优势和一个风险来源'],
+        },
+        source: {
+          title: '20 分钟口岸材料研读',
+          steps: ['比较英文口岸视角与清朝制度背景', '区分贸易事实、利益立场和道德判断', '写一条夹缝处境证据'],
+        },
+        debate: {
+          title: '25 分钟账簿选择辩论',
+          steps: ['公开风险组、隐藏风险组、求保护组发言', '每组说明可能后果', '全班评估谁承担最大代价'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '买办助手的中介优势是什么？',
+          answer: '懂语言、账目和双方规矩，能传递信息并从缝隙中获得机会。',
+          teacherNote: '同时追问这种优势为何不等于权力。',
+        },
+        {
+          question: '为什么鸦片风险不是单纯个人道德问题？',
+          answer: '它牵涉贸易制度、外交冲突、行商责任和国家禁令。',
+          teacherNote: '引导学生从制度链条分析灰色收益。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '中介会两边通吃，所以最安全。', correction: '中介也最容易在冲突中被追责或牺牲。' },
+        { misconception: '贸易冲突只由个人贪婪造成。', correction: '个人选择嵌在口岸制度、全球需求和国家政策中。' },
+      ],
+      discussionRoles: [
+        { role: '买办助手', task: '说明账簿处理的个人风险。' },
+        { role: '行商', task: '强调责任、声誉和官府压力。' },
+        { role: '外商', task: '提出利润和契约理由。' },
+      ],
+      exitTickets: [
+        '写出十三行体系中的一条权力链。',
+        '说明一条来源可能带有的立场。',
+      ],
+    },
     missions: [
       {
         id: 'follow-paper-trail',
@@ -1698,6 +1912,53 @@ export const scenarios: Scenario[] = [
       '伦敦大轰炸期间，平民防空、灯火管制、地铁避难和社区互助成为英国战时社会的重要经验，也影响战后公共政策想象。',
     interpretationNote:
       '本场景依据伦敦大轰炸中的平民防护、配给和互助经验塑造普通居民；邻居与轮班选择为合成情境，不代表单一档案个案。',
+    lessonPack: {
+      inquiryQuestion: '伦敦平民如何把战争压力转化为日常规则和互助？',
+      quickStart: [
+        '定位大轰炸、灯火管制、配给与避难。',
+        '找一条国家规定和一条社区互助证据。',
+        '判断违反灯火管制影响的是个人还是全街区。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟战时日常',
+          steps: ['读日常与决策', '给风险按“个人/公共”分类', '写一条公共责任判断'],
+        },
+        source: {
+          title: '20 分钟档案与记忆',
+          steps: ['用博物馆资料确认民防制度', '用平民档案补足情绪与日常', '区分宣传士气和真实压力'],
+        },
+        debate: {
+          title: '25 分钟避难与互助辩论',
+          steps: ['家庭避难组、公共避难组、邻里轮班组准备', '每组说明资源限制', '共同设计一条街区规则'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '灯火管制为什么是公共安全问题？',
+          answer: '一户漏光可能暴露街区位置，增加空袭风险。',
+          teacherNote: '把个人行为与集体脆弱性连接。',
+        },
+        {
+          question: '“士气高昂”这个说法需要怎样核查？',
+          answer: '要对照日记、档案、配给和避难经历，注意宣传与沉默。',
+          teacherNote: '避免把战时宣传直接当作全部民众经验。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '战时平民只有被动忍受。', correction: '平民也通过守规、互助、避难和投诉影响社区安全。' },
+        { misconception: '英国平民都始终乐观团结。', correction: '士气叙事背后有恐惧、疲惫、阶层差异和资源不均。' },
+      ],
+      discussionRoles: [
+        { role: '街区居民', task: '说明家庭安全需求。' },
+        { role: '民防管理员', task: '维护灯火和避难规则。' },
+        { role: '邻居志愿者', task: '设计可持续互助安排。' },
+      ],
+      exitTickets: [
+        '写出一条个人行动如何影响公共安全。',
+        '指出“士气”叙事需要补充的证据。',
+      ],
+    },
     missions: [
       {
         id: 'inspect-blackout',
@@ -2024,6 +2285,53 @@ export const scenarios: Scenario[] = [
       '阿拔斯时期巴格达是重要的行政、商业与学术中心。纸张传播、翻译运动、书肆和赞助网络共同推动了阿拉伯语学术文化的发展。',
     interpretationNote:
       '本场景把纸张生产、抄写职业和翻译赞助合成到一名虚构抄写员身上；具体委托与医学译稿冲突为教育化情境。',
+    lessonPack: {
+      inquiryQuestion: '巴格达抄写员如何在劳动中参与知识生产？',
+      quickStart: [
+        '定位纸张、翻译、书肆和赞助。',
+        '找出抄写员的手工劳动与判断劳动。',
+        '判断是否该给医学译稿加注。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟一页纸旅程',
+          steps: ['从纸坊到读者画流程', '标出抄写员能影响的环节', '写一句知识可靠性判断'],
+        },
+        source: {
+          title: '20 分钟书籍史研读',
+          steps: ['用纸张与翻译研究校准背景', '用书目传统理解知识网络', '区分赞助者、译者、抄手视角'],
+        },
+        debate: {
+          title: '25 分钟加注辩论',
+          steps: ['忠实抄写组与谨慎加注组对辩', '每组说明权威和错误风险', '共同写一条注记规范'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '抄写员为什么不只是复制机器？',
+          answer: '他会校对、排版、辨认术语、处理委托要求和错误风险。',
+          teacherNote: '突出知识传播中的隐形劳动。',
+        },
+        {
+          question: '赞助网络会怎样影响文本？',
+          answer: '赞助决定委托、主题、报酬和流通对象，也可能影响解释权。',
+          teacherNote: '把知识生产与社会资源连接。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '翻译运动只是少数学者的思想活动。', correction: '纸张、抄写、书肆、赞助等劳动共同支撑知识流动。' },
+        { misconception: '抄写越忠实就越没有判断。', correction: '判断常体现在校误、术语选择和是否加注。' },
+      ],
+      discussionRoles: [
+        { role: '抄写员', task: '说明加注的职业风险。' },
+        { role: '赞助人', task: '提出准确、声誉和成本要求。' },
+        { role: '读者/医者', task: '说明错误文本的实际后果。' },
+      ],
+      exitTickets: [
+        '写出一项抄写劳动如何改变知识可靠性。',
+        '指出一条来源难以看见的劳动者经验。',
+      ],
+    },
     missions: [
       {
         id: 'trace-paper-chain',
@@ -2347,6 +2655,53 @@ export const scenarios: Scenario[] = [
       '廷巴克图在马里、桑海时期与跨撒哈拉贸易和伊斯兰学术网络相连，保存了大量法学、语法、诗歌、天文等手稿传统。',
     interpretationNote:
       '本场景把廷巴克图学者家庭、学生寄宿、手稿抄写与商路移动合成呈现；个人远行选择不对应单一学生传记。',
+    lessonPack: {
+      inquiryQuestion: '廷巴克图学生如何在手稿、师承和商路之间保护知识？',
+      quickStart: [
+        '定位桑海时期、跨撒哈拉贸易和手稿学习。',
+        '找出一个知识流动条件和一个脆弱条件。',
+        '判断远行求学还是留下抄副本。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟知识网',
+          steps: ['把老师、学生、商队、手稿连线', '标出盐金贸易与学术移动关系', '写一句保护方案'],
+        },
+        source: {
+          title: '20 分钟手稿来源研读',
+          steps: ['用机构资料确认手稿传统', '用区域史解释贸易和学术网络', '区分保存下来的文本与学生日常'],
+        },
+        debate: {
+          title: '25 分钟远行与留守辩论',
+          steps: ['远行组、留守组、副本组发言', '每组说明知识收益和损失', '全班制定手稿风险清单'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '商路为什么会影响学习？',
+          answer: '商路带来纸张、书籍、学者、消息和旅费，也带来盗匪与政治风险。',
+          teacherNote: '把经济网络和知识网络叠合起来。',
+        },
+        {
+          question: '保存的手稿能否完整代表学生生活？',
+          answer: '不能，它更能证明文本传统，学生情绪和日常需谨慎推论。',
+          teacherNote: '提醒学生区分材料幸存与历史整体。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '非洲内陆学术与世界交流隔绝。', correction: '廷巴克图通过跨撒哈拉网络连接商业、学术和伊斯兰世界。' },
+        { misconception: '手稿保存下来就说明知识很安全。', correction: '手稿易受火灾、潮湿、战争、迁移和所有权变化影响。' },
+      ],
+      discussionRoles: [
+        { role: '手稿学生', task: '权衡远行学习与本地责任。' },
+        { role: '老师', task: '维护师承和文本准确性。' },
+        { role: '商队伙伴', task: '说明旅途资源和风险。' },
+      ],
+      exitTickets: [
+        '写出一条连接贸易与学习的证据。',
+        '提出一个保护手稿的现实步骤。',
+      ],
+    },
     missions: [
       {
         id: 'map-sahara-network',
@@ -2673,6 +3028,53 @@ export const scenarios: Scenario[] = [
       '特拉特洛尔科市场是征服前中部墨西哥著名大市场，西班牙征服者记录了其规模和秩序。1519-1521 年的战争、疾病和同盟变化使特诺奇蒂特兰陷落。',
     interpretationNote:
       '本场景依据市场、贡赋和征服前夜的已知背景合成一名卖家视角；囤货选择用于展示危机市场逻辑，不是具体档案事件。',
+    lessonPack: {
+      inquiryQuestion: '特诺奇蒂特兰市场秩序如何在征服前夜同时提供稳定与风险？',
+      quickStart: [
+        '定位 1519 年、特拉特洛尔科市场、贡赋与传闻。',
+        '找出一条市场秩序证据和一条危机传闻。',
+        '判断囤货、换货还是维持摊位。',
+      ],
+      classroomFlow: {
+        quick: {
+          title: '10 分钟市场秩序',
+          steps: ['读市场日常', '把货源连到贡赋、湖区和乡村', '写一句传闻如何影响价格'],
+        },
+        source: {
+          title: '20 分钟征服时期材料研读',
+          steps: ['用征服记述确认市场规模与秩序', '用社会史补足普通卖家视角', '标出欧洲记录的视角限制'],
+        },
+        debate: {
+          title: '25 分钟危机经营辩论',
+          steps: ['囤货组、换成必需品组、正常营业组准备', '每组引用市场规则和战争线索', '结尾说明疾病和同盟变化的不确定性'],
+        },
+      },
+      checkQuestions: [
+        {
+          question: '为什么市场规则会影响普通卖家的安全？',
+          answer: '规则约束价格、摊位、争端和交换秩序，使陌生人交易可预期。',
+          teacherNote: '强调市场不是无政府空间。',
+        },
+        {
+          question: '征服者记录市场时可能有什么限制？',
+          answer: '他们能描述规模和惊异感，却未必理解本地制度和普通卖家的处境。',
+          teacherNote: '训练学生识别外来观察者视角。',
+        },
+      ],
+      misconceptions: [
+        { misconception: '阿兹特克市场只是简单物物交换。', correction: '大型市场有规则、监督、专门货物和复杂供应网络。' },
+        { misconception: '征服前夜普通人能清楚预见帝国陷落。', correction: '他们面对的是传闻、价格波动、疾病和政治同盟等不完整信号。' },
+      ],
+      discussionRoles: [
+        { role: '市场卖家', task: '说明库存和家庭生计压力。' },
+        { role: '市场监督者', task: '维护交易秩序和规则。' },
+        { role: '外来观察者', task: '描述所见并承认理解限制。' },
+      ],
+      exitTickets: [
+        '写出一条市场秩序如何降低交易风险。',
+        '指出一条征服时期来源的视角限制。',
+      ],
+    },
     missions: [
       {
         id: 'map-market-supply',

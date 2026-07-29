@@ -27,6 +27,7 @@ import {
   scenarios,
   type CompareLens,
   type DecisionOption,
+  type LessonPackMode,
   type Mission,
   type MissionTaskType,
   type Scenario,
@@ -1450,6 +1451,7 @@ function ScenarioExperience({
           <div className="space-y-6">
             <NarrativePanel scenario={scenario} />
             <DailyLifeGrid scenario={scenario} />
+            <LessonPackPanel scenario={scenario} />
             <MissionBoard
               scenario={scenario}
               completedMissionIds={completedMissionIds}
@@ -1560,6 +1562,179 @@ function DailyLifeGrid({ scenario }: { scenario: Scenario }) {
           <p className="mt-3 leading-7 text-stone-400">{section.text}</p>
         </article>
       ))}
+    </section>
+  )
+}
+
+
+function LessonPackPanel({ scenario }: { scenario: Scenario }) {
+  const [selectedMode, setSelectedMode] = useState<LessonPackMode>('quick')
+  const [revealedAnswers, setRevealedAnswers] = useState<string[]>([])
+  const [exitTicketStatus, setExitTicketStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const modeLabels: Record<LessonPackMode, string> = {
+    quick: 'Quick start',
+    source: 'Source lab',
+    debate: 'Debate',
+  }
+  const activeFlow = scenario.lessonPack.classroomFlow[selectedMode]
+
+  function toggleAnswer(question: string) {
+    setRevealedAnswers((currentAnswers) =>
+      currentAnswers.includes(question)
+        ? currentAnswers.filter((candidate) => candidate !== question)
+        : [...currentAnswers, question],
+    )
+  }
+
+  async function copyExitTickets() {
+    const exitTicketText = [
+      `TimeAtlas Exit Ticket · ${scenario.title}`,
+      `探究问题：${scenario.lessonPack.inquiryQuestion}`,
+      ...scenario.lessonPack.exitTickets.map((ticket, index) => `${index + 1}. ${ticket}`),
+    ].join('\n')
+
+    try {
+      await copyTextToClipboard(exitTicketText)
+      setExitTicketStatus('copied')
+    } catch {
+      setExitTicketStatus('failed')
+    }
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="lesson-pack-title">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-4 flex items-center gap-3 text-amber-100">
+            <ClipboardList size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">guided lesson pack 6.0</span>
+          </div>
+          <h2 id="lesson-pack-title" className="text-3xl font-semibold tracking-tight text-stone-50">Guided Lesson Pack</h2>
+          <p className="mt-3 max-w-3xl text-lg leading-8 text-stone-300">{scenario.lessonPack.inquiryQuestion}</p>
+        </div>
+        <label className="block min-w-52">
+          <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">课堂模式</span>
+          <select
+            value={selectedMode}
+            onChange={(event) => setSelectedMode(event.target.value as LessonPackMode)}
+            className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+            aria-label="选择课堂模式"
+          >
+            {(Object.keys(modeLabels) as LessonPackMode[]).map((mode) => (
+              <option key={mode} value={mode}>{modeLabels[mode]}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-amber-100">Quick start</h3>
+            <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+              {scenario.lessonPack.quickStart.map((step, index) => (
+                <li key={step} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2">
+                  <span className="shrink-0 text-amber-100">{index + 1}.</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+            <h3 className="font-semibold text-teal-100">{activeFlow.title}</h3>
+            <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+              {activeFlow.steps.map((step, index) => (
+                <li key={step} className="flex gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                  <span className="shrink-0 text-teal-100">{index + 1}.</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-semibold text-stone-50">Exit ticket</h3>
+              <button
+                type="button"
+                onClick={() => void copyExitTickets()}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+              >
+                {exitTicketStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+                {exitTicketStatus === 'copied' ? '已复制' : exitTicketStatus === 'failed' ? '复制失败' : '复制 exit ticket'}
+              </button>
+            </div>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+              {scenario.lessonPack.exitTickets.map((ticket) => (
+                <li key={ticket} className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2">{ticket}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+              {exitTicketStatus === 'failed' ? '剪贴板不可用时，请手动复制上方问题。' : '可作为下课前 2 分钟形成性评价。'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">Check questions</h3>
+            <div className="mt-3 space-y-3">
+              {scenario.lessonPack.checkQuestions.map((checkQuestion) => {
+                const isRevealed = revealedAnswers.includes(checkQuestion.question)
+
+                return (
+                  <article key={checkQuestion.question} className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <h4 className="font-semibold leading-6 text-stone-100">{checkQuestion.question}</h4>
+                      <button
+                        type="button"
+                        onClick={() => toggleAnswer(checkQuestion.question)}
+                        aria-expanded={isRevealed}
+                        className="inline-flex shrink-0 items-center justify-center rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-3 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                      >
+                        {isRevealed ? '收起答案' : '揭示答案'}
+                      </button>
+                    </div>
+                    {isRevealed ? (
+                      <div className="mt-3 grid gap-2 text-sm leading-6 text-stone-400">
+                        <p><span className="font-semibold text-amber-100">参考答案：</span>{checkQuestion.answer}</p>
+                        <p><span className="font-semibold text-teal-100">Teacher note：</span>{checkQuestion.teacherNote}</p>
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-3xl border border-rose-200/15 bg-rose-100/[0.035] p-4">
+              <h3 className="font-semibold text-rose-100">Misconception cards</h3>
+              <div className="mt-3 space-y-3 text-sm leading-6 text-stone-400">
+                {scenario.lessonPack.misconceptions.map((item) => (
+                  <article key={item.misconception} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <p className="text-stone-300">误区：{item.misconception}</p>
+                    <p className="mt-2 text-rose-100/85">校正：{item.correction}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Discussion roles</h3>
+              <div className="mt-3 space-y-3 text-sm leading-6 text-stone-400">
+                {scenario.lessonPack.discussionRoles.map((role) => (
+                  <article key={role.role} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                    <p className="font-semibold text-teal-100">{role.role}</p>
+                    <p className="mt-1">{role.task}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
@@ -2032,6 +2207,35 @@ function ArgumentStudioPanel({
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [teacherPackStatus, setTeacherPackStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const lessonEvidence = [
+    {
+      id: 'lesson:inquiry',
+      label: `探究问题：${scenario.lessonPack.inquiryQuestion}`,
+      helper: 'Guided Lesson Pack',
+    },
+    ...scenario.lessonPack.quickStart.map((step, index) => ({
+      id: `lesson:quick:${index}`,
+      label: `Quick start ${index + 1}：${step}`,
+      helper: '课堂导入步骤',
+    })),
+    ...Object.entries(scenario.lessonPack.classroomFlow).flatMap(([mode, flow]) =>
+      flow.steps.map((step, index) => ({
+        id: `lesson:flow:${mode}:${index}`,
+        label: `${flow.title} ${index + 1}：${step}`,
+        helper: '课堂流程证据',
+      })),
+    ),
+    ...scenario.lessonPack.exitTickets.map((ticket, index) => ({
+      id: `lesson:exit:${index}`,
+      label: `Exit ticket：${ticket}`,
+      helper: '形成性评价提示',
+    })),
+  ]
+  const checkQuestionEvidence = scenario.lessonPack.checkQuestions.map((checkQuestion, index) => ({
+    id: `lesson:check:${index}`,
+    label: `检查题“${checkQuestion.question}”参考答案：${checkQuestion.answer}`,
+    helper: `Check question · ${checkQuestion.teacherNote}`,
+  }))
   const missionEvidence = scenario.missions.flatMap((mission) =>
     mission.evidenceChecklist.map((item) => ({
       id: `mission:${mission.id}:${item}`,
@@ -2065,7 +2269,7 @@ function ArgumentStudioPanel({
         label: `可选立场“${option.label}”：${option.description}`,
         helper: '历史岔路口选项',
       }))
-  const evidenceOptions = [...sourceEvidence, ...missionEvidence, ...dailyLifeEvidence, ...timelineEvidence, ...decisionEvidence]
+  const evidenceOptions = [...sourceEvidence, ...lessonEvidence, ...checkQuestionEvidence, ...missionEvidence, ...dailyLifeEvidence, ...timelineEvidence, ...decisionEvidence]
   const activeMissionWork = Object.entries(missionWorkState).flatMap(([key, work]) => {
     const [scenarioId, missionId] = key.split(':')
 
@@ -2086,7 +2290,7 @@ function ArgumentStudioPanel({
     .filter(Boolean)
     .map((line) => `- ${line}`)
   const fullArgument = [
-    'TimeAtlas Evidence-to-Argument Studio 5.0',
+    'TimeAtlas Evidence-to-Argument Studio 6.0',
     `场景：${scenario.title}（${scenario.era} · ${scenario.location}）`,
     `身份：${scenario.identity}`,
     selectedOption ? `历史选择：${selectedOption.label} — ${selectedOption.stance}` : `历史选择：尚未选择；问题为“${scenario.decision.prompt}”`,
@@ -2139,15 +2343,44 @@ function ArgumentStudioPanel({
       mission.rubric.map((item) => `- ${mission.title}：${item}`),
     )
     const sourcePrompts = scenario.sources.map((source) => `- ${source.title}：${source.sourceQuestion}`)
+    const lessonFlowLines = (Object.entries(scenario.lessonPack.classroomFlow) as [LessonPackMode, typeof scenario.lessonPack.classroomFlow[LessonPackMode]][]).flatMap(
+      ([mode, flow]) => [`- ${mode} · ${flow.title}`, ...flow.steps.map((step) => `  - ${step}`)],
+    )
     const teacherPack = [
-      `TimeAtlas Teacher Pack · ${scenario.title}`,
-      `讨论导入：${scenario.decision.prompt}`,
+      `TimeAtlas Teacher Pack 6.0 · ${scenario.title}`,
+      `场景：${scenario.era} · ${scenario.location} · ${scenario.identity}`,
+      `探究问题：${scenario.lessonPack.inquiryQuestion}`,
+      `历史岔路口：${scenario.decision.prompt}`,
+      '',
+      'Quick start：',
+      ...scenario.lessonPack.quickStart.map((step, index) => `${index + 1}. ${step}`),
+      '',
+      '课堂流程：',
+      ...lessonFlowLines,
+      '',
+      'Check questions：',
+      ...scenario.lessonPack.checkQuestions.flatMap((item, index) => [
+        `${index + 1}. ${item.question}`,
+        `   答案：${item.answer}`,
+        `   Teacher note：${item.teacherNote}`,
+      ]),
+      '',
+      'Misconception cards：',
+      ...scenario.lessonPack.misconceptions.map((item) => `- 误区：${item.misconception}｜校正：${item.correction}`),
+      '',
+      'Discussion roles：',
+      ...scenario.lessonPack.discussionRoles.map((role) => `- ${role.role}：${role.task}`),
+      '',
       '可讨论证据：',
       ...scenario.sources.map((source) => `- ${source.title}（${sourceTypeLabels[source.sourceType]}）：${source.excerpt}`),
-      '讨论提示：',
+      '来源追问：',
       ...sourcePrompts,
+      '',
+      'Exit tickets：',
+      ...scenario.lessonPack.exitTickets.map((ticket, index) => `${index + 1}. ${ticket}`),
+      '',
       '检查清单 / Rubric：',
-      ...(rubricLines.length ? rubricLines.slice(0, 8) : sourceReaderSelfCheck.map((item) => `- ${item}`)),
+      ...(rubricLines.length ? rubricLines.slice(0, 10) : sourceReaderSelfCheck.map((item) => `- ${item}`)),
       '史料自检：',
       ...sourceReaderSelfCheck.map((item) => `- ${item}`),
     ].join('\n')
@@ -2166,11 +2399,11 @@ function ArgumentStudioPanel({
         <div>
           <div className="mb-4 flex items-center gap-3 text-teal-100">
             <Scale size={20} />
-            <span className="text-sm uppercase tracking-[0.3em]">argument studio 5.0</span>
+            <span className="text-sm uppercase tracking-[0.3em]">assessment studio 6.0</span>
           </div>
           <h2 id="argument-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">Evidence-to-Argument Studio</h2>
           <p className="mt-3 max-w-3xl leading-7 text-stone-400">
-            把 Source Lab、任务板、日常生活、时间线和历史选择转成一条完整论证：主张、证据、推理，以及反证或不确定性。
+            把 Guided Lesson Pack、Source Lab、任务板、日常生活、时间线和历史选择转成一条完整论证：主张、证据、推理，以及反证或不确定性。
           </p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-stone-400" aria-live="polite">
@@ -2193,7 +2426,7 @@ function ArgumentStudioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">2. 选择证据 Evidence</h3>
-            <p className="mt-2 text-sm leading-6 text-stone-500">勾选可支持或挑战主张的来源、任务、日常生活、时间线与选择证据。</p>
+            <p className="mt-2 text-sm leading-6 text-stone-500">勾选可支持或挑战主张的来源、课堂流程、检查题、任务、日常生活、时间线与选择证据。</p>
             <div className="mt-4 max-h-96 space-y-2 overflow-auto pr-1">
               {evidenceOptions.map((option) => (
                 <label key={option.id} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400 transition hover:border-teal-100/25">
@@ -2286,8 +2519,8 @@ function ArgumentStudioPanel({
           <div className="rounded-3xl border border-teal-200/15 bg-black/20 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="font-semibold text-teal-100">Teacher Pack</h3>
-                <p className="mt-2 text-sm leading-6 text-stone-400">复制基于任务 rubric 与来源追问的讨论提示、检查清单和史料自检。</p>
+                <h3 className="font-semibold text-teal-100">Teacher Pack 6.0</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">复制整合 lessonPack、来源追问、检查题、误区卡、角色讨论、exit ticket 与 rubric 的课堂包。</p>
               </div>
               <button
                 type="button"
@@ -2297,6 +2530,16 @@ function ArgumentStudioPanel({
                 {teacherPackStatus === 'copied' ? <Check size={16} /> : <ClipboardList size={16} />}
                 {teacherPackStatus === 'copied' ? 'Teacher Pack 已复制' : teacherPackStatus === 'failed' ? '复制失败' : '复制 Teacher Pack'}
               </button>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm leading-6 text-stone-400 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                <p className="font-semibold text-amber-100">探究问题</p>
+                <p className="mt-1">{scenario.lessonPack.inquiryQuestion}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                <p className="font-semibold text-amber-100">课堂检查</p>
+                <p className="mt-1">{scenario.lessonPack.checkQuestions.length} 个 check questions · {scenario.lessonPack.exitTickets.length} 个 exit tickets</p>
+              </div>
             </div>
           </div>
         </div>
