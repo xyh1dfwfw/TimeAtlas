@@ -13,6 +13,7 @@ import {
   LibraryBig,
   MapPin,
   Route,
+  Search,
   ScrollText,
   Scale,
   Share2,
@@ -24,12 +25,28 @@ import { scenarios, type DecisionOption, type Scenario } from './data/scenarios'
 import './App.css'
 
 const defaultScenarioId = scenarios[1]?.id ?? scenarios[0].id
+const missionProgressStorageKey = 'timeatlas:mission-progress'
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
 const maxOptionCount = Math.max(...optionCounts)
 const totalSourceCount = scenarios.reduce((count, scenario) => count + scenario.sources.length, 0)
 const totalMissionCount = scenarios.reduce((count, scenario) => count + scenario.missions.length, 0)
+const timelineYears = scenarios.map((scenario) => scenario.year)
+const earliestScenarioYear = Math.min(...timelineYears)
+const latestScenarioYear = Math.max(...timelineYears)
+const regionOptions = [...new Set(scenarios.map((scenario) => scenario.region))]
+const themeOptions = [
+  ...new Set(
+    scenarios.flatMap((scenario) =>
+      scenario.theme
+        .split(/[、，,]/)
+        .map((theme) => theme.trim())
+        .filter(Boolean),
+    ),
+  ),
+]
+const sortedScenarios = [...scenarios].sort((first, second) => first.year - second.year)
 const statItems = [
   { value: String(scenarios.length), label: '历史身份' },
   {
@@ -44,13 +61,8 @@ function getScenarioById(id: string | null) {
   return scenarios.find((scenario) => scenario.id === id) ?? null
 }
 
-function loadMissionState() {
-  if (typeof window === 'undefined') {
-    return {} as Record<string, string[]>
-  }
-
+function parseMissionState(rawState: string | null) {
   try {
-    const rawState = window.sessionStorage.getItem('timeatlas:mission-progress')
     const parsedState = rawState ? JSON.parse(rawState) : {}
 
     if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
@@ -65,6 +77,57 @@ function loadMissionState() {
   } catch {
     return {} as Record<string, string[]>
   }
+}
+
+function getSafeStorage(kind: 'localStorage' | 'sessionStorage') {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const storage = window[kind]
+    const probeKey = `${missionProgressStorageKey}:probe`
+
+    storage.setItem(probeKey, '1')
+    storage.removeItem(probeKey)
+
+    return storage
+  } catch {
+    return null
+  }
+}
+
+function loadMissionState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseMissionState(localStorage?.getItem(missionProgressStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseMissionState(sessionStorage?.getItem(missionProgressStorageKey) ?? null)
+}
+
+function persistMissionState(state: Record<string, string[]>) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(missionProgressStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(missionProgressStorageKey, serializedState)
+}
+
+function getTotalCompletedMissions(completedMissionIdsByScenario: Record<string, string[]>) {
+  return scenarios.reduce((count, scenario) => {
+    const validMissionIds = new Set(scenario.missions.map((mission) => mission.id))
+    const completedMissionIds = completedMissionIdsByScenario[scenario.id] ?? []
+
+    return count + completedMissionIds.filter((missionId) => validMissionIds.has(missionId)).length
+  }, 0)
 }
 
 function getInitialSelection() {
@@ -104,6 +167,10 @@ function App() {
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
+  const totalCompletedMissionCount = useMemo(
+    () => getTotalCompletedMissions(completedMissionIdsByScenario),
+    [completedMissionIdsByScenario],
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -111,9 +178,9 @@ function App() {
     }
 
     try {
-      window.sessionStorage.setItem('timeatlas:mission-progress', JSON.stringify(completedMissionIdsByScenario))
+      persistMissionState(completedMissionIdsByScenario)
     } catch {
-      // Session persistence is progressive enhancement; in-memory state still works.
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [completedMissionIdsByScenario])
 
@@ -173,6 +240,11 @@ function App() {
 
       <Hero prefersReducedMotion={prefersReducedMotion} />
       <ScenarioGallery selectedScenarioId={selectedScenarioId} onSelect={selectScenario} />
+      <AtlasOverview
+        selectedScenarioId={selectedScenarioId}
+        totalCompletedMissionCount={totalCompletedMissionCount}
+        onSelect={selectScenario}
+      />
       <ScenarioExperience
         scenario={selectedScenario}
         selectedOption={selectedOption}
@@ -254,7 +326,7 @@ function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }
             <div className="rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(215,168,75,0.14),transparent_55%),#0f0d0a] p-6">
               <div className="mb-5 flex items-center justify-between text-xs uppercase tracking-[0.3em] text-stone-500">
                 <span>living archive</span>
-                <span>742 → 1940</span>
+                <span>{earliestScenarioYear} → {latestScenarioYear}</span>
               </div>
               <div className="relative aspect-square overflow-hidden rounded-full border border-amber-200/20 bg-[#090806]">
                 <div className="absolute inset-8 rounded-full border border-amber-200/20" />
@@ -286,49 +358,234 @@ function ScenarioGallery({
   selectedScenarioId: string
   onSelect: (id: string) => void
 }) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [regionFilter, setRegionFilter] = useState('all')
+  const [themeFilter, setThemeFilter] = useState('all')
+
+  const filteredScenarios = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+
+    return scenarios.filter((scenario) => {
+      const matchesSearch = normalizedQuery
+        ? [scenario.title, scenario.era, scenario.location, scenario.identity, scenario.theme]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery)
+        : true
+      const matchesRegion = regionFilter === 'all' || scenario.region === regionFilter
+      const matchesTheme = themeFilter === 'all' || scenario.theme.includes(themeFilter)
+
+      return matchesSearch && matchesRegion && matchesTheme
+    })
+  }, [regionFilter, searchQuery, themeFilter])
+
   return (
     <section id="gallery" className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
       <SectionHeader
         eyebrow="选择历史身份"
-        title="先从五个普通人的世界开始"
+        title={`浏览 ${filteredScenarios.length}/${scenarios.length} 个历史身份`}
         description="他们不一定出现在史书标题里，却站在贸易、城市、战争、制度变化的交汇处。"
       />
 
-      <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {scenarios.map((scenario) => {
-          const isSelected = selectedScenarioId === scenario.id
+      <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+        <div className="grid gap-3 lg:grid-cols-[1fr_0.42fr_0.42fr]">
+          <label className="relative block">
+            <span className="sr-only">搜索历史身份</span>
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-500" size={18} />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索标题、时代、地点、身份或主题"
+              className="w-full rounded-full border border-white/10 bg-black/25 py-3 pl-11 pr-4 text-stone-100 outline-none transition placeholder:text-stone-500 focus:border-amber-200/60 focus:bg-black/35"
+            />
+          </label>
 
-          return (
-            <button
-              key={scenario.id}
-              type="button"
-              aria-pressed={isSelected}
-              aria-label={`选择场景：${scenario.title}`}
-              onClick={() => onSelect(scenario.id)}
-              className={`group rounded-[1.75rem] border p-5 text-left transition duration-300 ${
-                isSelected
-                  ? 'border-amber-200/50 bg-amber-200/10 shadow-2xl shadow-amber-950/30'
-                  : 'border-white/10 bg-white/[0.035] hover:border-amber-100/30 hover:bg-white/[0.06]'
-              }`}
+          <label className="block">
+            <span className="sr-only">按地区筛选</span>
+            <select
+              value={regionFilter}
+              onChange={(event) => setRegionFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
             >
-              <div
-                className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-stone-950 shadow-lg"
-                style={{ backgroundColor: scenario.accent }}
+              <option value="all">全部地区</option>
+              {regionOptions.map((region) => (
+                <option key={region} value={region}>
+                  {region}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="sr-only">按主题筛选</span>
+            <select
+              value={themeFilter}
+              onChange={(event) => setThemeFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+            >
+              <option value="all">全部主题</option>
+              {themeOptions.map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {filteredScenarios.length > 0 ? (
+        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {filteredScenarios.map((scenario) => {
+            const isSelected = selectedScenarioId === scenario.id
+
+            return (
+              <button
+                key={scenario.id}
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={`选择场景：${scenario.title}`}
+                onClick={() => onSelect(scenario.id)}
+                className={`group rounded-[1.75rem] border p-5 text-left transition duration-300 ${
+                  isSelected
+                    ? 'border-amber-200/50 bg-amber-200/10 shadow-2xl shadow-amber-950/30'
+                    : 'border-white/10 bg-white/[0.035] hover:border-amber-100/30 hover:bg-white/[0.06]'
+                }`}
               >
-                <Landmark size={22} />
-              </div>
-              <div className="space-y-3">
-                <div className="text-sm text-stone-400">{scenario.era} · {scenario.location}</div>
-                <h3 className="text-xl font-semibold leading-tight text-stone-50">{scenario.title}</h3>
-                <p className="line-clamp-4 text-sm leading-6 text-stone-400">{scenario.summary}</p>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Tag>{scenario.theme}</Tag>
-                  <Tag>{scenario.year}</Tag>
+                <div
+                  className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-stone-950 shadow-lg"
+                  style={{ backgroundColor: scenario.accent }}
+                >
+                  <Landmark size={22} />
                 </div>
-              </div>
-            </button>
-          )
-        })}
+                <div className="space-y-3">
+                  <div className="text-sm text-stone-400">{scenario.era} · {scenario.location}</div>
+                  <h3 className="text-xl font-semibold leading-tight text-stone-50">{scenario.title}</h3>
+                  <p className="line-clamp-4 text-sm leading-6 text-stone-400">{scenario.summary}</p>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Tag>{scenario.theme}</Tag>
+                    <Tag>{scenario.region}</Tag>
+                    <Tag>{scenario.year}</Tag>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="mt-10 rounded-[2rem] border border-dashed border-white/15 bg-black/20 p-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-200/20 bg-amber-200/10 text-amber-100">
+            <Search size={22} />
+          </div>
+          <h3 className="text-2xl font-semibold text-stone-50">没有找到匹配的历史身份</h3>
+          <p className="mx-auto mt-3 max-w-xl leading-7 text-stone-400">
+            试着清空搜索词，或把地区和主题筛选调回“全部”。TimeAtlas 会继续扩展更多地点与时代。
+          </p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AtlasOverview({
+  selectedScenarioId,
+  totalCompletedMissionCount,
+  onSelect,
+}: {
+  selectedScenarioId: string
+  totalCompletedMissionCount: number
+  onSelect: (id: string) => void
+}) {
+  const progressLabel = `${totalCompletedMissionCount}/${totalMissionCount}`
+
+  return (
+    <section className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="atlas-overview-title">
+      <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 backdrop-blur lg:grid-cols-[0.78fr_1.22fr]">
+        <div className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.055] p-5">
+          <div className="mb-4 flex items-center gap-3 text-amber-100">
+            <ClipboardList size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">global progress</span>
+          </div>
+          <h2 id="atlas-overview-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+            任务进度与时间地图
+          </h2>
+          <p className="mt-3 leading-7 text-stone-400">
+            你的任务完成情况会优先保存在本机 localStorage；若浏览器限制本地存储，则安全回退到 sessionStorage。
+          </p>
+          <div className="mt-5 flex items-end gap-4">
+            <div className="text-5xl font-semibold text-amber-200">{progressLabel}</div>
+            <div className="pb-2 text-sm text-stone-400">全部史证任务</div>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/35" aria-hidden="true">
+            <div
+              className="h-full rounded-full bg-amber-300"
+              style={{ width: `${totalMissionCount ? (totalCompletedMissionCount / totalMissionCount) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-[1.5rem] border border-white/10 bg-[#090806]/70 p-5">
+            <div className="mb-3 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.25em] text-stone-500">
+              <span>atlas points</span>
+              <span>{earliestScenarioYear} → {latestScenarioYear}</span>
+            </div>
+            <div className="relative h-56 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_42%,rgba(252,211,77,0.14),transparent_28%),linear-gradient(135deg,rgba(20,184,166,0.12),transparent_45%),#0f0d0a]">
+              <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(255,255,255,0.35)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.35)_1px,transparent_1px)] [background-size:32px_32px]" />
+              {scenarios.map((scenario) => {
+                const [latitude, longitude] = scenario.coordinates
+                const x = Math.min(94, Math.max(6, ((longitude + 180) / 360) * 100))
+                const y = Math.min(90, Math.max(10, ((90 - latitude) / 180) * 100))
+                const isSelected = scenario.id === selectedScenarioId
+
+                return (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onSelect(scenario.id)}
+                    aria-label={`在概览中选择：${scenario.title}`}
+                    className={`absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-stone-950 transition focus:outline-none focus:ring-2 focus:ring-amber-200 ${
+                      isSelected ? 'scale-125 shadow-[0_0_26px_rgba(252,211,77,0.85)]' : 'hover:scale-125'
+                    }`}
+                    style={{ backgroundColor: scenario.accent, left: `${x}%`, top: `${y}%` }}
+                  />
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
+            <div className="mb-4 flex items-center gap-3 text-teal-100">
+              <Route size={19} />
+              <span className="text-sm uppercase tracking-[0.25em]">timeline overview</span>
+            </div>
+            <div className="space-y-3">
+              {sortedScenarios.map((scenario) => {
+                const isSelected = scenario.id === selectedScenarioId
+
+                return (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onSelect(scenario.id)}
+                    className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? 'border-amber-200/40 bg-amber-200/10'
+                        : 'border-white/10 bg-white/[0.025] hover:border-amber-100/25 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <span className="w-14 shrink-0 text-sm font-semibold text-amber-100">{scenario.year}</span>
+                    <span>
+                      <span className="block font-medium text-stone-50">{scenario.title}</span>
+                      <span className="block text-sm text-stone-500">{scenario.location}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )
