@@ -39,6 +39,7 @@ const defaultCompareScenarioBId = scenarios.find((scenario) => scenario.id !== d
 const defaultCompareLensKey = compareLenses[0]?.key ?? 'daily-life'
 const missionProgressStorageKey = 'timeatlas:mission-progress'
 const missionWorkStorageKey = 'timeatlas:mission-work'
+const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
@@ -133,6 +134,17 @@ type MissionWorkEntry = {
 
 type MissionWorkState = Record<string, MissionWorkEntry>
 
+type ArgumentDraft = {
+  claim: string
+  evidence: string[]
+  customEvidence: string
+  reasoning: string
+  counterEvidence: string
+  updatedAt?: string
+}
+
+type ArgumentDraftState = Record<string, ArgumentDraft>
+
 function getMissionWorkKey(scenarioId: string, missionId: string) {
   return `${scenarioId}:${missionId}`
 }
@@ -163,6 +175,43 @@ function parseMissionWorkState(rawState: string | null) {
     )
   } catch {
     return {} as MissionWorkState
+  }
+}
+
+function parseArgumentDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as ArgumentDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<ArgumentDraft>
+        const evidence = Array.isArray(draft.evidence)
+          ? draft.evidence.filter((item): item is string => typeof item === 'string')
+          : []
+
+        return [[
+          key,
+          {
+            claim: typeof draft.claim === 'string' ? draft.claim : '',
+            evidence,
+            customEvidence: typeof draft.customEvidence === 'string' ? draft.customEvidence : '',
+            reasoning: typeof draft.reasoning === 'string' ? draft.reasoning : '',
+            counterEvidence: typeof draft.counterEvidence === 'string' ? draft.counterEvidence : '',
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies ArgumentDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as ArgumentDraftState
   }
 }
 
@@ -232,6 +281,30 @@ function persistMissionWorkState(state: MissionWorkState) {
   getSafeStorage('sessionStorage')?.setItem(missionWorkStorageKey, serializedState)
 }
 
+function loadArgumentDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseArgumentDraftState(localStorage?.getItem(argumentStudioStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseArgumentDraftState(sessionStorage?.getItem(argumentStudioStorageKey) ?? null)
+}
+
+function persistArgumentDraftState(state: ArgumentDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(argumentStudioStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(argumentStudioStorageKey, serializedState)
+}
+
 function countScenarioMissionWork(scenario: Scenario, missionWorkState: MissionWorkState) {
   return scenario.missions.filter((mission) => {
     const work = missionWorkState[getMissionWorkKey(scenario.id, mission.id)]
@@ -261,6 +334,16 @@ function getMissionStatus(scenarioId: string, mission: Mission, completedMission
   }
 
   return 'not-started' as const
+}
+
+function getEmptyArgumentDraft(): ArgumentDraft {
+  return {
+    claim: '',
+    evidence: [],
+    customEvidence: '',
+    reasoning: '',
+    counterEvidence: '',
+  }
 }
 
 function formatLearningArchive(
@@ -367,6 +450,7 @@ function App() {
     loadMissionState,
   )
   const [missionWorkState, setMissionWorkState] = useState<MissionWorkState>(loadMissionWorkState)
+  const [argumentDraftState, setArgumentDraftState] = useState<ArgumentDraftState>(loadArgumentDraftState)
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -427,6 +511,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [missionWorkState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistArgumentDraftState(argumentDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [argumentDraftState])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -543,8 +639,10 @@ function App() {
         completedMissionIds={completedMissionIds}
         completedMissionCount={completedMissionCount}
         missionWorkState={missionWorkState}
+        argumentDraft={argumentDraftState[selectedScenario.id] ?? getEmptyArgumentDraft()}
         onToggleMission={toggleMission}
         onUpdateMissionWork={setMissionWorkState}
+        onUpdateArgumentDraft={setArgumentDraftState}
         prefersReducedMotion={prefersReducedMotion}
       />
       <About />
@@ -1311,8 +1409,10 @@ function ScenarioExperience({
   completedMissionIds,
   completedMissionCount,
   missionWorkState,
+  argumentDraft,
   onToggleMission,
   onUpdateMissionWork,
+  onUpdateArgumentDraft,
   prefersReducedMotion,
 }: {
   scenario: Scenario
@@ -1321,8 +1421,10 @@ function ScenarioExperience({
   completedMissionIds: string[]
   completedMissionCount: number
   missionWorkState: MissionWorkState
+  argumentDraft: ArgumentDraft
   onToggleMission: (scenarioId: string, missionId: string) => void
   onUpdateMissionWork: React.Dispatch<React.SetStateAction<MissionWorkState>>
+  onUpdateArgumentDraft: React.Dispatch<React.SetStateAction<ArgumentDraftState>>
   prefersReducedMotion: boolean | null
 }) {
   const scenarioMotion = prefersReducedMotion
@@ -1361,6 +1463,13 @@ function ScenarioExperience({
               selectedOption={selectedOption}
               onSelectOption={onSelectOption}
               prefersReducedMotion={prefersReducedMotion}
+            />
+            <ArgumentStudioPanel
+              scenario={scenario}
+              selectedOption={selectedOption}
+              missionWorkState={missionWorkState}
+              argumentDraft={argumentDraft}
+              onUpdateArgumentDraft={onUpdateArgumentDraft}
             />
           </div>
         </motion.div>
@@ -1902,6 +2011,294 @@ function MissionBoard({
 
           <KeyTermsPanel scenario={scenario} />
           <CompareAnglesPanel scenario={scenario} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ArgumentStudioPanel({
+  scenario,
+  selectedOption,
+  missionWorkState,
+  argumentDraft,
+  onUpdateArgumentDraft,
+}: {
+  scenario: Scenario
+  selectedOption: DecisionOption | null
+  missionWorkState: MissionWorkState
+  argumentDraft: ArgumentDraft
+  onUpdateArgumentDraft: React.Dispatch<React.SetStateAction<ArgumentDraftState>>
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [teacherPackStatus, setTeacherPackStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const missionEvidence = scenario.missions.flatMap((mission) =>
+    mission.evidenceChecklist.map((item) => ({
+      id: `mission:${mission.id}:${item}`,
+      label: item,
+      helper: mission.title,
+    })),
+  )
+  const sourceEvidence = scenario.sources.map((source) => ({
+    id: `source:${source.title}`,
+    label: `${source.title}：${source.excerpt}`,
+    helper: `${sourceTypeLabels[source.sourceType]} · ${source.perspective}`,
+  }))
+  const dailyLifeEvidence = scenario.dailyLife.map((section) => ({
+    id: `daily:${section.key}`,
+    label: `${section.label}：${section.text}`,
+    helper: '日常生活切片',
+  }))
+  const timelineEvidence = scenario.timeline.slice(0, 3).map((event) => ({
+    id: `timeline:${event.year}:${event.title}`,
+    label: `${event.year} · ${event.title}：${event.text}`,
+    helper: '时间线背景',
+  }))
+  const decisionEvidence = selectedOption
+    ? [{
+        id: `decision:${selectedOption.id}`,
+        label: `选择“${selectedOption.label}”：${selectedOption.description}；结果：${selectedOption.immediate}`,
+        helper: '已选择的历史岔路口',
+      }]
+    : scenario.decision.options.map((option) => ({
+        id: `decision:${option.id}`,
+        label: `可选立场“${option.label}”：${option.description}`,
+        helper: '历史岔路口选项',
+      }))
+  const evidenceOptions = [...sourceEvidence, ...missionEvidence, ...dailyLifeEvidence, ...timelineEvidence, ...decisionEvidence]
+  const activeMissionWork = Object.entries(missionWorkState).flatMap(([key, work]) => {
+    const [scenarioId, missionId] = key.split(':')
+
+    if (scenarioId !== scenario.id || (!work.notes.trim() && work.checkedEvidence.length === 0)) {
+      return []
+    }
+
+    const mission = scenario.missions.find((candidate) => candidate.id === missionId)
+
+    return [{ missionTitle: mission?.title ?? '任务草稿', work }]
+  })
+  const selectedEvidenceText = evidenceOptions
+    .filter((option) => argumentDraft.evidence.includes(option.id))
+    .map((option) => `- ${option.label}`)
+  const customEvidenceLines = argumentDraft.customEvidence
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `- ${line}`)
+  const fullArgument = [
+    'TimeAtlas Evidence-to-Argument Studio 5.0',
+    `场景：${scenario.title}（${scenario.era} · ${scenario.location}）`,
+    `身份：${scenario.identity}`,
+    selectedOption ? `历史选择：${selectedOption.label} — ${selectedOption.stance}` : `历史选择：尚未选择；问题为“${scenario.decision.prompt}”`,
+    '',
+    `主张：${argumentDraft.claim.trim() || '尚未填写'}`,
+    '证据：',
+    ...(selectedEvidenceText.length || customEvidenceLines.length ? [...selectedEvidenceText, ...customEvidenceLines] : ['- 尚未选择或记录证据']),
+    `推理：${argumentDraft.reasoning.trim() || '尚未填写'}`,
+    `反证 / 不确定性：${argumentDraft.counterEvidence.trim() || '尚未填写'}`,
+    `来源边界：${scenario.sourceEvidenceUse}`,
+  ].join('\n')
+
+  function updateDraft(nextDraft: ArgumentDraft) {
+    onUpdateArgumentDraft((currentState) => ({
+      ...currentState,
+      [scenario.id]: {
+        ...nextDraft,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(id: string) {
+    const evidence = argumentDraft.evidence.includes(id)
+      ? argumentDraft.evidence.filter((candidate) => candidate !== id)
+      : [...argumentDraft.evidence, id]
+
+    updateDraft({ ...argumentDraft, evidence })
+  }
+
+  function appendMissionDraft(missionTitle: string, notes: string) {
+    const nextCustomEvidence = argumentDraft.customEvidence.trim()
+      ? `${argumentDraft.customEvidence}\n任务草稿“${missionTitle}”：${notes}`
+      : `任务草稿“${missionTitle}”：${notes}`
+
+    updateDraft({ ...argumentDraft, customEvidence: nextCustomEvidence })
+  }
+
+  async function copyArgument() {
+    try {
+      await copyTextToClipboard(fullArgument)
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  async function copyTeacherPack() {
+    const rubricLines = scenario.missions.flatMap((mission) =>
+      mission.rubric.map((item) => `- ${mission.title}：${item}`),
+    )
+    const sourcePrompts = scenario.sources.map((source) => `- ${source.title}：${source.sourceQuestion}`)
+    const teacherPack = [
+      `TimeAtlas Teacher Pack · ${scenario.title}`,
+      `讨论导入：${scenario.decision.prompt}`,
+      '可讨论证据：',
+      ...scenario.sources.map((source) => `- ${source.title}（${sourceTypeLabels[source.sourceType]}）：${source.excerpt}`),
+      '讨论提示：',
+      ...sourcePrompts,
+      '检查清单 / Rubric：',
+      ...(rubricLines.length ? rubricLines.slice(0, 8) : sourceReaderSelfCheck.map((item) => `- ${item}`)),
+      '史料自检：',
+      ...sourceReaderSelfCheck.map((item) => `- ${item}`),
+    ].join('\n')
+
+    try {
+      await copyTextToClipboard(teacherPack)
+      setTeacherPackStatus('copied')
+    } catch {
+      setTeacherPackStatus('failed')
+    }
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="argument-studio-title">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-4 flex items-center gap-3 text-teal-100">
+            <Scale size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">argument studio 5.0</span>
+          </div>
+          <h2 id="argument-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">Evidence-to-Argument Studio</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+            把 Source Lab、任务板、日常生活、时间线和历史选择转成一条完整论证：主张、证据、推理，以及反证或不确定性。
+          </p>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-stone-400" aria-live="polite">
+          {argumentDraft.updatedAt ? `草稿已保存：${new Date(argumentDraft.updatedAt).toLocaleString()}` : '草稿会按当前身份自动保存。'}
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-4">
+          <label className="block rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+            <span className="font-semibold text-amber-100">1. 主张 Claim</span>
+            <textarea
+              value={argumentDraft.claim}
+              onChange={(event) => updateDraft({ ...argumentDraft, claim: event.target.value })}
+              rows={3}
+              placeholder={`例如：${scenario.title} 的选择空间主要受……限制。`}
+              className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 leading-7 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+            />
+          </label>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">2. 选择证据 Evidence</h3>
+            <p className="mt-2 text-sm leading-6 text-stone-500">勾选可支持或挑战主张的来源、任务、日常生活、时间线与选择证据。</p>
+            <div className="mt-4 max-h-96 space-y-2 overflow-auto pr-1">
+              {evidenceOptions.map((option) => (
+                <label key={option.id} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400 transition hover:border-teal-100/25">
+                  <input
+                    type="checkbox"
+                    checked={argumentDraft.evidence.includes(option.id)}
+                    onChange={() => toggleEvidence(option.id)}
+                    className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                  />
+                  <span>
+                    <span className="block text-xs text-teal-100/80">{option.helper}</span>
+                    {option.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <label className="block rounded-3xl border border-white/10 bg-black/20 p-4">
+            <span className="font-semibold text-stone-50">补充 / 课堂记录证据</span>
+            <textarea
+              value={argumentDraft.customEvidence}
+              onChange={(event) => updateDraft({ ...argumentDraft, customEvidence: event.target.value })}
+              rows={4}
+              placeholder="记录课堂讨论、自己的观察，或无法用勾选项表达的证据……"
+              className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 leading-7 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+            />
+          </label>
+        </div>
+
+        <div className="space-y-4">
+          <label className="block rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+            <span className="font-semibold text-teal-100">3. 推理 Reasoning</span>
+            <textarea
+              value={argumentDraft.reasoning}
+              onChange={(event) => updateDraft({ ...argumentDraft, reasoning: event.target.value })}
+              rows={5}
+              placeholder="解释证据如何支持主张：哪些是事实，哪些是推论？因果链在哪里？"
+              className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 leading-7 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/60"
+            />
+          </label>
+
+          <label className="block rounded-3xl border border-white/10 bg-black/20 p-4">
+            <span className="font-semibold text-stone-50">4. 反证 / 不确定性</span>
+            <textarea
+              value={argumentDraft.counterEvidence}
+              onChange={(event) => updateDraft({ ...argumentDraft, counterEvidence: event.target.value })}
+              rows={4}
+              placeholder="哪些来源有偏向？哪些声音缺席？你的主张在什么条件下可能不成立？"
+              className="mt-3 w-full rounded-3xl border border-white/10 bg-black/25 p-4 leading-7 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+            />
+          </label>
+
+          {activeMissionWork.length > 0 ? (
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">从任务草稿补证据</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activeMissionWork.map(({ missionTitle, work }) => (
+                  <button
+                    key={missionTitle}
+                    type="button"
+                    onClick={() => appendMissionDraft(missionTitle, work.notes || work.checkedEvidence.join('；'))}
+                    className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-left text-sm text-stone-300 transition hover:border-amber-100/30 hover:bg-white/[0.07]"
+                  >
+                    追加：{missionTitle}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+            <h3 className="font-semibold text-amber-100">完整论证预览</h3>
+            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-stone-300">{fullArgument}</pre>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'copied' ? '论证已复制。' : copyStatus === 'failed' ? '复制失败，请手动选择预览文本。' : '复制后可粘贴到作业、课堂讨论或笔记。'}
+              </p>
+              <button
+                type="button"
+                onClick={() => void copyArgument()}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+              >
+                {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                {copyStatus === 'copied' ? '已复制完整论证' : '复制 / 导出完整论证'}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-teal-200/15 bg-black/20 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="font-semibold text-teal-100">Teacher Pack</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">复制基于任务 rubric 与来源追问的讨论提示、检查清单和史料自检。</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyTeacherPack()}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+              >
+                {teacherPackStatus === 'copied' ? <Check size={16} /> : <ClipboardList size={16} />}
+                {teacherPackStatus === 'copied' ? 'Teacher Pack 已复制' : teacherPackStatus === 'failed' ? '复制失败' : '复制 Teacher Pack'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
