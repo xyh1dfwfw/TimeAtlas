@@ -13,6 +13,17 @@ export type TimelineEvent = {
   text: string
 }
 
+export type SceneBeat = {
+  timeLabel: string
+  title: string
+  sensoryDetail: string
+  historicalTension: string
+  evidenceHook: string
+  learnerPrompt: string
+  linkedDailyLifeKeys: DailyLifeKey[]
+  linkedSourceTitles: string[]
+}
+
 export type HistoricalSource = {
   title: string
   creator: string
@@ -139,6 +150,7 @@ export type Scenario = {
   accent: string
   summary: string
   atmosphere: string
+  sceneBeats: SceneBeat[]
   dailyLife: DailyLifeSection[]
   timeline: TimelineEvent[]
   decision: {
@@ -492,6 +504,48 @@ export const scenarios: Scenario[] = [
       '你在长安西市经营一间小铺，白天与粟特商队讨价还价，夜里听人谈论边境军情。繁华背后，帝国的财政、军镇与远方贸易正在彼此拉扯。',
     atmosphere:
       '鼓声开市，马铃与胡琴混在一起。你闻到胡椒、皮革、热饼和雨后泥土的气味。坊墙之外，是一座自信到近乎耀眼的世界城市。',
+    sceneBeats: [
+      {
+        timeLabel: '鼓声开市',
+        title: '西市门开，香料先到',
+        sensoryDetail: '鼓声落下后，胡饼热气、皮革潮味和胡椒辛香一起涌进街巷。',
+        historicalTension: '开放的都市市场并不等于自由无边，开市、坊门和市署规则同时划定行动范围。',
+        evidenceHook: '把坊市制、市场监管和外来商品放在同一张证据卡上，看繁荣如何被制度组织。',
+        learnerPrompt: '哪一个气味或声音最能证明长安连接远方？它又被哪条规则限制？',
+        linkedDailyLifeKeys: ['food', 'home', 'work'],
+        linkedSourceTitles: ['《唐六典》', "The Golden Peaches of Samarkand: A Study of T'ang Exotics"],
+      },
+      {
+        timeLabel: '午后议价',
+        title: '账本上的道路消息',
+        sensoryDetail: '柜台上铜钱碰响，粟特客人的口音夹着河西走廊的传闻。',
+        historicalTension: '价格看似由买卖双方决定，背后却受边境安全、商队信用和官府税令牵动。',
+        evidenceHook: '用“价格取决于道路是否安全”和丝路研究解释一次议价中的风险传导。',
+        learnerPrompt: '如果边境传闻属实，最先变化的是库存、信用还是价格？为什么？',
+        linkedDailyLifeKeys: ['work', 'education', 'risks'],
+        linkedSourceTitles: ['The Silk Road: A New History', '《唐六典》'],
+      },
+      {
+        timeLabel: '日暮坊门',
+        title: '繁华被重新关进方格',
+        sensoryDetail: '暮鼓催促人群散去，白天喧闹的街面被坊墙和门禁压低声音。',
+        historicalTension: '世界城市的开放感与夜禁、坊墙和治安秩序并存。',
+        evidenceHook: '对照居所切片和制度来源，区分城市开放体验与实际管理机制。',
+        learnerPrompt: '夜禁是保护商人，还是限制商人？请用一条证据说明。',
+        linkedDailyLifeKeys: ['home', 'risks', 'freedoms'],
+        linkedSourceTitles: ['《唐六典》'],
+      },
+      {
+        timeLabel: '夜里听闻',
+        title: '繁荣时代的风险预感',
+        sensoryDetail: '油灯旁，边镇军情从酒肆传到铺后，账页上的数字忽然显得不稳。',
+        historicalTension: '小商人的选择押注于自己无法控制的帝国道路和军事财政。',
+        evidenceHook: '把安史之乱时间线、赊货选择和丝路节点研究连成一条后见与当事人不确定性的证据链。',
+        learnerPrompt: '在不知道 755 年结局的情况下，你会怎样评价“扩大赊货”？',
+        linkedDailyLifeKeys: ['work', 'risks', 'freedoms'],
+        linkedSourceTitles: ['The Silk Road: A New History'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -863,6 +917,48 @@ export const scenarios: Scenario[] = [
       '你在汴京一家茶铺做学徒。你不在朝堂，却每天听到商人、士子、差役谈论物价、边境和新政。城市的热闹让人忘记，北方的风正越来越冷。',
     atmosphere:
       '天未亮你就生火。街上已有卖早点的人，瓦舍还没散尽昨夜的笑声。汴河载着货物进城，也载着关于远方战争的含糊消息。',
+    sceneBeats: [
+      {
+        timeLabel: '天未亮',
+        title: '灶火点起城市的一天',
+        sensoryDetail: '茶炉冒白汽，炊饼香从门缝钻进来，街上车轮已经压过湿土。',
+        historicalTension: '汴京的商业活力给学徒饭碗，也让他依赖一座脆弱城市的连续运转。',
+        evidenceHook: '用街市饮食与城市服务业来源校准茶铺日常，不把繁华写成抽象标签。',
+        learnerPrompt: '茶铺学徒从清晨劳动中获得了哪些机会，又承担了哪些低位成本？',
+        linkedDailyLifeKeys: ['food', 'home', 'work'],
+        linkedSourceTitles: ['《东京梦华录》', 'Daily Life in China on the Eve of the Mongol Invasion, 1250-1276'],
+      },
+      {
+        timeLabel: '午间客满',
+        title: '热茶和传闻一起续杯',
+        sensoryDetail: '茶盏碰桌，客人压低声音谈物价、边境和朝廷新消息。',
+        historicalTension: '信息流动扩大了普通人的世界，却不保证他们能判断真假或及时行动。',
+        evidenceHook: '把“茶铺是信息节点”与危机逼近时间线相连，区分传闻、信号和后见事实。',
+        learnerPrompt: '哪些客人话语能算证据，哪些只能算待核实传闻？',
+        linkedDailyLifeKeys: ['work', 'education', 'risks'],
+        linkedSourceTitles: ['《东京梦华录》', 'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors'],
+      },
+      {
+        timeLabel: '黄昏收摊',
+        title: '积蓄轻得带不走城市',
+        sensoryDetail: '你把零散铜钱倒进布袋，店后窄屋里还留着熟客的笑声。',
+        historicalTension: '迁徙看似是避险选择，却意味着放弃人脉、职业位置和日常保障。',
+        evidenceHook: '把居所、工作和南下成本任务结合，说明安全选择也有社会成本。',
+        learnerPrompt: '如果只看路费，会漏掉离开汴京的哪两种成本？',
+        linkedDailyLifeKeys: ['home', 'work', 'freedoms'],
+        linkedSourceTitles: ['Daily Life in China on the Eve of the Mongol Invasion, 1250-1276'],
+      },
+      {
+        timeLabel: '夜深风冷',
+        title: '繁华城市的迟疑',
+        sensoryDetail: '更鼓过后，远处仍有笑声，北方风声却像从瓦缝里钻进来。',
+        historicalTension: '灾变前夜，多数普通人被家计、侥幸和信息不完整留在原地。',
+        evidenceHook: '用靖康之变真实历史对照检查“为什么不立刻逃”的判断。',
+        learnerPrompt: '你能在不责怪学徒“短视”的情况下解释留下的理由吗？',
+        linkedDailyLifeKeys: ['risks', 'freedoms', 'education'],
+        linkedSourceTitles: ['The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -1235,6 +1331,48 @@ export const scenarios: Scenario[] = [
       '你出身小康之家，读书多年仍未中举。身边有人继续押注科举，也有人转向账房、出版、海贸和地方事务。江南的财富正在改变读书人的选择。',
     atmosphere:
       '梅雨打湿书页，河埠头却挤满货船。你白天教蒙童背书，夜里替商家誊账，心里仍放不下下一场乡试。',
+    sceneBeats: [
+      {
+        timeLabel: '梅雨晨读',
+        title: '书页和账册都受潮',
+        sensoryDetail: '雨水打在窗纸上，四书注本旁的商号账册边角微微卷起。',
+        historicalTension: '士人理想要求守住科举正途，江南商业化却把读书能力推向市场。',
+        evidenceHook: '把书房连着账房与晚明商业文化研究并读，观察士商边界如何变软。',
+        learnerPrompt: '这张案头同时出现经典和账册，说明身份冲突还是身份扩展？',
+        linkedDailyLifeKeys: ['home', 'education', 'work'],
+        linkedSourceTitles: ['The Confusions of Pleasure: Commerce and Culture in Ming China'],
+      },
+      {
+        timeLabel: '午后塾课',
+        title: '蒙童背书，家计催促',
+        sensoryDetail: '孩子拖长声背诵，你却听见河埠头货船靠岸的橹声。',
+        historicalTension: '科举提供上升想象，但考试成本和录取有限让希望变成长期压力。',
+        evidenceHook: '用教育切片、赴考成本任务和制度史来源区分身份收益与家庭成本。',
+        learnerPrompt: '继续备考最有价值的收益是什么？最难承受的代价又是什么？',
+        linkedDailyLifeKeys: ['food', 'work', 'education', 'risks'],
+        linkedSourceTitles: ['1587, A Year of No Significance: The Ming Dynasty in Decline'],
+      },
+      {
+        timeLabel: '傍晚河埠',
+        title: '海风把远方白银吹进内陆',
+        sensoryDetail: '湿木板、鱼腥和货船绳索味混在一起，商号伙计催你核对银数。',
+        historicalTension: '全球贸易的变化不直接决定个人命运，却通过账务、出版和地方市场改变选择空间。',
+        evidenceHook: '把隆庆开关时间线与“功名之外也有市场”连成间接因果链。',
+        learnerPrompt: '海贸政策怎样穿过商号，最后抵达一个读书人的职业选择？',
+        linkedDailyLifeKeys: ['work', 'freedoms', 'risks'],
+        linkedSourceTitles: ['《明实录》隆庆朝相关记载', 'The Confusions of Pleasure: Commerce and Culture in Ming China'],
+      },
+      {
+        timeLabel: '夜里誊账',
+        title: '半工半读的疲惫折中',
+        sensoryDetail: '灯油将尽，你一边誊账一边默背策论，墨迹和困意一起加深。',
+        historicalTension: '普通人的历史选择常不是二选一，而是在制度期待和现实压力之间拼接生活。',
+        evidenceHook: '用半工半读选项和名声风险任务解释“折中路线”的历史合理性。',
+        learnerPrompt: '折中是软弱妥协，还是适应时代变化的策略？请给出证据。',
+        linkedDailyLifeKeys: ['education', 'work', 'risks', 'freedoms'],
+        linkedSourceTitles: ['The Confusions of Pleasure: Commerce and Culture in Ming China', '1587, A Year of No Significance: The Ming Dynasty in Decline'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -1605,6 +1743,48 @@ export const scenarios: Scenario[] = [
       '你在十三行附近替行商与外商处理账务。茶叶、白银、鸦片、禁令和传言交织在一起。你比许多人更早看见全球贸易，也更早感到风暴。',
     atmosphere:
       '潮湿空气里有茶箱、木材和海水气味。外商馆区灯火通明，城内官府文书层层下达。每个人都在算账，却没人能算清代价。',
+    sceneBeats: [
+      {
+        timeLabel: '潮湿清晨',
+        title: '茶箱和海水气味之间',
+        sensoryDetail: '茶箱木味、咸湿海风和外商馆区的煤油灯气混在账房门口。',
+        historicalTension: '口岸贸易打开世界，也把中介劳动放进清廷规则与外商利益的夹缝。',
+        evidenceHook: '把十三行制度、口岸英文材料和居所切片并置，判断机会为什么不等于安全。',
+        learnerPrompt: '买办助手最重要的资源是什么？为什么这项资源也会带来怀疑？',
+        linkedDailyLifeKeys: ['home', 'education', 'freedoms'],
+        linkedSourceTitles: ['The Chinese Repository', 'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854'],
+      },
+      {
+        timeLabel: '午间核账',
+        title: '翻译不只是语言',
+        sensoryDetail: '算盘珠急促碰撞，英文货名单和中文行规在你手边来回转换。',
+        historicalTension: '许多冲突看似误译，实际是法律、责任、利润和国家权力无法互译。',
+        evidenceHook: '用工作切片与外交贸易研究解释“中介能力”如何转化为“中介责任”。',
+        learnerPrompt: '账簿中哪一行最可能在危机中变成证据？',
+        linkedDailyLifeKeys: ['work', 'education', 'risks'],
+        linkedSourceTitles: ['Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854'],
+      },
+      {
+        timeLabel: '禁令下达',
+        title: '灰色收益被国家权力照亮',
+        sensoryDetail: '官府文书层层传来，纸面上的朱印比外商许诺的银元更刺眼。',
+        historicalTension: '灰色地带在平时提供收益，在政治危机中却让中介变成可追责对象。',
+        evidenceHook: '把禁烟风暴时间线、可疑货物决策和鸦片战争研究连成风险链。',
+        learnerPrompt: '“只做文书”能否让人置身事外？请用一条场景证据反驳或支持。',
+        linkedDailyLifeKeys: ['risks', 'work', 'freedoms'],
+        linkedSourceTitles: ['The Opium War: Drugs, Dreams and the Making of China', 'The Chinese Repository'],
+      },
+      {
+        timeLabel: '夜里算代价',
+        title: '每个人都在算账',
+        sensoryDetail: '灯下墨迹未干，远处船桅晃动，报酬数字旁边全是看不见的代价。',
+        historicalTension: '高报酬与政治危机的代价并不对称，普通中介无法掌控冲突升级。',
+        evidenceHook: '用决策三个选项比较逐利、自保和寻求保护伞的不同风险。',
+        learnerPrompt: '哪一种选择最像“风险转移”而不是“风险消失”？',
+        linkedDailyLifeKeys: ['risks', 'freedoms', 'home'],
+        linkedSourceTitles: ['The Opium War: Drugs, Dreams and the Making of China'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -1977,6 +2157,48 @@ export const scenarios: Scenario[] = [
       '你生活在不列颠空战与伦敦大轰炸期间。战争不只在前线，也在地铁站、防空洞、配给本和每一扇遮光窗帘里。',
     atmosphere:
       '傍晚后城市压低亮光。警报响起时，人们带着毯子、茶壶和疲惫钻进地下。恐惧并不总是尖叫，有时只是排队时的沉默。',
+    sceneBeats: [
+      {
+        timeLabel: '傍晚遮光',
+        title: '一扇窗帘成为防线',
+        sensoryDetail: '厚布拉紧，胶带压住玻璃，街灯被黑暗吞下。',
+        historicalTension: '私人家庭被总体战改造成公共防御环节，一户漏光可能牵连整条街。',
+        evidenceHook: '把灯火管制、家居切片和博物馆民防资料连起来，说明个人行动的公共后果。',
+        learnerPrompt: '为什么窗帘不是普通家务，而是一条历史证据？',
+        linkedDailyLifeKeys: ['home', 'risks', 'freedoms'],
+        linkedSourceTitles: ['Imperial War Museums: The Blitz collection and learning resources'],
+      },
+      {
+        timeLabel: '警报响起',
+        title: '恐惧有时只是沉默排队',
+        sensoryDetail: '汽笛声拉长，人们抱着毯子和茶壶走向地下，队伍里只有鞋底声。',
+        historicalTension: '平民不是战场旁观者，空袭把个人安全、阶层资源和社区责任压到同一刻。',
+        evidenceHook: '用风险切片、避难决策和 Mass Observation 平民材料检查“士气”叙事。',
+        learnerPrompt: '沉默排队能证明韧性、恐惧，还是两者都有？为什么？',
+        linkedDailyLifeKeys: ['risks', 'home', 'education'],
+        linkedSourceTitles: ['Mass Observation Archive', 'Wartime: Britain 1939-1945'],
+      },
+      {
+        timeLabel: '站台深夜',
+        title: '地铁站里的临时社会',
+        sensoryDetail: '潮湿砖墙、热茶味和疲惫呼吸挤在同一段站台。',
+        historicalTension: '公共避难更坚固，却暴露拥挤、不平等和家庭照护的现实限制。',
+        evidenceHook: '把地铁避难选项与社会史研究并读，比较自保和互助的资源条件。',
+        learnerPrompt: '去地铁站避难是个人主义选择吗？还是维持生活的前提？',
+        linkedDailyLifeKeys: ['food', 'home', 'risks', 'freedoms'],
+        linkedSourceTitles: ['Wartime: Britain 1939-1945', 'Imperial War Museums: The Blitz collection and learning resources'],
+      },
+      {
+        timeLabel: '黎明清点',
+        title: '社区把夜晚变成规则',
+        sensoryDetail: '灰尘落在台阶上，邻居递来热水，大家低声确认谁还没回来。',
+        historicalTension: '长期危机不能只靠一次善意，互助需要轮班、规则和公共责任。',
+        evidenceHook: '用社区互助切片和轮班选项说明平民能动性如何进入战时社会。',
+        learnerPrompt: '哪一条小规则能把情绪化互助变成可持续机制？',
+        linkedDailyLifeKeys: ['work', 'freedoms', 'risks'],
+        linkedSourceTitles: ['Mass Observation Archive', 'Wartime: Britain 1939-1945'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -2350,6 +2572,48 @@ export const scenarios: Scenario[] = [
       '你靠抄写纸本谋生，也在学者、书商和赞助人之间见证知识流动。纸张让书更便宜，巴格达让希腊、波斯、印度与阿拉伯传统在同一张书页上相遇。',
     atmosphere:
       '底格里斯河边湿热而嘈杂。纸浆、墨烟和皮革气味混在一起，书肆里有人争论天文表，也有人急着把一部译稿送进赞助人的宅邸。',
+    sceneBeats: [
+      {
+        timeLabel: '河边开工',
+        title: '纸浆气味里的知识城市',
+        sensoryDetail: '底格里斯河风带着湿热，纸浆、墨烟和皮革味沾在手指上。',
+        historicalTension: '纸张降低书写成本，但知识流动还依赖书肆、赞助和劳动分工。',
+        evidenceHook: '把纸张传播、书籍史研究和工作切片放在一条“材料到市场”的链条中。',
+        learnerPrompt: '纸张本身为什么不足以解释巴格达的学术繁荣？',
+        linkedDailyLifeKeys: ['home', 'work', 'freedoms'],
+        linkedSourceTitles: ['The Rise of the Arabic Book', '《群书类述》（Kitāb al-Fihrist）'],
+      },
+      {
+        timeLabel: '午后校读',
+        title: '一个术语能改变一剂药',
+        sensoryDetail: '校读者停下笔，墨点在可疑术语旁晕开，屋里突然安静。',
+        historicalTension: '抄写员地位不高，却要在速度、准确和权威边界之间判断。',
+        evidenceHook: '用医学译稿决策、准确性切片和翻译运动研究解释隐形劳动的责任。',
+        learnerPrompt: '加注可疑术语是在越界，还是在保护知识可靠性？',
+        linkedDailyLifeKeys: ['work', 'education', 'risks'],
+        linkedSourceTitles: ['Greek Thought, Arabic Culture', 'The Rise of the Arabic Book'],
+      },
+      {
+        timeLabel: '书肆争论',
+        title: '知识也有市场和赞助人',
+        sensoryDetail: '书商喊价，学者争论天文表，仆人催促译稿送进宅邸。',
+        historicalTension: '学术声望由思想、金钱、委托和流通共同塑造，普通抄手在其中承担信用风险。',
+        evidenceHook: '把赞助网络任务与书目传统对照，指出材料容易看见名家而遮蔽工匠。',
+        learnerPrompt: '谁最有权决定文本如何流通？抄写员还有哪些微小影响？',
+        linkedDailyLifeKeys: ['work', 'risks', 'freedoms'],
+        linkedSourceTitles: ['《群书类述》（Kitāb al-Fihrist）', 'Greek Thought, Arabic Culture'],
+      },
+      {
+        timeLabel: '长夜抄写',
+        title: '在字里偷学世界',
+        sensoryDetail: '灯油味越来越重，几何图形、医方和诗句在纸页间交替出现。',
+        historicalTension: '计件劳动可能疲惫而低微，也可能成为接触知识和改变身份的通道。',
+        evidenceHook: '用教育切片和劳动中的学习任务，修正“复制机器”的误解。',
+        learnerPrompt: '抄写员学到的知识是正式教育，还是工作副产品？这个区分重要吗？',
+        linkedDailyLifeKeys: ['food', 'education', 'work', 'freedoms'],
+        linkedSourceTitles: ['The Rise of the Arabic Book'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -2720,6 +2984,48 @@ export const scenarios: Scenario[] = [
       '你在廷巴克图求学，白天背诵法学文本，夜里替老师抄写手稿。盐、金、书籍和消息沿着商路进入城市，知识也是贸易网络的一部分。',
     atmosphere:
       '沙尘落在木板和纸页上。清真寺旁有人讨论判例，驼队带来盐块、布匹和远方消息。你把墨水磨匀，小心不让风吹乱未干的字。',
+    sceneBeats: [
+      {
+        timeLabel: '沙尘清晨',
+        title: '木板上的第一行字',
+        sensoryDetail: '沙尘落在木板和纸页上，墨水刚磨匀就被热风催干。',
+        historicalTension: '学习发生在家庭、师承和物质脆弱性之中，不只是抽象的学术传统。',
+        evidenceHook: '把学者家小课堂、手稿保存资料和师承切片连起来，说明课堂空间如何被生活包围。',
+        learnerPrompt: '哪些细节能证明学习空间和家庭空间没有分开？',
+        linkedDailyLifeKeys: ['home', 'work', 'education'],
+        linkedSourceTitles: ['Timbuktu Manuscripts Project resources'],
+      },
+      {
+        timeLabel: '午后诵读',
+        title: '权威来自人际链条',
+        sensoryDetail: '老师纠正你的发音，书箱旁挤着从不同地方来的学生。',
+        historicalTension: '一本书的权威不只在文字，还在谁传授、谁认可、谁允许继续传授。',
+        evidenceHook: '用伊贾扎关键术语和区域史来源解释知识权威的关系网络。',
+        learnerPrompt: '为什么“谁教过你”会成为证据，而不只是个人履历？',
+        linkedDailyLifeKeys: ['education', 'work', 'freedoms'],
+        linkedSourceTitles: ['Timbuktu and the Songhay Empire', 'The Meanings of Timbuktu'],
+      },
+      {
+        timeLabel: '驼队抵达',
+        title: '盐、书籍和消息同路而来',
+        sensoryDetail: '驼铃、盐块碰撞声和商人口音把沙漠外的世界带到院门口。',
+        historicalTension: '廷巴克图的学术生活离不开商路，但商路也带来费用、盗匪和政治风险。',
+        evidenceHook: '把跨撒哈拉贸易、饮食中的盐和远行求学决策做成同一条知识网证据。',
+        learnerPrompt: '商路运送的是物品，还是学习机会？请各举一条证据。',
+        linkedDailyLifeKeys: ['food', 'freedoms', 'risks', 'education'],
+        linkedSourceTitles: ['Timbuktu and the Songhay Empire'],
+      },
+      {
+        timeLabel: '夜里抄副本',
+        title: '复制也是风险管理',
+        sensoryDetail: '你压住被风掀起的纸角，一笔一笔把老师书箱里的关键段落抄出副本。',
+        historicalTension: '手稿文化中的复制不是机械重复，而是对火灾、战争、潮湿和迁移风险的回应。',
+        evidenceHook: '用手稿风险切片、抄副本选项和现代保护资料讨论幸存文本偏差。',
+        learnerPrompt: '留下保护原本和带走副本，哪一种更能保存知识？为什么？',
+        linkedDailyLifeKeys: ['work', 'risks', 'freedoms'],
+        linkedSourceTitles: ['Timbuktu Manuscripts Project resources', 'The Meanings of Timbuktu'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',
@@ -3093,6 +3399,48 @@ export const scenarios: Scenario[] = [
       '你在特拉特洛尔科市场摆摊。独木舟把玉米、可可、棉布和鲜花带进湖城；市场秩序严密，贡赋网络庞大，而陌生的海岸消息正沿道路传来。',
     atmosphere:
       '清晨的湖面反光刺眼。摊位之间有可可豆、辣椒、火鸡和鲜花的气味，市场官员巡视称量和争端。远处神庙高耸，城里却在谈论东边来的陌生人。',
+    sceneBeats: [
+      {
+        timeLabel: '湖面清晨',
+        title: '独木舟把城市喂醒',
+        sensoryDetail: '湖面反光刺眼，玉米、辣椒、火鸡和鲜花的气味从摊位间升起。',
+        historicalTension: '湖城繁荣依赖周边村社、独木舟运输和贡赋网络，不只是市场自身的活力。',
+        evidenceHook: '把货源任务、饮食切片和现代社会史研究连接，追踪物品如何进入城市。',
+        learnerPrompt: '一张玉米饼背后至少连接了哪两种劳动或制度？',
+        linkedDailyLifeKeys: ['food', 'home', 'work'],
+        linkedSourceTitles: ['Everyday Life in the Aztec World', 'General History of the Things of New Spain (Florentine Codex)'],
+      },
+      {
+        timeLabel: '市场正午',
+        title: '称量、争执和市场官员',
+        sensoryDetail: '可可豆在手心滚动，市场官员穿过摊位，停在一场价格争执旁。',
+        historicalTension: '大型市场不是无规则交换，秩序依靠监督、信用和重复交易共同维持。',
+        evidenceHook: '用市场规则切片、征服者目击和纳瓦材料对照市场秩序的证据边界。',
+        learnerPrompt: '市场官员的存在说明普通卖家更自由，还是更受约束？',
+        linkedDailyLifeKeys: ['work', 'freedoms', 'risks'],
+        linkedSourceTitles: ['The Conquest of New Spain', 'General History of the Things of New Spain (Florentine Codex)'],
+      },
+      {
+        timeLabel: '传闻入市',
+        title: '东边来的陌生消息改变价格',
+        sensoryDetail: '行商压低声音谈海岸来人，顾客的手在玉米和可可之间犹豫。',
+        historicalTension: '普通人面对的不是完整征服结局，而是传闻、价格波动和不确定同盟。',
+        evidenceHook: '把 1519 时间线、市场是信息学校和传闻来源任务组合，避免倒推结局。',
+        learnerPrompt: '1519 年的摊主能知道什么？哪些是我们后来才知道的？',
+        linkedDailyLifeKeys: ['education', 'work', 'risks'],
+        linkedSourceTitles: ['The Conquest of New Spain', 'Everyday Life in the Aztec World'],
+      },
+      {
+        timeLabel: '收摊前',
+        title: '危机利润和共同体信用',
+        sensoryDetail: '你数着剩下的玉米和布料，邻居的目光比可可豆更沉。',
+        historicalTension: '囤货可能符合个人理性，却会伤害市场信用、邻里关系和共同体稳定。',
+        evidenceHook: '用囤货、公平价格和换成可携带货物三个选项比较危机市场策略。',
+        learnerPrompt: '在战争传闻下，什么情况下“聪明经营”会变成破坏秩序？',
+        linkedDailyLifeKeys: ['risks', 'freedoms', 'home'],
+        linkedSourceTitles: ['Everyday Life in the Aztec World'],
+      },
+    ],
     dailyLife: [
       {
         key: 'food',

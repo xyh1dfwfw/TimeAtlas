@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   Sparkles,
   Users,
+  Volume2,
 } from 'lucide-react'
 import {
   atlasInquiryPaths,
@@ -1016,6 +1017,15 @@ function ScenarioGallery({
         scenario.identity,
         scenario.theme,
         ...scenario.keyTerms.flatMap((term) => [term.term, term.definition]),
+        ...scenario.sceneBeats.flatMap((beat) => [
+          beat.timeLabel,
+          beat.title,
+          beat.sensoryDetail,
+          beat.historicalTension,
+          beat.evidenceHook,
+          beat.learnerPrompt,
+          ...beat.linkedSourceTitles,
+        ]),
         ...scenario.sources.flatMap((source) => [
           source.title,
           source.creator,
@@ -1802,26 +1812,33 @@ function getLensEvidenceSections(scenario: Scenario, lens: CompareLens) {
   const firstSource = scenario.sources[0]
 
   const sectionsByLens: Record<CompareLens['key'], { label: string; text: string }[]> = {
-    'daily-life': scenario.dailyLife.slice(0, 4).map((section) => ({ label: section.label, text: `${section.title}：${section.text}` })),
+    'daily-life': [
+      ...scenario.sceneBeats.slice(0, 2).map((beat) => ({ label: `场景·${beat.timeLabel}`, text: `${beat.title}：${beat.sensoryDetail}｜${beat.historicalTension}` })),
+      ...scenario.dailyLife.slice(0, 3).map((section) => ({ label: section.label, text: `${section.title}：${section.text}` })),
+    ],
     'institutional-constraints': [
       { label: '身份边界', text: `${scenario.identity} / ${scenario.role}` },
+      ...scenario.sceneBeats.slice(0, 1).map((beat) => ({ label: `场景·${beat.timeLabel}`, text: beat.historicalTension })),
       { label: '制度线索', text: scenario.realHistory },
       { label: '比较角度', text: scenario.compareAngles[0]?.prompt ?? scenario.sourceEvidenceUse },
       { label: '任务线索', text: scenario.missions.find((mission) => mission.taskType === '角色判断' || mission.taskType === '方案设计')?.instruction ?? scenario.interpretationNote },
     ],
     'risk-safety': [
+      ...scenario.sceneBeats.filter((beat) => beat.linkedDailyLifeKeys.includes('risks')).slice(0, 1).map((beat) => ({ label: `场景·${beat.timeLabel}`, text: `${beat.title}：${beat.historicalTension}` })),
       { label: dailyLifeByKey.risks?.label ?? '风险', text: dailyLifeByKey.risks ? `${dailyLifeByKey.risks.title}：${dailyLifeByKey.risks.text}` : scenario.atmosphere },
       { label: '岔路口', text: scenario.decision.context },
       { label: '短期风险', text: firstOption ? `${firstOption.label}：${firstOption.immediate}` : scenario.realHistory },
       { label: '长期影响', text: firstOption?.longTerm ?? scenario.realHistory },
     ],
     'knowledge-transmission': [
+      ...scenario.sceneBeats.filter((beat) => beat.linkedDailyLifeKeys.includes('education')).slice(0, 1).map((beat) => ({ label: `场景·${beat.timeLabel}`, text: `${beat.title}：${beat.evidenceHook}` })),
       { label: dailyLifeByKey.education?.label ?? '学习', text: dailyLifeByKey.education ? `${dailyLifeByKey.education.title}：${dailyLifeByKey.education.text}` : scenario.interpretationNote },
       { label: '关键术语', text: scenario.keyTerms.map((term) => `${term.term}：${term.definition}`).join('；') },
       { label: '来源线索', text: scenario.sources.map((source) => source.title).join(' / ') },
       { label: '解释边界', text: scenario.sourceEvidenceUse },
     ],
     'market-exchange': [
+      ...scenario.sceneBeats.filter((beat) => beat.linkedDailyLifeKeys.includes('work')).slice(0, 1).map((beat) => ({ label: `场景·${beat.timeLabel}`, text: `${beat.title}：${beat.evidenceHook}` })),
       { label: dailyLifeByKey.work?.label ?? '工作', text: dailyLifeByKey.work ? `${dailyLifeByKey.work.title}：${dailyLifeByKey.work.text}` : scenario.role },
       { label: dailyLifeByKey.freedoms?.label ?? '行动空间', text: dailyLifeByKey.freedoms ? `${dailyLifeByKey.freedoms.title}：${dailyLifeByKey.freedoms.text}` : scenario.summary },
       { label: '主题', text: scenario.theme },
@@ -1829,11 +1846,13 @@ function getLensEvidenceSections(scenario: Scenario, lens: CompareLens) {
     ],
     'source-credibility': [
       { label: '来源类型', text: scenario.sources.map((source) => `${source.title}（${sourceTypeLabels[source.sourceType]}）`).join('；') },
+      ...scenario.sceneBeats.slice(0, 1).map((beat) => ({ label: '场景证据边界', text: `${beat.title}：${beat.evidenceHook}` })),
       { label: '代表摘记', text: firstSource ? `${firstSource.title}：${firstSource.excerpt}` : scenario.interpretationNote },
       { label: '视角', text: firstSource?.perspective ?? scenario.interpretationNote },
       { label: '可靠边界', text: firstSource?.reliabilityNote ?? scenario.sourceEvidenceUse },
     ],
     'historical-choice': [
+      ...scenario.sceneBeats.slice(-1).map((beat) => ({ label: `场景·${beat.timeLabel}`, text: `${beat.title}：${beat.historicalTension}` })),
       { label: '选择情境', text: scenario.decision.context },
       { label: '可选行动', text: scenario.decision.options.map((option) => `${option.label}（${option.stance}）`).join('；') },
       { label: '真实历史对照', text: scenario.realHistory },
@@ -2091,6 +2110,7 @@ function ScenarioExperience({
 
           <div className="space-y-6">
             <NarrativePanel scenario={scenario} />
+            <SceneReaderPanel scenario={scenario} />
             <DailyLifeGrid scenario={scenario} />
             <LessonPackPanel scenario={scenario} />
             <MissionBoard
@@ -2187,6 +2207,186 @@ function NarrativePanel({ scenario }: { scenario: Scenario }) {
       </div>
       <h2 className="text-4xl font-semibold tracking-tight text-stone-50">你今天醒来时，世界是这样的</h2>
       <p className="mt-5 text-lg leading-9 text-stone-300">{scenario.atmosphere}</p>
+    </section>
+  )
+}
+
+
+function formatSceneObservation(scenario: Scenario, beat: Scenario['sceneBeats'][number]) {
+  const linkedDailyLife = scenario.dailyLife.filter((section) => beat.linkedDailyLifeKeys.includes(section.key))
+  const linkedSources = scenario.sources.filter((source) => beat.linkedSourceTitles.includes(source.title))
+
+  return [
+    `TimeAtlas Scene Observation · ${scenario.title}`,
+    `时间：${beat.timeLabel}`,
+    `场景：${beat.title}`,
+    `感官细节：${beat.sensoryDetail}`,
+    `历史张力：${beat.historicalTension}`,
+    `证据钩子：${beat.evidenceHook}`,
+    `学习追问：${beat.learnerPrompt}`,
+    '',
+    '关联日常：',
+    ...(linkedDailyLife.length ? linkedDailyLife.map((section) => `- ${section.label}｜${section.title}：${section.text}`) : ['- 未关联日常切片']),
+    '',
+    '关联来源：',
+    ...(linkedSources.length ? linkedSources.map((source) => `- ${source.title}（${sourceTypeLabels[source.sourceType]}）：${source.excerpt}`) : beat.linkedSourceTitles.map((title) => `- ${title}`)),
+  ].join('\n')
+}
+
+function SceneReaderPanel({ scenario }: { scenario: Scenario }) {
+  const [selectedBeatIndex, setSelectedBeatIndex] = useState(0)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    setSelectedBeatIndex(0)
+    setCopyStatus('idle')
+  }, [scenario.id])
+
+  const selectedBeat = scenario.sceneBeats[Math.min(selectedBeatIndex, scenario.sceneBeats.length - 1)]
+  const selectedBeatPanelId = `scene-reader-${scenario.id}`
+  const linkedDailyLife = selectedBeat
+    ? scenario.dailyLife.filter((section) => selectedBeat.linkedDailyLifeKeys.includes(section.key))
+    : []
+  const linkedSources = selectedBeat
+    ? scenario.sources.filter((source) => selectedBeat.linkedSourceTitles.includes(source.title))
+    : []
+
+  async function copySceneObservation() {
+    if (!selectedBeat) {
+      setCopyStatus('failed')
+      return
+    }
+
+    try {
+      await copyTextToClipboard(formatSceneObservation(scenario, selectedBeat))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  if (!selectedBeat) {
+    return null
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-6 shadow-2xl shadow-black/20" aria-labelledby="scene-reader-title">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-4 flex items-center gap-3 text-teal-100">
+            <Volume2 size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">scene reader 9.0</span>
+          </div>
+          <h2 id="scene-reader-title" className="text-3xl font-semibold tracking-tight text-stone-50">Scenario Deep Dive / Scene Reader</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+            用四个可切换场景片段把感官细节、历史张力和可引用证据连接起来，再复制为课堂观察卡。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void copySceneObservation()}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+        >
+          {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+          {copyStatus === 'copied' ? '场景观察已复制' : copyStatus === 'failed' ? '复制失败' : '复制场景观察'}
+        </button>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+        <div className="rounded-3xl border border-white/10 bg-black/20 p-4" role="tablist" aria-label={`${scenario.title} 的 Scene beats`}>
+          <div className="mb-3 text-xs uppercase tracking-[0.24em] text-stone-500">scene stepper</div>
+          <div className="grid gap-3">
+            {scenario.sceneBeats.map((beat, index) => {
+              const isSelected = index === selectedBeatIndex
+
+              return (
+                <button
+                  key={`${beat.timeLabel}-${beat.title}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  aria-controls={selectedBeatPanelId}
+                  onClick={() => setSelectedBeatIndex(index)}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    isSelected
+                      ? 'border-teal-200/45 bg-teal-100/[0.08]'
+                      : 'border-white/10 bg-white/[0.025] hover:border-teal-100/25 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-stone-950">
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs uppercase tracking-[0.18em] text-teal-100/80">{beat.timeLabel}</span>
+                      <span className="mt-1 block font-semibold text-stone-50">{beat.title}</span>
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <article id={selectedBeatPanelId} role="tabpanel" className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+          <div className="h-1.5" style={{ backgroundColor: scenario.accent }} />
+          <div className="p-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.2em] text-stone-500">
+              <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-3 py-1 text-teal-100">{selectedBeat.timeLabel}</span>
+              <span>{scenario.era} · {scenario.location}</span>
+            </div>
+            <h3 className="text-2xl font-semibold tracking-tight text-stone-50">{selectedBeat.title}</h3>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4">
+                <h4 className="font-semibold text-teal-100">感官细节</h4>
+                <p className="mt-2 text-sm leading-6 text-stone-300">{selectedBeat.sensoryDetail}</p>
+              </div>
+              <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                <h4 className="font-semibold text-amber-100">历史张力</h4>
+                <p className="mt-2 text-sm leading-6 text-stone-300">{selectedBeat.historicalTension}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h4 className="font-semibold text-stone-50">Evidence hook</h4>
+              <p className="mt-2 text-sm leading-6 text-stone-400">{selectedBeat.evidenceHook}</p>
+            </div>
+
+            <div className="mt-4 rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+              <h4 className="font-semibold text-teal-100">Learner prompt</h4>
+              <p className="mt-2 text-sm leading-6 text-stone-300">{selectedBeat.learnerPrompt}</p>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Linked daily life</h4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {linkedDailyLife.map((section) => (
+                    <span key={section.key} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-stone-300">
+                      {section.label} · {section.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Linked sources</h4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(linkedSources.length ? linkedSources.map((source) => source.title) : selectedBeat.linkedSourceTitles).map((title) => (
+                    <span key={title} className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1.5 text-xs text-amber-100">
+                      {title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-stone-500" aria-live="polite">
+              {copyStatus === 'failed' ? '剪贴板不可用时，请手动复制本场景内容。' : '场景观察会包含感官细节、历史张力、关联日常和来源标题。'}
+            </p>
+          </div>
+        </article>
+      </div>
     </section>
   )
 }
@@ -2889,6 +3089,11 @@ function ArgumentStudioPanel({
     label: `${source.title}：${source.excerpt}`,
     helper: `${sourceTypeLabels[source.sourceType]} · ${source.perspective}`,
   }))
+  const sceneEvidence = scenario.sceneBeats.map((beat, index) => ({
+    id: `scene:${index}:${beat.timeLabel}`,
+    label: `${beat.timeLabel} · ${beat.title}：${beat.sensoryDetail}；张力：${beat.historicalTension}；追问：${beat.learnerPrompt}`,
+    helper: `Scene Reader 9.0 · ${beat.linkedSourceTitles.join(' / ') || '场景观察'}`,
+  }))
   const dailyLifeEvidence = scenario.dailyLife.map((section) => ({
     id: `daily:${section.key}`,
     label: `${section.label}：${section.text}`,
@@ -2910,7 +3115,7 @@ function ArgumentStudioPanel({
         label: `可选立场“${option.label}”：${option.description}`,
         helper: '历史岔路口选项',
       }))
-  const evidenceOptions = [...sourceEvidence, ...lessonEvidence, ...checkQuestionEvidence, ...missionEvidence, ...dailyLifeEvidence, ...timelineEvidence, ...decisionEvidence]
+  const evidenceOptions = [...sourceEvidence, ...sceneEvidence, ...lessonEvidence, ...checkQuestionEvidence, ...missionEvidence, ...dailyLifeEvidence, ...timelineEvidence, ...decisionEvidence]
   const activeMissionWork = Object.entries(missionWorkState).flatMap(([key, work]) => {
     const [scenarioId, missionId] = key.split(':')
 
@@ -3067,7 +3272,7 @@ function ArgumentStudioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">2. 选择证据 Evidence</h3>
-            <p className="mt-2 text-sm leading-6 text-stone-500">勾选可支持或挑战主张的来源、课堂流程、检查题、任务、日常生活、时间线与选择证据。</p>
+            <p className="mt-2 text-sm leading-6 text-stone-500">勾选可支持或挑战主张的来源、Scene Reader、课堂流程、检查题、任务、日常生活、时间线与选择证据。</p>
             <div className="mt-4 max-h-96 space-y-2 overflow-auto pr-1">
               {evidenceOptions.map((option) => (
                 <label key={option.id} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400 transition hover:border-teal-100/25">
