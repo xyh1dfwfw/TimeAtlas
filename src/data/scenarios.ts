@@ -21,6 +21,8 @@ export type HistoricalSource = {
   url?: string
 }
 
+export type MissionTaskType = '证据说明' | '因果链' | '比较分析' | '观点论证' | '方案设计' | '角色判断'
+
 export type Mission = {
   id: string
   title: string
@@ -29,9 +31,14 @@ export type Mission = {
   deliverable: string
   estimatedMinutes: number
   difficulty: '入门' | '进阶' | '挑战'
+  taskType: MissionTaskType
   steps: string[]
   evidenceChecklist: string[]
   reflectionPrompt: string
+  outputTemplate: string[]
+  rubric: string[]
+  sentenceStarters: string[]
+  linkedSourceTitles: string[]
 }
 
 export type KeyTerm = {
@@ -194,6 +201,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“从河西走廊、草原局势和西市货价之间找出一条因果链。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          '《唐六典》',
+          'The Silk Road: A New History'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -214,6 +245,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“判断熟人商队的信用是否足以支撑扩大赊货。”',
         estimatedMinutes: 16,
         difficulty: '进阶',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《唐六典》',
+          'The Silk Road: A New History'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -234,6 +289,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“列出商人看似自由但受制度约束的三个环节。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '证据说明',
+        outputTemplate: [
+          '核心判断：用一句话回答任务问题。',
+          '证据一：引用场景中的具体线索，并说明来源。',
+          '证据二：再补充一条不同类型的线索。',
+          '解释：说明两条证据如何共同支持判断。',
+          '保留问题：写出仍不确定的一点。'
+        ],
+        rubric: [
+          '回答紧扣任务问题，没有只复述剧情。',
+          '至少使用两条具体证据，并标明来自日常、时间线、决策或来源层。',
+          '能解释证据与判断之间的关系。',
+          '承认叙事化合成的边界或不确定性。'
+        ],
+        sentenceStarters: [
+          '我认为最关键的证据是……',
+          '这条线索说明……',
+          '如果只看这一点，可能会误判，因为……',
+          '我还不能确定的是……'
+        ],
+        linkedSourceTitles: [
+          '《唐六典》',
+          'The Silk Road: A New History'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -254,6 +333,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明长安的开放世界为何同时带来机会和脆弱性。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '观点论证',
+        outputTemplate: [
+          '观点：明确赞成、反对或折中立场。',
+          '证据：列出支持观点的两条线索。',
+          '反例/限制：说明这个观点可能忽略什么。',
+          '解释：把证据和观点连起来。',
+          '结论：回到普通人的处境。'
+        ],
+        rubric: [
+          '观点明确且可争辩。',
+          '证据能支撑观点，并处理一个反例或限制。',
+          '把宏观历史条件与角色处境连接起来。',
+          '语言克制，避免现代价值直接覆盖历史语境。'
+        ],
+        sentenceStarters: [
+          '我的观点是……',
+          '支持这个观点的第一条证据是……',
+          '一个可能的反驳是……',
+          '把它放回当时的限制条件中，……'
+        ],
+        linkedSourceTitles: [
+          '《唐六典》',
+          'The Silk Road: A New History'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -406,6 +509,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“把客人闲谈分成物价、边境、朝廷三类信息，并判断哪类最影响你。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《东京梦华录》',
+          'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -426,6 +553,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明离开汴京会损失哪些资源，而不只是花掉路费。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '观点论证',
+        outputTemplate: [
+          '观点：明确赞成、反对或折中立场。',
+          '证据：列出支持观点的两条线索。',
+          '反例/限制：说明这个观点可能忽略什么。',
+          '解释：把证据和观点连起来。',
+          '结论：回到普通人的处境。'
+        ],
+        rubric: [
+          '观点明确且可争辩。',
+          '证据能支撑观点，并处理一个反例或限制。',
+          '把宏观历史条件与角色处境连接起来。',
+          '语言克制，避免现代价值直接覆盖历史语境。'
+        ],
+        sentenceStarters: [
+          '我的观点是……',
+          '支持这个观点的第一条证据是……',
+          '一个可能的反驳是……',
+          '把它放回当时的限制条件中，……'
+        ],
+        linkedSourceTitles: [
+          '《东京梦华录》',
+          'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors',
+          'Daily Life in China on the Eve of the Mongol Invasion, 1250-1276'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -446,6 +598,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“找出汴京日常中最容易被战争打断的三个系统。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《东京梦华录》',
+          'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -466,6 +642,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“把“逃或留”改写成一个更真实的渐进式准备方案。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '方案设计',
+        outputTemplate: [
+          '目标：写明方案要解决的风险。',
+          '做法：列出 2-3 个可执行步骤。',
+          '证据依据：说明每一步来自哪些历史线索。',
+          '代价：承认方案会损失什么。',
+          '检验：说明怎样判断方案有效。'
+        ],
+        rubric: [
+          '方案目标具体，步骤可执行。',
+          '每个步骤都能对应历史线索或来源。',
+          '能评估代价、风险和可能失败点。',
+          '检验标准清楚，不只是愿望表达。'
+        ],
+        sentenceStarters: [
+          '这个方案首先要避免……',
+          '第一步可以是……',
+          '这样做的历史依据是……',
+          '它的代价是……'
+        ],
+        linkedSourceTitles: [
+          '《东京梦华录》',
+          'The Cambridge History of China, Volume 5: The Sung Dynasty and Its Precursors',
+          'Daily Life in China on the Eve of the Mongol Invasion, 1250-1276'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -618,6 +819,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明海贸开放如何间接影响一个江南读书人的职业选择。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          '《明实录》隆庆朝相关记载',
+          'The Confusions of Pleasure: Commerce and Culture in Ming China'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -638,6 +863,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“列出继续备考的身份收益和家庭成本。”',
         estimatedMinutes: 16,
         difficulty: '进阶',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《明实录》隆庆朝相关记载',
+          'The Confusions of Pleasure: Commerce and Culture in Ming China'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -658,6 +907,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“找出你同时像士人、雇员和商业技术人的证据。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《明实录》隆庆朝相关记载',
+          'The Confusions of Pleasure: Commerce and Culture in Ming China'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -678,6 +951,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“解释为什么靠近商业不只是经济选择，也是名誉选择。”',
         estimatedMinutes: 16,
         difficulty: '进阶',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《明实录》隆庆朝相关记载',
+          'The Confusions of Pleasure: Commerce and Culture in Ming China'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -830,6 +1127,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“把可疑货物从外商委托到官府追查的风险节点列出来。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          'The Chinese Repository',
+          'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -850,6 +1171,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明买办助手夹在官府、行商、外商和走私网络之间的原因。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          'The Chinese Repository',
+          'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -870,6 +1215,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“比较高报酬与政治危机带来的不对称代价。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '比较分析',
+        outputTemplate: [
+          '比较对象 A：概括其优势与限制。',
+          '比较对象 B：概括其优势与限制。',
+          '共同背景：指出两者共享的时代条件。',
+          '关键差异：说明哪一点最影响选择。',
+          '结论：给出有条件的判断。'
+        ],
+        rubric: [
+          '比较维度一致，不把两个对象各说各话。',
+          '能说明共同背景和关键差异。',
+          '结论有条件，避免绝对化判断。',
+          '至少引用两类证据支撑比较。'
+        ],
+        sentenceStarters: [
+          '二者相同的是……',
+          '真正的差异在于……',
+          '如果把身份限制考虑进去，……',
+          '因此我更倾向于……，但条件是……'
+        ],
+        linkedSourceTitles: [
+          'The Chinese Repository',
+          'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854',
+          'The Opium War: Drugs, Dreams and the Making of China'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -890,6 +1260,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“指出至少两个“语言问题”背后的制度冲突。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '比较分析',
+        outputTemplate: [
+          '比较对象 A：概括其优势与限制。',
+          '比较对象 B：概括其优势与限制。',
+          '共同背景：指出两者共享的时代条件。',
+          '关键差异：说明哪一点最影响选择。',
+          '结论：给出有条件的判断。'
+        ],
+        rubric: [
+          '比较维度一致，不把两个对象各说各话。',
+          '能说明共同背景和关键差异。',
+          '结论有条件，避免绝对化判断。',
+          '至少引用两类证据支撑比较。'
+        ],
+        sentenceStarters: [
+          '二者相同的是……',
+          '真正的差异在于……',
+          '如果把身份限制考虑进去，……',
+          '因此我更倾向于……，但条件是……'
+        ],
+        linkedSourceTitles: [
+          'The Chinese Repository',
+          'Trade and Diplomacy on the China Coast: The Opening of the Treaty Ports, 1842-1854',
+          'The Opium War: Drugs, Dreams and the Making of China'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1042,6 +1437,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明一扇窗帘为什么会成为城市防御的一部分。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          'Imperial War Museums: The Blitz collection and learning resources',
+          'Mass Observation Archive'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1062,6 +1481,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“用配给限制解释家庭日常如何被战争制度重新组织。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '证据说明',
+        outputTemplate: [
+          '核心判断：用一句话回答任务问题。',
+          '证据一：引用场景中的具体线索，并说明来源。',
+          '证据二：再补充一条不同类型的线索。',
+          '解释：说明两条证据如何共同支持判断。',
+          '保留问题：写出仍不确定的一点。'
+        ],
+        rubric: [
+          '回答紧扣任务问题，没有只复述剧情。',
+          '至少使用两条具体证据，并标明来自日常、时间线、决策或来源层。',
+          '能解释证据与判断之间的关系。',
+          '承认叙事化合成的边界或不确定性。'
+        ],
+        sentenceStarters: [
+          '我认为最关键的证据是……',
+          '这条线索说明……',
+          '如果只看这一点，可能会误判，因为……',
+          '我还不能确定的是……'
+        ],
+        linkedSourceTitles: [
+          'Imperial War Museums: The Blitz collection and learning resources',
+          'Mass Observation Archive'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1082,6 +1525,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“评估地铁站、家附近防空处和社区轮班各自的风险。”',
         estimatedMinutes: 16,
         difficulty: '进阶',
+        taskType: '比较分析',
+        outputTemplate: [
+          '比较对象 A：概括其优势与限制。',
+          '比较对象 B：概括其优势与限制。',
+          '共同背景：指出两者共享的时代条件。',
+          '关键差异：说明哪一点最影响选择。',
+          '结论：给出有条件的判断。'
+        ],
+        rubric: [
+          '比较维度一致，不把两个对象各说各话。',
+          '能说明共同背景和关键差异。',
+          '结论有条件，避免绝对化判断。',
+          '至少引用两类证据支撑比较。'
+        ],
+        sentenceStarters: [
+          '二者相同的是……',
+          '真正的差异在于……',
+          '如果把身份限制考虑进去，……',
+          '因此我更倾向于……，但条件是……'
+        ],
+        linkedSourceTitles: [
+          'Imperial War Museums: The Blitz collection and learning resources',
+          'Mass Observation Archive',
+          'Wartime: Britain 1939-1945'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1102,6 +1570,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“找出恐惧、玩笑、排队沉默和互助如何共同构成韧性。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          'Imperial War Museums: The Blitz collection and learning resources',
+          'Mass Observation Archive'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1256,6 +1748,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明纸张如何从材料技术变成城市知识市场的基础。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          '《群书类述》（Kitāb al-Fihrist）',
+          'The Rise of the Arabic Book'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1276,6 +1792,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“判断可疑术语会影响哪些读者和职业角色。”',
         estimatedMinutes: 16,
         difficulty: '进阶',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《群书类述》（Kitāb al-Fihrist）',
+          'The Rise of the Arabic Book'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1296,6 +1836,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“列出抄写员、译者、校读者、书商和赞助人的利益关系。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          '《群书类述》（Kitāb al-Fihrist）',
+          'The Rise of the Arabic Book'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1316,6 +1880,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明抄写为何既是体力/手艺劳动，也是接触知识的机会。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          '《群书类述》（Kitāb al-Fihrist）',
+          'The Rise of the Arabic Book'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1468,6 +2056,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明商路如何同时运送盐、书籍、消息和学术声望。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          'Timbuktu Manuscripts Project resources',
+          'Timbuktu and the Songhay Empire'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1488,6 +2100,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“列出手稿面临的三类风险，并提出一种分散风险的方法。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '方案设计',
+        outputTemplate: [
+          '目标：写明方案要解决的风险。',
+          '做法：列出 2-3 个可执行步骤。',
+          '证据依据：说明每一步来自哪些历史线索。',
+          '代价：承认方案会损失什么。',
+          '检验：说明怎样判断方案有效。'
+        ],
+        rubric: [
+          '方案目标具体，步骤可执行。',
+          '每个步骤都能对应历史线索或来源。',
+          '能评估代价、风险和可能失败点。',
+          '检验标准清楚，不只是愿望表达。'
+        ],
+        sentenceStarters: [
+          '这个方案首先要避免……',
+          '第一步可以是……',
+          '这样做的历史依据是……',
+          '它的代价是……'
+        ],
+        linkedSourceTitles: [
+          'Timbuktu Manuscripts Project resources',
+          'Timbuktu and the Songhay Empire',
+          'The Meanings of Timbuktu'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1508,6 +2145,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“解释为什么“谁教过你”会影响一本书的权威。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          'Timbuktu Manuscripts Project resources',
+          'Timbuktu and the Songhay Empire'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1528,6 +2189,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“评估远行求学和本地守护各自能创造什么历史价值。”',
         estimatedMinutes: 16,
         difficulty: '进阶',
+        taskType: '比较分析',
+        outputTemplate: [
+          '比较对象 A：概括其优势与限制。',
+          '比较对象 B：概括其优势与限制。',
+          '共同背景：指出两者共享的时代条件。',
+          '关键差异：说明哪一点最影响选择。',
+          '结论：给出有条件的判断。'
+        ],
+        rubric: [
+          '比较维度一致，不把两个对象各说各话。',
+          '能说明共同背景和关键差异。',
+          '结论有条件，避免绝对化判断。',
+          '至少引用两类证据支撑比较。'
+        ],
+        sentenceStarters: [
+          '二者相同的是……',
+          '真正的差异在于……',
+          '如果把身份限制考虑进去，……',
+          '因此我更倾向于……，但条件是……'
+        ],
+        linkedSourceTitles: [
+          'Timbuktu Manuscripts Project resources',
+          'Timbuktu and the Songhay Empire',
+          'The Meanings of Timbuktu'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1681,6 +2367,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“说明玉米、可可、棉布如何从村社和商路进入湖城市场。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '因果链',
+        outputTemplate: [
+          '起点：指出最先变化的条件。',
+          '中介环节：写出制度、交通、价格或人际网络如何传导。',
+          '结果：说明普通人生活或选择受到什么影响。',
+          '证据标注：列出至少两条证据。',
+          '一句总结：把因果链压缩成可复述结论。'
+        ],
+        rubric: [
+          '因果顺序清楚，能区分起点、中介和结果。',
+          '包含制度/环境变化如何传导到个人生活。',
+          '证据不是孤立罗列，而是嵌入链条。',
+          '结论简洁，可被同伴复述或质疑。'
+        ],
+        sentenceStarters: [
+          '因果链可以从……开始。',
+          '这个变化通过……传导到……',
+          '对这个身份来说，结果不是抽象的，而是……',
+          '最脆弱的环节是……'
+        ],
+        linkedSourceTitles: [
+          'General History of the Things of New Spain (Florentine Codex)',
+          'The Conquest of New Spain'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1701,6 +2411,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“找出价格、称量、争执和官员监督如何维持交易秩序。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          'General History of the Things of New Spain (Florentine Codex)',
+          'The Conquest of New Spain'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1721,6 +2455,30 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“判断海岸陌生人的消息如何改变一个摊主的库存决策。”',
         estimatedMinutes: 12,
         difficulty: '入门',
+        taskType: '角色判断',
+        outputTemplate: [
+          '判断：先给出你的结论。',
+          '身份处境：说明这个角色拥有什么资源和限制。',
+          '证据：引用至少两条场景线索。',
+          '权衡：写出收益、风险和不确定性。',
+          '后果：预测这个判断对普通人生活的影响。'
+        ],
+        rubric: [
+          '判断符合角色的资源、身份和信息限制。',
+          '收益与风险权衡完整。',
+          '至少使用两条场景证据。',
+          '能说明该判断如何影响普通人的日常选择。'
+        ],
+        sentenceStarters: [
+          '站在这个角色的位置，我会判断……',
+          '他/她能动用的资源包括……',
+          '最大的风险不是……而是……',
+          '所以这个选择更像是……'
+        ],
+        linkedSourceTitles: [
+          'General History of the Things of New Spain (Florentine Codex)',
+          'The Conquest of New Spain'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',
@@ -1741,6 +2499,31 @@ export const scenarios: Scenario[] = [
         deliverable: '一段 120 字以内的证据说明，回答“解释帝国强制征收和日常交换如何共同支撑城市繁荣。”',
         estimatedMinutes: 20,
         difficulty: '挑战',
+        taskType: '比较分析',
+        outputTemplate: [
+          '比较对象 A：概括其优势与限制。',
+          '比较对象 B：概括其优势与限制。',
+          '共同背景：指出两者共享的时代条件。',
+          '关键差异：说明哪一点最影响选择。',
+          '结论：给出有条件的判断。'
+        ],
+        rubric: [
+          '比较维度一致，不把两个对象各说各话。',
+          '能说明共同背景和关键差异。',
+          '结论有条件，避免绝对化判断。',
+          '至少引用两类证据支撑比较。'
+        ],
+        sentenceStarters: [
+          '二者相同的是……',
+          '真正的差异在于……',
+          '如果把身份限制考虑进去，……',
+          '因此我更倾向于……，但条件是……'
+        ],
+        linkedSourceTitles: [
+          'General History of the Things of New Spain (Florentine Codex)',
+          'The Conquest of New Spain',
+          'Everyday Life in the Aztec World'
+        ],
         steps: [
           '重读任务说明，先写下一个核心判断。',
           '回到身份卡、日常切片、时间线或决策结果中寻找至少两条线索。',

@@ -22,7 +22,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react'
-import { scenarios, type DecisionOption, type Scenario } from './data/scenarios'
+import { scenarios, type DecisionOption, type Mission, type MissionTaskType, type Scenario } from './data/scenarios'
 import './App.css'
 
 const defaultScenarioId = scenarios[1]?.id ?? scenarios[0].id
@@ -48,7 +48,32 @@ const themeOptions = [
     ),
   ),
 ]
+const missionTaskTypeOptions = [
+  ...new Set(scenarios.flatMap((scenario) => scenario.missions.map((mission) => mission.taskType))),
+]
 const sortedScenarios = [...scenarios].sort((first, second) => first.year - second.year)
+const atlasMissions = [
+  {
+    title: '跨时代风险链',
+    prompt: '选两个身份，比较“远方消息”如何改变普通人的工作或安全感。',
+    template: '身份 A：\n关键证据：\n身份 B：\n关键证据：\n共同点 / 差异：\n我的结论：',
+  },
+  {
+    title: '制度与市场',
+    prompt: '找出三个场景中市场被制度塑形的证据，说明自由与约束如何并存。',
+    template: '场景 1：证据 + 解释\n场景 2：证据 + 解释\n场景 3：证据 + 解释\n综合判断：',
+  },
+  {
+    title: '知识如何流动',
+    prompt: '从书籍、文书、口耳传闻或档案中任选三条线索，解释知识传播的条件。',
+    template: '线索一：\n线索二：\n线索三：\n传播需要的条件：\n仍不确定的问题：',
+  },
+  {
+    title: '普通人的选择边界',
+    prompt: '比较一个“冒险选择”和一个“保守选择”，判断它们各自依赖哪些历史条件。',
+    template: '冒险选择：\n依赖条件：\n保守选择：\n依赖条件：\n如果条件变化，选择会怎样改变：',
+  },
+]
 const statItems = [
   { value: String(scenarios.length), label: '历史身份' },
   {
@@ -205,6 +230,78 @@ function getTotalCompletedMissions(completedMissionIdsByScenario: Record<string,
   }, 0)
 }
 
+function getMissionStatus(scenarioId: string, mission: Mission, completedMissionIds: string[], missionWorkState: MissionWorkState) {
+  if (completedMissionIds.includes(mission.id)) {
+    return 'completed' as const
+  }
+
+  const work = missionWorkState[getMissionWorkKey(scenarioId, mission.id)]
+
+  if (work?.notes.trim() || work?.checkedEvidence.length) {
+    return 'draft' as const
+  }
+
+  return 'not-started' as const
+}
+
+function formatLearningArchive(
+  missionWorkState: MissionWorkState,
+  completedMissionIdsByScenario: Record<string, string[]>,
+) {
+  const lines = ['TimeAtlas Learning Archive', `导出时间：${new Date().toLocaleString()}`, '']
+
+  scenarios.forEach((scenario) => {
+    const completedMissionIds = completedMissionIdsByScenario[scenario.id] ?? []
+    const missionLines = scenario.missions.flatMap((mission) => {
+      const work = missionWorkState[getMissionWorkKey(scenario.id, mission.id)]
+      const status = getMissionStatus(scenario.id, mission, completedMissionIds, missionWorkState)
+
+      if (status === 'not-started') {
+        return []
+      }
+
+      const checkedEvidence = work?.checkedEvidence.length
+        ? work.checkedEvidence.map((item) => `    - ${item}`).join('\n')
+        : '    - 尚未勾选证据'
+
+      return [
+        `  - ${mission.title}（${mission.taskType} / ${status === 'completed' ? '已完成' : '草稿'}）`,
+        `    交付物：${mission.deliverable}`,
+        `    关联来源：${mission.linkedSourceTitles.join('、') || '场景来源层'}`,
+        '    证据：',
+        checkedEvidence,
+        `    草稿：${work?.notes.trim() || '尚未填写'}`,
+      ]
+    })
+
+    if (missionLines.length > 0) {
+      lines.push(`${scenario.title} · ${scenario.era}`, ...missionLines, '')
+    }
+  })
+
+  if (lines.length <= 3) {
+    lines.push('尚未保存任何任务草稿或完成记录。')
+  }
+
+  return lines.join('\n')
+}
+
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    throw new Error('Clipboard API unavailable')
+  }
+
+  await navigator.clipboard.writeText(text)
+}
+
+function getStatusLabel(status: 'not-started' | 'draft' | 'completed') {
+  return {
+    'not-started': '未开始',
+    draft: '草稿',
+    completed: '已完成',
+  }[status]
+}
+
 function getInitialSelection() {
   if (typeof window === 'undefined') {
     return { scenarioId: defaultScenarioId, optionId: null }
@@ -346,6 +443,11 @@ function App() {
         missionWorkCountByScenario={missionWorkCountByScenario}
         onSelect={selectScenario}
       />
+      <PortfolioPanel
+        completedMissionIdsByScenario={completedMissionIdsByScenario}
+        missionWorkState={missionWorkState}
+      />
+      <AtlasMissionsPanel />
       <ScenarioExperience
         scenario={selectedScenario}
         selectedOption={selectedOption}
@@ -722,6 +824,148 @@ function AtlasOverview({
   )
 }
 
+function PortfolioPanel({
+  completedMissionIdsByScenario,
+  missionWorkState,
+}: {
+  completedMissionIdsByScenario: Record<string, string[]>
+  missionWorkState: MissionWorkState
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
+  const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
+  const activeScenarioCount = scenarios.filter((scenario) => {
+    const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
+    const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
+
+    return hasCompleted || hasDraft
+  }).length
+  const recentEntries = Object.entries(missionWorkState)
+    .filter(([, work]) => work.notes.trim() || work.checkedEvidence.length)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 3)
+
+  async function copyArchive() {
+    try {
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="portfolio-title">
+      <div className="grid gap-4 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5 lg:grid-cols-[0.78fr_1.22fr]">
+        <div>
+          <div className="mb-4 flex items-center gap-3 text-teal-100">
+            <LibraryBig size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">learning portfolio</span>
+          </div>
+          <h2 id="portfolio-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+            学习档案袋
+          </h2>
+          <p className="mt-3 leading-7 text-stone-400">
+            汇总所有身份中的草稿、证据勾选和完成记录，便于课堂提交或阶段复盘。
+          </p>
+          <button
+            type="button"
+            onClick={() => void copyArchive()}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+          >
+            {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+            {copyStatus === 'copied' ? '学习档案已复制' : copyStatus === 'failed' ? '复制失败' : '复制全部学习档案'}
+          </button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: '已完成', value: completedCount },
+              { label: '有草稿', value: draftCount },
+              { label: '已触达身份', value: activeScenarioCount },
+            ].map((item) => (
+              <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
+                <div className="text-3xl font-semibold text-teal-100">{item.value}</div>
+                <div className="mt-1 text-xs text-stone-500">{item.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">最近草稿</h3>
+            {recentEntries.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {recentEntries.map(([key, work]) => {
+                  const [scenarioId, missionId] = key.split(':')
+                  const scenario = getScenarioById(scenarioId)
+                  const mission = scenario?.missions.find((candidate) => candidate.id === missionId)
+
+                  return (
+                    <div key={key} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{mission?.title ?? '未知任务'}</div>
+                      <div>{scenario?.title ?? '未知身份'} · {work.updatedAt ? new Date(work.updatedAt).toLocaleString() : '未记录时间'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-stone-500">还没有草稿。进入任一历史任务后写下第一条证据即可生成档案。</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function AtlasMissionsPanel() {
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+
+  async function copyTemplate(title: string, template: string) {
+    try {
+      await copyTextToClipboard(`TimeAtlas 跨场景任务：${title}\n\n${template}`)
+      setCopyStatus(title)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="atlas-missions-title">
+      <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-amber-100">
+          <Compass size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">atlas missions</span>
+        </div>
+        <h2 id="atlas-missions-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+          跨场景挑战
+        </h2>
+        <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+          这些任务不保存状态，只提供跨时代比较提示和可复制模板，适合小组讨论或单元总结。
+        </p>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {atlasMissions.map((mission) => (
+            <article key={mission.title} className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">{mission.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-stone-400">{mission.prompt}</p>
+              <button
+                type="button"
+                onClick={() => void copyTemplate(mission.title, mission.template)}
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+              >
+                {copyStatus === mission.title ? <Check size={16} /> : <Copy size={16} />}
+                {copyStatus === mission.title ? '模板已复制' : '复制模板'}
+              </button>
+            </article>
+          ))}
+        </div>
+        {copyStatus === 'failed' ? <p className="mt-3 text-sm text-stone-500">复制失败，请手动复制模板内容。</p> : null}
+      </div>
+    </section>
+  )
+}
+
 function ScenarioExperience({
   scenario,
   selectedOption,
@@ -889,20 +1133,43 @@ function MissionBoard({
   onUpdateMissionWork: React.Dispatch<React.SetStateAction<MissionWorkState>>
 }) {
   const [selectedMissionId, setSelectedMissionId] = useState(scenario.missions[0]?.id ?? '')
+  const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | MissionTaskType>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'not-started' | 'draft' | 'completed'>('all')
   const completedMissionSet = useMemo(() => new Set(completedMissionIds), [completedMissionIds])
   const missionTotal = scenario.missions.length
   const progressLabel = `${completedMissionCount}/${missionTotal}`
-  const selectedMission = scenario.missions.find((mission) => mission.id === selectedMissionId) ?? scenario.missions[0]
+  const visibleMissions = useMemo(
+    () =>
+      scenario.missions.filter((mission) => {
+        const status = getMissionStatus(scenario.id, mission, completedMissionIds, missionWorkState)
+        const matchesTaskType = taskTypeFilter === 'all' || mission.taskType === taskTypeFilter
+        const matchesStatus = statusFilter === 'all' || status === statusFilter
+
+        return matchesTaskType && matchesStatus
+      }),
+    [completedMissionIds, missionWorkState, scenario, statusFilter, taskTypeFilter],
+  )
+  const selectedMission = scenario.missions.find((mission) => mission.id === selectedMissionId) ?? visibleMissions[0] ?? scenario.missions[0]
   const selectedMissionWorkKey = selectedMission ? getMissionWorkKey(scenario.id, selectedMission.id) : ''
   const selectedMissionWork = missionWorkState[selectedMissionWorkKey] ?? { notes: '', checkedEvidence: [] }
   const draftedMissionCount = countScenarioMissionWork(scenario, missionWorkState)
+  const linkedSources = selectedMission
+    ? scenario.sources.filter((source) => selectedMission.linkedSourceTitles.includes(source.title))
+    : []
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [starterStatus, setStarterStatus] = useState<'idle' | 'inserted' | 'copied' | 'failed'>('idle')
 
   useEffect(() => {
     if (!scenario.missions.some((mission) => mission.id === selectedMissionId)) {
       setSelectedMissionId(scenario.missions[0]?.id ?? '')
     }
   }, [scenario, selectedMissionId])
+
+  useEffect(() => {
+    if (visibleMissions.length > 0 && !visibleMissions.some((mission) => mission.id === selectedMissionId)) {
+      setSelectedMissionId(visibleMissions[0].id)
+    }
+  }, [selectedMissionId, visibleMissions])
 
   function updateSelectedMissionWork(nextEntry: MissionWorkEntry) {
     if (!selectedMission) {
@@ -926,8 +1193,24 @@ function MissionBoard({
     updateSelectedMissionWork({ ...selectedMissionWork, checkedEvidence })
   }
 
+  async function insertSentenceStarter(starter: string) {
+    const nextNotes = selectedMissionWork.notes.trim()
+      ? `${selectedMissionWork.notes}\n${starter}`
+      : starter
+
+    updateSelectedMissionWork({ ...selectedMissionWork, notes: nextNotes })
+    setStarterStatus('inserted')
+
+    try {
+      await copyTextToClipboard(starter)
+      setStarterStatus('copied')
+    } catch {
+      // Inserting into notes is the primary action; clipboard support is progressive enhancement.
+    }
+  }
+
   async function copyLearningOutput() {
-    if (!selectedMission || typeof navigator === 'undefined' || !navigator.clipboard) {
+    if (!selectedMission) {
       setCopyStatus('failed')
       return
     }
@@ -935,10 +1218,14 @@ function MissionBoard({
     const checkedEvidence = selectedMissionWork.checkedEvidence.length
       ? selectedMissionWork.checkedEvidence.map((item) => `- ${item}`).join('\n')
       : '- 尚未勾选证据'
-    const learningOutput = `TimeAtlas 学习输出\n场景：${scenario.title}\n任务：${selectedMission.title}\n交付物：${selectedMission.deliverable}\n证据清单：\n${checkedEvidence}\n草稿笔记：\n${selectedMissionWork.notes || '尚未填写'}\n反思：${selectedMission.reflectionPrompt}`
+    const outputTemplate = selectedMission.outputTemplate.map((item) => `- ${item}`).join('\n')
+    const linkedSourceText = linkedSources.length
+      ? linkedSources.map((source) => `- ${source.title}（${source.creator}）：${source.relevance}`).join('\n')
+      : '- 使用当前场景来源层'
+    const learningOutput = `TimeAtlas 学习输出\n场景：${scenario.title}\n任务：${selectedMission.title}\n任务类型：${selectedMission.taskType}\n交付物：${selectedMission.deliverable}\n输出结构：\n${outputTemplate}\n关联来源：\n${linkedSourceText}\n证据清单：\n${checkedEvidence}\n草稿笔记：\n${selectedMissionWork.notes || '尚未填写'}\n反思：${selectedMission.reflectionPrompt}`
 
     try {
-      await navigator.clipboard.writeText(learningOutput)
+      await copyTextToClipboard(learningOutput)
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -973,12 +1260,47 @@ function MissionBoard({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
-        <div className="grid content-start gap-3" role="group" aria-label={`${scenario.title} 的历史任务`}>
-          {scenario.missions.map((mission) => {
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">任务类型</span>
+                <select
+                  value={taskTypeFilter}
+                  onChange={(event) => setTaskTypeFilter(event.target.value as 'all' | MissionTaskType)}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  <option value="all">全部类型</option>
+                  {missionTaskTypeOptions.map((taskType) => (
+                    <option key={taskType} value={taskType}>
+                      {taskType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">任务状态</span>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as 'all' | 'not-started' | 'draft' | 'completed')}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  <option value="all">全部状态</option>
+                  <option value="not-started">未开始</option>
+                  <option value="draft">草稿</option>
+                  <option value="completed">已完成</option>
+                </select>
+              </label>
+            </div>
+            <p className="mt-3 text-sm text-stone-500">当前显示 {visibleMissions.length}/{missionTotal} 个任务。</p>
+          </div>
+
+          <div className="grid content-start gap-3" role="group" aria-label={`${scenario.title} 的历史任务`}>
+            {visibleMissions.length > 0 ? visibleMissions.map((mission) => {
             const isComplete = completedMissionSet.has(mission.id)
             const isSelected = selectedMission.id === mission.id
-            const work = missionWorkState[getMissionWorkKey(scenario.id, mission.id)]
-            const hasDraft = Boolean(work?.notes.trim() || work?.checkedEvidence.length)
+            const status = getMissionStatus(scenario.id, mission, completedMissionIds, missionWorkState)
+            const hasDraft = status === 'draft' || status === 'completed'
 
             return (
               <button
@@ -1007,15 +1329,21 @@ function MissionBoard({
                     </div>
                     <p className="mt-2 leading-7 text-stone-400">{mission.instruction}</p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-400">
+                      <Tag>{mission.taskType}</Tag>
                       <Tag>{mission.difficulty}</Tag>
                       <Tag>{mission.estimatedMinutes} 分钟</Tag>
-                      <Tag>{isComplete ? '已完成' : '进行中'}</Tag>
+                      <Tag>{getStatusLabel(status)}</Tag>
                     </div>
                   </div>
                 </div>
               </button>
             )
-          })}
+          }) : (
+            <div className="rounded-3xl border border-dashed border-white/15 bg-black/20 p-5 text-sm leading-6 text-stone-400">
+              没有符合当前筛选的任务。请调整任务类型或状态筛选。
+            </div>
+          )}
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -1023,6 +1351,7 @@ function MissionBoard({
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="mb-2 flex flex-wrap gap-2 text-xs text-stone-400">
+                  <Tag>{selectedMission.taskType}</Tag>
                   <Tag>{selectedMission.difficulty}</Tag>
                   <Tag>{selectedMission.estimatedMinutes} 分钟</Tag>
                 </div>
@@ -1049,6 +1378,30 @@ function MissionBoard({
               <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
                 <h4 className="font-semibold text-amber-100">证据用法</h4>
                 <p className="mt-2 text-sm leading-6 text-stone-400">{selectedMission.evidenceUse}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                <h4 className="font-semibold text-amber-100">输出结构</h4>
+                <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {selectedMission.outputTemplate.map((item) => (
+                    <li key={item} className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                      {item}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <div className="rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+                <h4 className="font-semibold text-teal-100">好答案标准</h4>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {selectedMission.rubric.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <Check size={16} className="mt-1 shrink-0 text-teal-100" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
@@ -1086,6 +1439,51 @@ function MissionBoard({
                     )
                   })}
                 </div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-3xl border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h4 className="font-semibold text-stone-50">句子开头</h4>
+                <p className="text-xs text-stone-500" aria-live="polite">
+                  {starterStatus === 'copied'
+                    ? '已插入草稿并复制到剪贴板'
+                    : starterStatus === 'inserted'
+                      ? '已插入草稿'
+                      : starterStatus === 'failed'
+                        ? '复制失败，但可手动使用'
+                        : '点击后插入草稿；支持时也会复制'}
+                </p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedMission.sentenceStarters.map((starter) => (
+                  <button
+                    key={starter}
+                    type="button"
+                    onClick={() => void insertSentenceStarter(starter)}
+                    className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-left text-sm text-stone-300 transition hover:border-amber-100/30 hover:bg-white/[0.07]"
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h4 className="font-semibold text-stone-50">关联来源</h4>
+              <div className="mt-3 grid gap-3">
+                {(linkedSources.length ? linkedSources : scenario.sources.slice(0, 2)).map((source) => (
+                  <article key={source.title} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                      <span className="rounded-full border border-teal-100/20 bg-teal-100/10 px-2.5 py-1 text-teal-100">
+                        {sourceTypeLabels[source.sourceType]}
+                      </span>
+                      <span>{source.creator}</span>
+                    </div>
+                    <h5 className="font-medium text-stone-100">{source.title}</h5>
+                    <p className="mt-1 text-sm leading-6 text-stone-400">{source.relevance}</p>
+                  </article>
+                ))}
               </div>
             </div>
 
