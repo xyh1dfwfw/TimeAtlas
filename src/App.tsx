@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowRight,
   BookOpen,
+  Check,
   Clock3,
   Compass,
   Landmark,
   MapPin,
   Route,
   ScrollText,
+  Share2,
   ShieldAlert,
   Sparkles,
   Users,
@@ -16,15 +18,42 @@ import {
 import { scenarios, type DecisionOption, type Scenario } from './data/scenarios'
 import './App.css'
 
+const defaultScenarioId = scenarios[1]?.id ?? scenarios[0].id
+
+const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
+const minOptionCount = Math.min(...optionCounts)
+const maxOptionCount = Math.max(...optionCounts)
 const statItems = [
-  { value: '5', label: '历史身份' },
-  { value: '3', label: '选择分支 / 身份' },
-  { value: '0', label: '后端依赖' },
+  { value: String(scenarios.length), label: '历史身份' },
+  {
+    value: minOptionCount === maxOptionCount ? String(minOptionCount) : `${minOptionCount}-${maxOptionCount}`,
+    label: '选择分支 / 身份',
+  },
+  { value: String(new Set(scenarios.map((scenario) => scenario.region)).size), label: '地理区域' },
 ]
 
+function getScenarioById(id: string | null) {
+  return scenarios.find((scenario) => scenario.id === id) ?? null
+}
+
+function getInitialSelection() {
+  if (typeof window === 'undefined') {
+    return { scenarioId: defaultScenarioId, optionId: null }
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const scenario = getScenarioById(params.get('scenario')) ?? getScenarioById(defaultScenarioId) ?? scenarios[0]
+  const optionParam = params.get('option')
+  const option = scenario.decision.options.find((candidate) => candidate.id === optionParam) ?? null
+
+  return { scenarioId: scenario.id, optionId: option?.id ?? null }
+}
+
 function App() {
-  const [selectedScenarioId, setSelectedScenarioId] = useState(scenarios[1].id)
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
+  const prefersReducedMotion = useReducedMotion()
+  const initialSelection = useMemo(getInitialSelection, [])
+  const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -39,10 +68,39 @@ function App() {
     [selectedOptionId, selectedScenario],
   )
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    params.set('scenario', selectedScenario.id)
+
+    if (selectedOption) {
+      params.set('option', selectedOption.id)
+    } else {
+      params.delete('option')
+    }
+
+    const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(null, '', nextUrl)
+    }
+  }, [selectedOption, selectedScenario])
+
   function selectScenario(id: string) {
+    if (!getScenarioById(id)) {
+      return
+    }
+
     setSelectedScenarioId(id)
     setSelectedOptionId(null)
-    document.getElementById('experience')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    document.getElementById('experience')?.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    })
   }
 
   return (
@@ -50,19 +108,31 @@ function App() {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
       <div className="fixed inset-0 -z-10 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <Hero />
+      <Hero prefersReducedMotion={prefersReducedMotion} />
       <ScenarioGallery selectedScenarioId={selectedScenarioId} onSelect={selectScenario} />
       <ScenarioExperience
         scenario={selectedScenario}
         selectedOption={selectedOption}
         onSelectOption={setSelectedOptionId}
+        prefersReducedMotion={prefersReducedMotion}
       />
       <About />
     </main>
   )
 }
 
-function Hero() {
+function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }) {
+  const introMotion = prefersReducedMotion
+    ? { initial: false, animate: { opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 24 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7 } }
+  const atlasMotion = prefersReducedMotion
+    ? { initial: false, animate: { opacity: 1 }, transition: { duration: 0 } }
+    : {
+        initial: { opacity: 0, scale: 0.96, y: 24 },
+        animate: { opacity: 1, scale: 1, y: 0 },
+        transition: { delay: 0.15, duration: 0.8 },
+      }
+
   return (
     <section className="relative mx-auto flex min-h-[92vh] w-full max-w-7xl flex-col justify-center px-5 py-10 sm:px-8 lg:px-10">
       <div className="absolute left-1/2 top-8 hidden -translate-x-1/2 items-center gap-3 rounded-full border border-amber-200/15 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.35em] text-amber-100/70 backdrop-blur md:flex">
@@ -71,12 +141,7 @@ function Hero() {
       </div>
 
       <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          className="space-y-8"
-        >
+        <motion.div {...introMotion} className="space-y-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/20 bg-amber-200/10 px-4 py-2 text-sm text-amber-100">
             <Sparkles size={16} />
             不是背年份，而是进入历史现场
@@ -117,12 +182,7 @@ function Hero() {
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 24 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.8 }}
-          className="relative"
-        >
+        <motion.div {...atlasMotion} className="relative">
           <div className="absolute -inset-8 rounded-full bg-amber-300/10 blur-3xl" />
           <div className="relative overflow-hidden rounded-[2rem] border border-amber-100/15 bg-[#15110b]/90 p-5 shadow-2xl shadow-black/50">
             <div className="rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(215,168,75,0.14),transparent_55%),#0f0d0a] p-6">
@@ -169,34 +229,40 @@ function ScenarioGallery({
       />
 
       <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {scenarios.map((scenario) => (
-          <button
-            key={scenario.id}
-            type="button"
-            onClick={() => onSelect(scenario.id)}
-            className={`group rounded-[1.75rem] border p-5 text-left transition duration-300 ${
-              selectedScenarioId === scenario.id
-                ? 'border-amber-200/50 bg-amber-200/10 shadow-2xl shadow-amber-950/30'
-                : 'border-white/10 bg-white/[0.035] hover:border-amber-100/30 hover:bg-white/[0.06]'
-            }`}
-          >
-            <div
-              className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-stone-950 shadow-lg"
-              style={{ backgroundColor: scenario.accent }}
+        {scenarios.map((scenario) => {
+          const isSelected = selectedScenarioId === scenario.id
+
+          return (
+            <button
+              key={scenario.id}
+              type="button"
+              aria-pressed={isSelected}
+              aria-label={`选择场景：${scenario.title}`}
+              onClick={() => onSelect(scenario.id)}
+              className={`group rounded-[1.75rem] border p-5 text-left transition duration-300 ${
+                isSelected
+                  ? 'border-amber-200/50 bg-amber-200/10 shadow-2xl shadow-amber-950/30'
+                  : 'border-white/10 bg-white/[0.035] hover:border-amber-100/30 hover:bg-white/[0.06]'
+              }`}
             >
-              <Landmark size={22} />
-            </div>
-            <div className="space-y-3">
-              <div className="text-sm text-stone-400">{scenario.era} · {scenario.location}</div>
-              <h3 className="text-xl font-semibold leading-tight text-stone-50">{scenario.title}</h3>
-              <p className="line-clamp-4 text-sm leading-6 text-stone-400">{scenario.summary}</p>
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Tag>{scenario.theme}</Tag>
-                <Tag>{scenario.year}</Tag>
+              <div
+                className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-stone-950 shadow-lg"
+                style={{ backgroundColor: scenario.accent }}
+              >
+                <Landmark size={22} />
               </div>
-            </div>
-          </button>
-        ))}
+              <div className="space-y-3">
+                <div className="text-sm text-stone-400">{scenario.era} · {scenario.location}</div>
+                <h3 className="text-xl font-semibold leading-tight text-stone-50">{scenario.title}</h3>
+                <p className="line-clamp-4 text-sm leading-6 text-stone-400">{scenario.summary}</p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Tag>{scenario.theme}</Tag>
+                  <Tag>{scenario.year}</Tag>
+                </div>
+              </div>
+            </button>
+          )
+        })}
       </div>
     </section>
   )
@@ -206,22 +272,26 @@ function ScenarioExperience({
   scenario,
   selectedOption,
   onSelectOption,
+  prefersReducedMotion,
 }: {
   scenario: Scenario
   selectedOption: DecisionOption | null
   onSelectOption: (id: string) => void
+  prefersReducedMotion: boolean | null
 }) {
+  const scenarioMotion = prefersReducedMotion
+    ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
+    : {
+        initial: { opacity: 0, y: 24 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -16 },
+        transition: { duration: 0.35 },
+      }
+
   return (
     <section id="experience" className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
       <AnimatePresence mode="wait">
-        <motion.div
-          key={scenario.id}
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -16 }}
-          transition={{ duration: 0.35 }}
-          className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]"
-        >
+        <motion.div key={scenario.id} {...scenarioMotion} className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
           <aside className="space-y-6">
             <div className="sticky top-6 space-y-6">
               <ScenarioPassport scenario={scenario} />
@@ -236,6 +306,7 @@ function ScenarioExperience({
               scenario={scenario}
               selectedOption={selectedOption}
               onSelectOption={onSelectOption}
+              prefersReducedMotion={prefersReducedMotion}
             />
           </div>
         </motion.div>
@@ -269,7 +340,34 @@ function ScenarioPassport({ scenario }: { scenario: Scenario }) {
         <p className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5 leading-7 text-stone-300">
           {scenario.summary}
         </p>
+
+        <CoordinatePreview scenario={scenario} />
       </div>
+    </div>
+  )
+}
+
+function CoordinatePreview({ scenario }: { scenario: Scenario }) {
+  const [latitude, longitude] = scenario.coordinates
+  const x = Math.min(92, Math.max(8, ((longitude + 180) / 360) * 100))
+  const y = Math.min(88, Math.max(12, ((90 - latitude) / 180) * 100))
+
+  return (
+    <div className="mt-4 rounded-3xl border border-white/10 bg-[#090806]/70 p-4" aria-label={`${scenario.location} 坐标预览`}>
+      <div className="mb-3 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.25em] text-stone-500">
+        <span>coordinate preview</span>
+        <span className="text-amber-100/70">{latitude.toFixed(2)}°, {longitude.toFixed(2)}°</span>
+      </div>
+      <div className="relative h-28 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_45%,rgba(252,211,77,0.16),transparent_26%),linear-gradient(135deg,rgba(20,184,166,0.12),transparent_45%),#0f0d0a]">
+        <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.35)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.35)_1px,transparent_1px)] [background-size:28px_28px]" />
+        <div className="absolute left-1/2 top-0 h-full w-px bg-white/10" />
+        <div className="absolute left-0 top-1/2 h-px w-full bg-white/10" />
+        <div
+          className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-stone-950 bg-amber-300 shadow-[0_0_22px_rgba(252,211,77,0.75)]"
+          style={{ left: `${x}%`, top: `${y}%` }}
+        />
+      </div>
+      <p className="mt-3 text-sm leading-6 text-stone-500">轻量坐标定位：先标出故事发生的大致方位，后续可扩展为完整地图图层。</p>
     </div>
   )
 }
@@ -307,11 +405,20 @@ function DecisionPanel({
   scenario,
   selectedOption,
   onSelectOption,
+  prefersReducedMotion,
 }: {
   scenario: Scenario
   selectedOption: DecisionOption | null
   onSelectOption: (id: string) => void
+  prefersReducedMotion: boolean | null
 }) {
+  const outcomeMotion = prefersReducedMotion
+    ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -10 } }
+  const emptyMotion = prefersReducedMotion
+    ? { initial: false, animate: { opacity: 1 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0 }, animate: { opacity: 1 } }
+
   return (
     <section className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.055] p-6">
       <div className="mb-5 flex items-center gap-3 text-amber-100">
@@ -321,54 +428,55 @@ function DecisionPanel({
       <h2 className="text-3xl font-semibold tracking-tight text-stone-50">{scenario.decision.prompt}</h2>
       <p className="mt-4 leading-8 text-stone-300">{scenario.decision.context}</p>
 
-      <div className="mt-6 grid gap-3">
-        {scenario.decision.options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onSelectOption(option.id)}
-            className={`rounded-3xl border p-5 text-left transition ${
-              selectedOption?.id === option.id
-                ? 'border-amber-200/70 bg-amber-200/15'
-                : 'border-white/10 bg-black/20 hover:border-amber-100/35 hover:bg-black/30'
-            }`}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-sm text-amber-100/80">{option.stance}</div>
-                <h3 className="mt-1 text-xl font-semibold text-stone-50">{option.label}</h3>
-                <p className="mt-2 leading-7 text-stone-400">{option.description}</p>
+      <div className="mt-6 grid gap-3" role="group" aria-label="选择你的行动">
+        {scenario.decision.options.map((option) => {
+          const isSelected = selectedOption?.id === option.id
+
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => onSelectOption(option.id)}
+              className={`rounded-3xl border p-5 text-left transition ${
+                isSelected
+                  ? 'border-amber-200/70 bg-amber-200/15'
+                  : 'border-white/10 bg-black/20 hover:border-amber-100/35 hover:bg-black/30'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm text-amber-100/80">{option.stance}</div>
+                  <h3 className="mt-1 text-xl font-semibold text-stone-50">{option.label}</h3>
+                  <p className="mt-2 leading-7 text-stone-400">{option.description}</p>
+                </div>
+                <ArrowRight className="mt-1 shrink-0 text-stone-500" size={18} />
               </div>
-              <ArrowRight className="mt-1 shrink-0 text-stone-500" size={18} />
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
 
-      <AnimatePresence mode="wait">
-        {selectedOption ? (
-          <motion.div
-            key={selectedOption.id}
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="mt-6 grid gap-4 lg:grid-cols-3"
-          >
-            <OutcomeCard title="短期结果" text={selectedOption.immediate} />
-            <OutcomeCard title="长期影响" text={selectedOption.longTerm} />
-            <OutcomeCard title="历史反思" text={selectedOption.reflection} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 rounded-3xl border border-dashed border-white/15 p-5 text-stone-400"
-          >
-            选择一个行动，TimeAtlas 会把你的决定放回这个时代的限制条件里。
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div aria-live="polite" aria-atomic="true">
+        <AnimatePresence mode="wait">
+          {selectedOption ? (
+            <motion.div key={selectedOption.id} {...outcomeMotion} className="mt-6 grid gap-4 lg:grid-cols-3">
+              <OutcomeCard title="短期结果" text={selectedOption.immediate} />
+              <OutcomeCard title="长期影响" text={selectedOption.longTerm} />
+              <OutcomeCard title="历史反思" text={selectedOption.reflection} />
+              <ResultShareAction scenario={scenario} option={selectedOption} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="empty"
+              {...emptyMotion}
+              className="mt-6 rounded-3xl border border-dashed border-white/15 p-5 text-stone-400"
+            >
+              选择一个行动，TimeAtlas 会把你的决定放回这个时代的限制条件里。
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <div className="mt-6 rounded-3xl border border-white/10 bg-black/25 p-5">
         <h3 className="font-semibold text-stone-50">真实历史对照</h3>
@@ -376,6 +484,65 @@ function DecisionPanel({
         <p className="mt-3 text-sm leading-6 text-stone-500">{scenario.sourceNote}</p>
       </div>
     </section>
+  )
+}
+
+function ResultShareAction({ scenario, option }: { scenario: Scenario; option: DecisionOption }) {
+  const [status, setStatus] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
+
+  async function shareResult() {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const url = new URL(window.location.href)
+    url.searchParams.set('scenario', scenario.id)
+    url.searchParams.set('option', option.id)
+
+    const shareData = {
+      title: `TimeAtlas · ${scenario.title}`,
+      text: `我在「${scenario.title}」选择了「${option.label}」。`,
+      url: url.toString(),
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        setStatus('shared')
+        return
+      }
+
+      await navigator.clipboard.writeText(url.toString())
+      setStatus('copied')
+    } catch {
+      setStatus('failed')
+    }
+  }
+
+  const statusText = {
+    idle: '分享这个结果',
+    shared: '已打开分享面板',
+    copied: '链接已复制',
+    failed: '复制失败，请手动复制地址栏',
+  }[status]
+
+  return (
+    <div className="rounded-3xl border border-amber-200/20 bg-amber-200/10 p-5 lg:col-span-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-semibold text-amber-100">带走你的选择</h3>
+          <p className="mt-1 text-sm leading-6 text-stone-400">生成包含当前身份和选择的链接，方便继续讨论或分享给朋友。</p>
+        </div>
+        <button
+          type="button"
+          onClick={shareResult}
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/30 bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+        >
+          {status === 'copied' || status === 'shared' ? <Check size={18} /> : <Share2 size={18} />}
+          {statusText}
+        </button>
+      </div>
+    </div>
   )
 }
 

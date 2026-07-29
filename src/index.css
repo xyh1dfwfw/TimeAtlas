@@ -34,6 +34,31 @@ button {
   font: inherit;
 }
 
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid #fcd34d;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 6px rgba(252, 211, 77, 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 ::selection {
   color: #1c1917;
   background: #fcd34d;
