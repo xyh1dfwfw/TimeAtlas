@@ -186,6 +186,31 @@ type WorkspaceStats = {
   }[]
 }
 
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare'
+type DurationBand = 'short' | 'medium' | 'long' | 'extended'
+
+type LibraryTask = {
+  id: string
+  title: string
+  context: string
+  scenarioId?: string
+  category: string
+  source: TaskLibrarySource
+  sourceLabel: string
+  durationMinutes: number
+  durationBand: DurationBand
+  summary: string
+  deliverable: string
+  tags: string[]
+  sourceBased: boolean
+  searchText: string
+  primaryActionLabel?: string
+  secondaryActionLabel?: string
+  onPrimaryAction?: () => void
+  onSecondaryAction?: () => void
+  formatSheet: () => string
+}
+
 function getEmptyWorkspaceEntry(): WorkspaceEntry {
   return {
     notes: '',
@@ -590,6 +615,248 @@ function formatLearningArchive(
   return lines.join('\n')
 }
 
+function getDurationBand(minutes: number): DurationBand {
+  if (minutes <= 20) {
+    return 'short'
+  }
+
+  if (minutes <= 45) {
+    return 'medium'
+  }
+
+  if (minutes <= 90) {
+    return 'long'
+  }
+
+  return 'extended'
+}
+
+function getDurationBandLabel(band: DurationBand) {
+  return {
+    short: '≤20 分钟',
+    medium: '21-45 分钟',
+    long: '46-90 分钟',
+    extended: '90+ 分钟',
+  }[band]
+}
+
+function formatGenericLibraryTaskSheet(task: LibraryTask) {
+  return [
+    `TimeAtlas Task Library / Assignment Launcher 11.0：${task.title}`,
+    `来源：${task.sourceLabel}`,
+    `情境：${task.context}`,
+    `类别：${task.category}`,
+    `时长：${task.durationMinutes} 分钟（${getDurationBandLabel(task.durationBand)}）`,
+    `来源型任务：${task.sourceBased ? '是' : '否'}`,
+    '',
+    `任务摘要：${task.summary}`,
+    `交付物：${task.deliverable}`,
+    '',
+    '标签：',
+    ...(task.tags.length ? task.tags.map((tag) => `- ${tag}`) : ['- 无']),
+  ].join('\n')
+}
+
+function formatLessonFlowSheet(scenario: Scenario, mode: LessonPackMode) {
+  const flow = scenario.lessonPack.classroomFlow[mode]
+
+  return [
+    `TimeAtlas Lesson Flow · ${flow.title}`,
+    `${scenario.title}（${scenario.era}，${scenario.location}）`,
+    '',
+    `模式：${lessonPackModeLabels[mode]}`,
+    `探究问题：${scenario.lessonPack.inquiryQuestion}`,
+    '',
+    'Quick start：',
+    ...scenario.lessonPack.quickStart.map((step, index) => `${index + 1}. ${step}`),
+    '',
+    '课堂流程：',
+    ...flow.steps.map((step, index) => `${index + 1}. ${step}`),
+    '',
+    'Check questions：',
+    ...scenario.lessonPack.checkQuestions.map((item, index) => `${index + 1}. ${item.question}`),
+    '',
+    'Exit tickets：',
+    ...scenario.lessonPack.exitTickets.map((ticket, index) => `${index + 1}. ${ticket}`),
+  ].join('\n')
+}
+
+function formatCompareLensTemplate(lens: CompareLens) {
+  return [
+    `TimeAtlas Compare Lens Template：${lens.title}`,
+    `Short label：${lens.shortLabel}`,
+    '',
+    `说明：${lens.description}`,
+    `作业提示：${lens.prompt}`,
+    '',
+    '证据清单：',
+    ...lens.evidenceChecklist.map((item) => `- ${item}`),
+    '',
+    '输出结构：',
+    ...lens.outputTemplate.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    '评分标准：',
+    ...lens.rubric.map((item) => `- ${item}`),
+  ].join('\n')
+}
+
+function buildTaskLibraryTasks({
+  onOpenScenario,
+  onLoadCompare,
+  onLoadCompareLens,
+}: {
+  onOpenScenario: (id: string) => void
+  onLoadCompare: (path: AtlasInquiryPath) => void
+  onLoadCompareLens: (lens: CompareLens) => void
+}): LibraryTask[] {
+  const tasks: LibraryTask[] = []
+
+  scenarios.forEach((scenario) => {
+    scenario.missions.forEach((mission) => {
+      const durationBand = getDurationBand(mission.estimatedMinutes)
+      const tags = [mission.taskType, mission.difficulty, ...mission.linkedSourceTitles.slice(0, 2), scenario.region, scenario.theme]
+      const summary = mission.instruction
+      const task: LibraryTask = {
+        id: `mission:${scenario.id}:${mission.id}`,
+        title: mission.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: mission.taskType,
+        source: 'mission',
+        sourceLabel: 'Scenario Mission',
+        durationMinutes: mission.estimatedMinutes,
+        durationBand,
+        summary,
+        deliverable: mission.deliverable,
+        tags,
+        sourceBased: mission.linkedSourceTitles.length > 0 || mission.evidenceChecklist.length > 0,
+        searchText: '',
+        primaryActionLabel: '打开场景',
+        onPrimaryAction: () => onOpenScenario(scenario.id),
+        formatSheet: () => formatGenericLibraryTaskSheet(task),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, summary, task.deliverable, ...tags, ...mission.steps, ...mission.evidenceChecklist].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
+    scenario.activityPacks.forEach((activity) => {
+      const durationBand = getDurationBand(activity.durationMinutes)
+      const tags = [activityPackModeLabels[activity.mode], activity.audience, ...activity.materials.slice(0, 2), ...activity.linkedSourceTitles.slice(0, 2)]
+      const task: LibraryTask = {
+        id: `activity:${scenario.id}:${activity.id}`,
+        title: activity.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: activityPackModeLabels[activity.mode],
+        source: 'activity',
+        sourceLabel: 'Activity Pack',
+        durationMinutes: activity.durationMinutes,
+        durationBand,
+        summary: activity.prompt,
+        deliverable: activity.deliverable,
+        tags,
+        sourceBased: activity.mode === 'source-lab' || activity.linkedSourceTitles.length > 0,
+        searchText: '',
+        primaryActionLabel: '打开场景',
+        onPrimaryAction: () => onOpenScenario(scenario.id),
+        formatSheet: () => formatActivitySheet(scenario, activity),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, ...tags, ...activity.steps, ...activity.successCriteria].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
+    ;(Object.entries(scenario.lessonPack.classroomFlow) as [LessonPackMode, typeof scenario.lessonPack.classroomFlow[LessonPackMode]][]).forEach(([mode, flow]) => {
+      const durationMinutes = mode === 'quick' ? 15 : mode === 'source' ? 35 : 40
+      const durationBand = getDurationBand(durationMinutes)
+      const tags = [lessonPackModeLabels[mode], 'Guided Lesson Pack', `${scenario.lessonPack.checkQuestions.length} check questions`, `${scenario.lessonPack.exitTickets.length} exit tickets`]
+      const task: LibraryTask = {
+        id: `lesson:${scenario.id}:${mode}`,
+        title: flow.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: '课堂流程',
+        source: 'lesson',
+        sourceLabel: 'Lesson Pack',
+        durationMinutes,
+        durationBand,
+        summary: scenario.lessonPack.inquiryQuestion,
+        deliverable: `${lessonPackModeLabels[mode]} 流程、检查题与 exit ticket`,
+        tags,
+        sourceBased: mode === 'source',
+        searchText: '',
+        primaryActionLabel: '打开场景',
+        onPrimaryAction: () => onOpenScenario(scenario.id),
+        formatSheet: () => formatLessonFlowSheet(scenario, mode),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, ...tags, ...flow.steps, ...scenario.lessonPack.quickStart, ...scenario.lessonPack.exitTickets].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+  })
+
+  atlasInquiryPaths.forEach((path) => {
+    const lens = getCompareLensByKey(path.lensKey)
+    const pathScenarios = path.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 75
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = [lens.title, 'Inquiry Pathway', ...pathScenarios.slice(0, 3).map((scenario) => scenario.title)]
+    const task: LibraryTask = {
+      id: `inquiry:${path.id}`,
+      title: path.title,
+      context: pathScenarios.map((scenario) => scenario.title).join(' × ') || '跨场景探究路径',
+      category: lens.title,
+      source: 'inquiry',
+      sourceLabel: 'Inquiry Pathways',
+      durationMinutes,
+      durationBand,
+      summary: path.drivingQuestion,
+      deliverable: path.subtitle,
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '载入 Compare Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadCompare(path),
+      onSecondaryAction: () => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id) : undefined,
+      formatSheet: () => formatAtlasInquiryPack(path),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, path.whyTheseScenarios, ...tags, ...path.tasks, ...path.discussionMoves, ...path.rubric].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  compareLenses.forEach((lens) => {
+    const durationMinutes = 35
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = [lens.shortLabel, 'Compare Lab', '跨场景比较']
+    const task: LibraryTask = {
+      id: `compare:${lens.key}`,
+      title: `${lens.title}比较模板`,
+      context: 'Compare Lab · 任意两个历史身份',
+      category: lens.title,
+      source: 'compare',
+      sourceLabel: 'Compare Lens',
+      durationMinutes,
+      durationBand,
+      summary: lens.prompt,
+      deliverable: '跨场景比较作业：证据清单、输出结构与评分标准',
+      tags,
+      sourceBased: lens.key === 'source-credibility' || lens.evidenceChecklist.some((item) => item.includes('证据') || item.includes('来源')),
+      searchText: '',
+      primaryActionLabel: '载入 Compare Lab',
+      onPrimaryAction: () => onLoadCompareLens(lens),
+      formatSheet: () => formatCompareLensTemplate(lens),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, lens.description, ...tags, ...lens.evidenceChecklist, ...lens.outputTemplate, ...lens.rubric].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  return tasks
+}
+
 async function copyTextToClipboard(text: string) {
   if (typeof navigator === 'undefined' || !navigator.clipboard) {
     throw new Error('Clipboard API unavailable')
@@ -834,6 +1101,17 @@ function App() {
     })
   }
 
+  function loadCompareLens(lens: CompareLens) {
+    setSelectedLensKey(lens.key)
+
+    window.requestAnimationFrame(() => {
+      document.getElementById('compare-lab')?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      })
+    })
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -857,6 +1135,11 @@ function App() {
         missionWorkState={missionWorkState}
         workspaceState={workspaceState}
         workspaceStats={workspaceStats}
+      />
+      <TaskLibraryPanel
+        onOpenScenario={selectScenario}
+        onLoadCompare={loadCompareFromInquiryPath}
+        onLoadCompareLens={loadCompareLens}
       />
       <AtlasMissionsPanel
         workspaceState={workspaceState}
@@ -1397,6 +1680,219 @@ function PortfolioPanel({
             )}
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+function TaskLibraryPanel({
+  onOpenScenario,
+  onLoadCompare,
+  onLoadCompareLens,
+}: {
+  onOpenScenario: (id: string) => void
+  onLoadCompare: (path: AtlasInquiryPath) => void
+  onLoadCompareLens: (lens: CompareLens) => void
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [durationFilter, setDurationFilter] = useState<'all' | DurationBand>('all')
+  const [sourceFilter, setSourceFilter] = useState<'all' | TaskLibrarySource>('all')
+  const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const libraryTasks = useMemo(
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens],
+  )
+  const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
+  const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const visibleTasks = useMemo(
+    () => libraryTasks.filter((task) => {
+      const matchesSearch = !normalizedSearchQuery || task.searchText.includes(normalizedSearchQuery)
+      const matchesCategory = categoryFilter === 'all' || task.category === categoryFilter
+      const matchesScenario = scenarioFilter === 'all' || task.scenarioId === scenarioFilter
+      const matchesDuration = durationFilter === 'all' || task.durationBand === durationFilter
+      const matchesSource = sourceFilter === 'all' || task.source === sourceFilter
+      const matchesSourceBased = !sourceBasedOnly || task.sourceBased
+
+      return matchesSearch && matchesCategory && matchesScenario && matchesDuration && matchesSource && matchesSourceBased
+    }),
+    [categoryFilter, durationFilter, libraryTasks, normalizedSearchQuery, scenarioFilter, sourceBasedOnly, sourceFilter],
+  )
+
+  async function copyTaskSheet(task: LibraryTask) {
+    try {
+      await copyTextToClipboard(task.formatSheet())
+      setCopyStatus(task.id)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="task-library" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="task-library-title">
+      <div className="rounded-[2rem] border border-sky-200/15 bg-sky-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-sky-100">
+          <LibraryBig size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">task library / launcher 11.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="task-library-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              全站任务库 / Assignment Launcher 11.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              汇总 scenario missions、Activity Packs、Lesson Pack 流程、Inquiry Pathways 与 Compare Lens 模板，按关键词、场景、类别、时长和来源型任务快速启动。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {visibleTasks.length}/{libraryTasks.length} 个任务 · {libraryTasks.filter((task) => task.sourceBased).length} 个来源型
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1.25fr_0.8fr_0.8fr] xl:grid-cols-[1.4fr_0.85fr_0.85fr_0.7fr_0.75fr]">
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">搜索任务</span>
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-sky-200/60">
+              <Search size={18} className="text-stone-500" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="标题、交付物、标签、来源或步骤……"
+                className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600"
+              />
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">类别</span>
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
+            >
+              <option value="all">全部类别</option>
+              {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">场景</span>
+            <select
+              value={scenarioFilter}
+              onChange={(event) => setScenarioFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
+            >
+              <option value="all">全部场景</option>
+              {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">时长</span>
+            <select
+              value={durationFilter}
+              onChange={(event) => setDurationFilter(event.target.value as 'all' | DurationBand)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
+            >
+              <option value="all">全部时长</option>
+              {durationBands.map((band) => <option key={band} value={band}>{getDurationBandLabel(band)}</option>)}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">来源</span>
+            <select
+              value={sourceFilter}
+              onChange={(event) => setSourceFilter(event.target.value as 'all' | TaskLibrarySource)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
+            >
+              <option value="all">全部来源</option>
+              <option value="mission">Scenario Missions</option>
+              <option value="activity">Activity Packs</option>
+              <option value="lesson">Lesson Pack</option>
+              <option value="inquiry">Inquiry Paths</option>
+              <option value="compare">Compare Lenses</option>
+            </select>
+          </label>
+        </div>
+
+        <label className="mt-4 inline-flex cursor-pointer items-center gap-3 rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-4 py-2 text-sm text-sky-100 transition hover:bg-sky-100/[0.1]">
+          <input
+            type="checkbox"
+            checked={sourceBasedOnly}
+            onChange={(event) => setSourceBasedOnly(event.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-black text-sky-300 focus:ring-sky-200"
+          />
+          只显示来源型 / evidence-based 任务
+        </label>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {visibleTasks.slice(0, 36).map((task) => (
+            <article key={task.id} className="flex min-h-full flex-col rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                <span className="rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-3 py-1 text-sky-100">{task.sourceLabel}</span>
+                <span>{task.durationMinutes}m</span>
+                <span>{task.category}</span>
+              </div>
+              <h3 className="mt-3 text-xl font-semibold tracking-tight text-stone-50">{task.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-stone-500">{task.context}</p>
+              <p className="mt-3 text-sm leading-6 text-stone-300">{task.summary}</p>
+              <div className="mt-4 rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3 text-sm leading-6 text-stone-300">
+                <span className="font-semibold text-teal-100">交付物：</span>{task.deliverable}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {task.tags.slice(0, 6).map((tag) => (
+                  <span key={`${task.id}-${tag}`} className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-xs text-stone-400">{tag}</span>
+                ))}
+                {task.sourceBased ? <span className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-xs text-amber-100">source-based</span> : null}
+              </div>
+              <div className="mt-auto flex flex-col gap-2 pt-5 sm:flex-row sm:flex-wrap">
+                {task.onPrimaryAction ? (
+                  <button
+                    type="button"
+                    onClick={task.onPrimaryAction}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
+                  >
+                    {task.source === 'compare' || task.source === 'inquiry' ? <Scale size={16} /> : <ArrowRight size={16} />}
+                    {task.primaryActionLabel}
+                  </button>
+                ) : null}
+                {task.onSecondaryAction ? (
+                  <button
+                    type="button"
+                    onClick={task.onSecondaryAction}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                  >
+                    <ArrowRight size={16} />
+                    {task.secondaryActionLabel}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void copyTaskSheet(task)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === task.id ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === task.id ? '已复制' : '复制任务单'}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {visibleTasks.length > 36 ? (
+          <p className="mt-4 text-sm text-stone-500">已显示前 36 个结果；可继续使用搜索或筛选缩小范围。</p>
+        ) : null}
+        {visibleTasks.length === 0 ? (
+          <p className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">没有匹配的任务。请放宽搜索、类别、场景、时长或来源型筛选。</p>
+        ) : null}
+        <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+          {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '打开场景会保留 URL 参数并滚动到当前场景；Compare / Inquiry 任务可直接载入 Compare Lab。'}
+        </p>
       </div>
     </section>
   )
@@ -2603,6 +3099,12 @@ const activityPackModeLabels: Record<ActivityPackMode, string> = {
   writing: 'Writing',
   compare: 'Compare',
   extension: 'Extension',
+}
+
+const lessonPackModeLabels: Record<LessonPackMode, string> = {
+  quick: 'Quick start',
+  source: 'Source lab',
+  debate: 'Debate',
 }
 
 function formatActivitySheet(scenario: Scenario, activity: ActivityPack) {
