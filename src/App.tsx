@@ -49,6 +49,7 @@ const missionProgressStorageKey = 'timeatlas:mission-progress'
 const missionWorkStorageKey = 'timeatlas:mission-work'
 const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
 const corroborationStudioStorageKey = 'timeatlas:corroboration-studio-drafts'
+const causationLabStorageKey = 'timeatlas:causation-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -61,6 +62,7 @@ const sectionIds = {
   decisionPanel: 'decision-panel',
   argumentStudio: 'argument-studio',
   sourceReader: 'source-reader',
+  causationLab: 'causation-lab',
   compareLab: 'compare-lab',
 } as const
 
@@ -190,6 +192,47 @@ type CorroborationDraft = {
 
 type CorroborationDraftState = Record<string, CorroborationDraft>
 
+type CausationConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type CauseCategory = 'economic' | 'political-institutional' | 'environmental-geographic' | 'social-labor' | 'cultural-knowledge' | 'source-limitation'
+
+type CausationDraft = {
+  backgroundConditions: string
+  immediateTriggers: string
+  constraints: string
+  humanChoices: string
+  shortTermConsequences: string
+  longTermChange: string
+  contingency: string
+  missingEvidence: string
+  confidence: CausationConfidence
+  selectedEvidenceIds: string[]
+  updatedAt?: string
+}
+
+type CausationDraftState = Record<string, CausationDraft>
+
+type CausationInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  focus: string
+  tags: string[]
+  suggestedCategories: CauseCategory[]
+}
+
+type CausationEvidence = {
+  id: string
+  inquiryId: string
+  scenario: Scenario
+  sourceType: 'timeline' | 'decision-context' | 'decision-option' | 'scene-beat' | 'source' | 'mission'
+  label: string
+  title: string
+  text: string
+  categories: CauseCategory[]
+}
 
 type WorkspaceEntry = {
   notes: string
@@ -217,7 +260,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 
@@ -298,6 +341,80 @@ const corroborationConfidenceLabels: Record<CorroborationConfidence, string> = {
   low: 'Low / 较低',
   uncertain: 'Uncertain / 仍不确定',
 }
+
+const causationConfidenceLabels: Record<CausationConfidence, string> = corroborationConfidenceLabels
+
+const causeCategoryLabels: Record<CauseCategory, string> = {
+  economic: 'economic / 经济',
+  'political-institutional': 'political/institutional / 政治制度',
+  'environmental-geographic': 'environmental/geographic / 环境地理',
+  'social-labor': 'social/labor / 社会劳动',
+  'cultural-knowledge': 'cultural/knowledge / 文化知识',
+  'source-limitation': 'source limitation / 来源限制',
+}
+
+const causationInquiryDefinitions: CausationInquiry[] = [
+  {
+    id: 'commodity-empires-labor-discipline',
+    title: '商品帝国与劳动纪律',
+    subtitle: 'Commodity empires / labor discipline',
+    drivingQuestion: '糖、棉与工厂时间如何把远方市场、强制劳动和身体纪律连接成历史变化？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador'],
+    focus: '区分商品需求、制度强制、工厂时间和劳动者选择，判断哪些原因改变了劳动关系。',
+    tags: ['商品帝国', '劳动纪律', '强制劳动', '棉花', '糖业'],
+    suggestedCategories: ['economic', 'social-labor', 'political-institutional', 'source-limitation'],
+  },
+  {
+    id: 'port-credit-distant-trade',
+    title: '港口信用与远距离贸易',
+    subtitle: 'Port credit / distant trade',
+    drivingQuestion: '季风、书信、通译、合约和名声如何让远距离贸易既可能又脆弱？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    focus: '追踪信用机制、港口中介、地理季节性和国家权力如何共同塑造贸易选择。',
+    tags: ['港口信用', '季风', '远距离贸易', '商人网络'],
+    suggestedCategories: ['economic', 'environmental-geographic', 'political-institutional', 'cultural-knowledge'],
+  },
+  {
+    id: 'crisis-news-ordinary-choices',
+    title: '危机消息与普通选择',
+    subtitle: 'Crisis news / ordinary choices',
+    drivingQuestion: '当战争、征服、起义或市场危机消息抵达普通人时，哪些条件决定他们能做什么？',
+    scenarioIds: ['wwii-london-civilian', 'malacca-monsoon-port-broker', 'saint-domingue-sugar-worker', 'colonial-bombay-mill-worker'],
+    focus: '把远方消息、即时触发、风险边界和普通人的应对选择分开记录。',
+    tags: ['危机新闻', '普通人选择', '风险', '不确定性'],
+    suggestedCategories: ['political-institutional', 'social-labor', 'economic', 'source-limitation'],
+  },
+  {
+    id: 'knowledge-transmission',
+    title: '知识传播的条件',
+    subtitle: 'Knowledge transmission',
+    drivingQuestion: '纸张、手稿、学校、书信和市场如何改变知识能被谁保存、学习和移动？',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice'],
+    focus: '分析媒介、师承、制度门槛和档案保存如何共同造成知识流动与限制。',
+    tags: ['知识传播', '纸张', '手稿', '教育', '档案'],
+    suggestedCategories: ['cultural-knowledge', 'political-institutional', 'economic', 'source-limitation'],
+  },
+  {
+    id: 'institutional-constraints-markets',
+    title: '制度约束与市场变化',
+    subtitle: 'Institutional constraints / markets',
+    drivingQuestion: '市场为什么不是自由的真空？税、行会、帝国规则和身份边界怎样改变交易结果？',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'malacca-monsoon-port-broker'],
+    focus: '把市场机会与制度限制并列，判断变化来自规则、信用、身份还是地理条件。',
+    tags: ['制度约束', '市场', '城市', '税与规则'],
+    suggestedCategories: ['political-institutional', 'economic', 'social-labor', 'environmental-geographic'],
+  },
+  {
+    id: 'archive-silence-causal-judgment',
+    title: '档案沉默与因果判断',
+    subtitle: 'Archive silence / causal judgment',
+    drivingQuestion: '当来源只保存了商人、国家或后世研究者的视角时，因果判断应该怎样保留不确定性？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'tenochtitlan-market-seller'],
+    focus: '把“证据能说明的原因”和“沉默导致的风险”分开，避免把幸存档案误当完整历史。',
+    tags: ['档案沉默', '来源限制', '因果判断', '缺席声音'],
+    suggestedCategories: ['source-limitation', 'political-institutional', 'social-labor', 'cultural-knowledge'],
+  },
+]
 
 function getEmptyWorkspaceEntry(): WorkspaceEntry {
   return {
@@ -477,6 +594,51 @@ function parseCorroborationDraftState(rawState: string | null) {
   }
 }
 
+function parseCausationDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as CausationDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<CausationDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in causationConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            backgroundConditions: typeof draft.backgroundConditions === 'string' ? draft.backgroundConditions : '',
+            immediateTriggers: typeof draft.immediateTriggers === 'string' ? draft.immediateTriggers : '',
+            constraints: typeof draft.constraints === 'string' ? draft.constraints : '',
+            humanChoices: typeof draft.humanChoices === 'string' ? draft.humanChoices : '',
+            shortTermConsequences: typeof draft.shortTermConsequences === 'string' ? draft.shortTermConsequences : '',
+            longTermChange: typeof draft.longTermChange === 'string' ? draft.longTermChange : '',
+            contingency: typeof draft.contingency === 'string' ? draft.contingency : '',
+            missingEvidence: typeof draft.missingEvidence === 'string' ? draft.missingEvidence : '',
+            confidence,
+            selectedEvidenceIds,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies CausationDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as CausationDraftState
+  }
+}
+
 function parseGuidedSessionProgressState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -607,6 +769,30 @@ function persistCorroborationDraftState(state: CorroborationDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(corroborationStudioStorageKey, serializedState)
+}
+
+function loadCausationDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseCausationDraftState(localStorage?.getItem(causationLabStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseCausationDraftState(sessionStorage?.getItem(causationLabStorageKey) ?? null)
+}
+
+function persistCausationDraftState(state: CausationDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(causationLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(causationLabStorageKey, serializedState)
 }
 
 function loadGuidedSessionProgressState() {
@@ -793,6 +979,219 @@ function getActiveCorroborationDrafts(corroborationDraftState: CorroborationDraf
   return Object.entries(corroborationDraftState).filter(([, draft]) => hasCorroborationDraftActivity(draft))
 }
 
+function getEmptyCausationDraft(): CausationDraft {
+  return {
+    backgroundConditions: '',
+    immediateTriggers: '',
+    constraints: '',
+    humanChoices: '',
+    shortTermConsequences: '',
+    longTermChange: '',
+    contingency: '',
+    missingEvidence: '',
+    confidence: 'uncertain',
+    selectedEvidenceIds: [],
+  }
+}
+
+function hasCausationDraftActivity(draft: CausationDraft) {
+  return Boolean(
+    draft.backgroundConditions.trim()
+      || draft.immediateTriggers.trim()
+      || draft.constraints.trim()
+      || draft.humanChoices.trim()
+      || draft.shortTermConsequences.trim()
+      || draft.longTermChange.trim()
+      || draft.contingency.trim()
+      || draft.missingEvidence.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.selectedEvidenceIds.length,
+  )
+}
+
+function getActiveCausationDrafts(causationDraftState: CausationDraftState) {
+  return Object.entries(causationDraftState).filter(([, draft]) => hasCausationDraftActivity(draft))
+}
+
+function inferCauseCategories(text: string): CauseCategory[] {
+  const normalizedText = text.toLowerCase()
+  const categories: CauseCategory[] = []
+  const checks: [CauseCategory, string[]][] = [
+    ['economic', ['trade', 'market', 'credit', 'commodity', 'cotton', 'sugar', 'price', 'wage', 'factory', 'labor', '贸易', '市场', '信用', '商品', '棉', '糖', '工资', '工厂']],
+    ['political-institutional', ['empire', 'law', 'state', 'institution', 'tax', 'regulation', 'war', 'colonial', '制度', '国家', '帝国', '法律', '税', '战争', '殖民', '规则']],
+    ['environmental-geographic', ['port', 'monsoon', 'sea', 'river', 'route', 'harbor', 'geographic', 'season', '港', '季风', '海', '河', '路线', '地理', '季节']],
+    ['social-labor', ['worker', 'labor', 'family', 'guild', 'enslaved', 'discipline', 'safety', 'migration', '劳动', '工人', '家庭', '被奴役', '纪律', '安全', '移民', '身份']],
+    ['cultural-knowledge', ['knowledge', 'paper', 'manuscript', 'letter', 'school', 'education', 'language', 'archive', '知识', '纸', '手稿', '书信', '教育', '语言', '档案']],
+    ['source-limitation', ['source', 'archive', 'silence', 'reliability', 'perspective', 'missing', '来源', '档案', '沉默', '可靠', '视角', '缺席', '限制']],
+  ]
+
+  checks.forEach(([category, keywords]) => {
+    if (keywords.some((keyword) => normalizedText.includes(keyword))) {
+      categories.push(category)
+    }
+  })
+
+  return categories.length ? categories : ['economic']
+}
+
+function getEvidenceCategories(baseText: string, preferredCategories: CauseCategory[] = []) {
+  return [...new Set([...inferCauseCategories(baseText), ...preferredCategories.slice(0, 2)])].slice(0, 4)
+}
+
+function buildCausationEvidenceForInquiry(inquiry: CausationInquiry): CausationEvidence[] {
+  return inquiry.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+
+    if (!scenario) {
+      return []
+    }
+
+    const preferredCategories = inquiry.suggestedCategories
+    const timelineEvidence = scenario.timeline.slice(0, 3).map((event, index) => {
+      const text = `${event.year}｜${event.title}：${event.text}`
+
+      return {
+        id: `${inquiry.id}:${scenario.id}:timeline:${index}`,
+        inquiryId: inquiry.id,
+        scenario,
+        sourceType: 'timeline' as const,
+        label: 'Timeline',
+        title: event.title,
+        text,
+        categories: getEvidenceCategories(text, preferredCategories),
+      }
+    })
+    const decisionContext = {
+      id: `${inquiry.id}:${scenario.id}:decision:context`,
+      inquiryId: inquiry.id,
+      scenario,
+      sourceType: 'decision-context' as const,
+      label: 'Decision context',
+      title: scenario.decision.prompt,
+      text: scenario.decision.context,
+      categories: getEvidenceCategories(`${scenario.decision.prompt} ${scenario.decision.context}`, preferredCategories),
+    }
+    const decisionOptions = scenario.decision.options.slice(0, 2).map((option) => {
+      const text = `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`
+
+      return {
+        id: `${inquiry.id}:${scenario.id}:option:${option.id}`,
+        inquiryId: inquiry.id,
+        scenario,
+        sourceType: 'decision-option' as const,
+        label: 'Decision option',
+        title: option.label,
+        text,
+        categories: getEvidenceCategories(text, preferredCategories),
+      }
+    })
+    const sceneBeats = scenario.sceneBeats.slice(0, 2).map((beat, index) => {
+      const text = `${beat.timeLabel}｜${beat.historicalTension}｜${beat.evidenceHook}`
+
+      return {
+        id: `${inquiry.id}:${scenario.id}:scene:${index}`,
+        inquiryId: inquiry.id,
+        scenario,
+        sourceType: 'scene-beat' as const,
+        label: 'Scene beat',
+        title: beat.title,
+        text,
+        categories: getEvidenceCategories(text, preferredCategories),
+      }
+    })
+    const sources = scenario.sources.slice(0, 2).map((source, index) => {
+      const text = `${source.excerpt}｜${source.perspective}｜${source.reliabilityNote}`
+
+      return {
+        id: `${inquiry.id}:${scenario.id}:source:${index}`,
+        inquiryId: inquiry.id,
+        scenario,
+        sourceType: 'source' as const,
+        label: sourceTypeLabels[source.sourceType],
+        title: source.title,
+        text,
+        categories: getEvidenceCategories(`${text} ${source.evidenceTags.join(' ')}`, [...preferredCategories, 'source-limitation']),
+      }
+    })
+    const relevantMissions = scenario.missions
+      .filter((mission) => mission.taskType === '因果链' || mission.taskType === '史料判断' || mission.taskType === '比较分析' || mission.linkedSourceTitles.length > 0)
+      .slice(0, 2)
+      .map((mission) => {
+        const text = `${mission.instruction}｜交付物：${mission.deliverable}｜证据：${mission.evidenceChecklist.slice(0, 3).join('；')}`
+
+        return {
+          id: `${inquiry.id}:${scenario.id}:mission:${mission.id}`,
+          inquiryId: inquiry.id,
+          scenario,
+          sourceType: 'mission' as const,
+          label: 'Mission',
+          title: mission.title,
+          text,
+          categories: getEvidenceCategories(text, preferredCategories),
+        }
+      })
+
+    return [decisionContext, ...timelineEvidence, ...decisionOptions, ...sceneBeats, ...sources, ...relevantMissions]
+  })
+}
+
+function getCausationInquiryEvidenceMap() {
+  return Object.fromEntries(
+    causationInquiryDefinitions.map((inquiry) => [inquiry.id, buildCausationEvidenceForInquiry(inquiry)]),
+  ) as Record<string, CausationEvidence[]>
+}
+
+function formatCausationBrief(inquiry: CausationInquiry, evidence: CausationEvidence[], draft: CausationDraft) {
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is CausationEvidence => Boolean(entry))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : evidence.slice(0, 8)
+
+  return [
+    'TimeAtlas Causation & Change Lab / 因果与历史变化工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `探究：${inquiry.title}｜${inquiry.subtitle}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    '',
+    '一、已选证据',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.scenario.title}｜${entry.label}｜${entry.title}\n   ${entry.text}\n   原因类别：${entry.categories.map((category) => causeCategoryLabels[category]).join('、')}`),
+    '',
+    '二、因果草稿',
+    `背景条件：${draft.backgroundConditions.trim() || '尚未填写'}`,
+    `直接触发：${draft.immediateTriggers.trim() || '尚未填写'}`,
+    `约束条件：${draft.constraints.trim() || '尚未填写'}`,
+    `人的选择：${draft.humanChoices.trim() || '尚未填写'}`,
+    `短期后果：${draft.shortTermConsequences.trim() || '尚未填写'}`,
+    `长期变化：${draft.longTermChange.trim() || '尚未填写'}`,
+    `偶然性 / 反事实：${draft.contingency.trim() || '尚未填写'}`,
+    `缺失证据：${draft.missingEvidence.trim() || '尚未填写'}`,
+    `信心等级：${causationConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatCausationTaskSheet(inquiry: CausationInquiry) {
+  const evidence = buildCausationEvidenceForInquiry(inquiry).slice(0, 8)
+
+  return [
+    `TimeAtlas Causation Lab Assignment：${inquiry.title}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `建议场景：${inquiry.scenarioIds.map((id) => getScenarioById(id)?.title).filter(Boolean).join(' × ')}`,
+    '',
+    '任务：用背景条件、直接触发、约束、人的选择、短期后果、长期变化、偶然性和缺失证据八格组织一个因果解释。',
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${entry.label}｜${entry.title}：${entry.text}`),
+    '',
+    '原因类别：',
+    ...inquiry.suggestedCategories.map((category) => `- ${causeCategoryLabels[category]}`),
+    '',
+    '交付物：一份因果简报，必须点名至少 4 条证据，并说明信心等级与缺失材料。',
+  ].join('\n')
+}
+
 function formatSourceCorroborationBrief(entries: SourceAtlasEntry[], draft: CorroborationDraft) {
   if (entries.length < 2) {
     return ''
@@ -834,9 +1233,12 @@ function formatLearningArchive(
   completedMissionIdsByScenario: Record<string, string[]>,
   workspaceState: WorkspaceState,
   corroborationDraftState: CorroborationDraftState,
+  causationDraftState: CausationDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
+  const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
+  const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -848,6 +1250,7 @@ function formatLearningArchive(
     `- 跨场景草稿：${workspaceStats.draftEntries}`,
     `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
     `- 史料互证草稿：${activeCorroborationDrafts.length}`,
+    `- 因果变化草稿：${activeCausationDrafts.length}`,
     '',
   ]
 
@@ -895,6 +1298,34 @@ function formatLearningArchive(
         '    清单 / 证据：',
         checkedEvidence,
         `    草稿：${entry.notes.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (activeCausationDrafts.length > 0) {
+    lines.push('因果与历史变化工作台：')
+    activeCausationDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = causationInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+      const evidence = causationEvidenceByInquiry[inquiryId] ?? []
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is CausationEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${entry.label}｜${entry.title}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    背景条件：${draft.backgroundConditions.trim() || '尚未填写'}`,
+        `    直接触发：${draft.immediateTriggers.trim() || '尚未填写'}`,
+        `    约束条件：${draft.constraints.trim() || '尚未填写'}`,
+        `    人的选择：${draft.humanChoices.trim() || '尚未填写'}`,
+        `    短期后果：${draft.shortTermConsequences.trim() || '尚未填写'}`,
+        `    长期变化：${draft.longTermChange.trim() || '尚未填写'}`,
+        `    偶然性：${draft.contingency.trim() || '尚未填写'}`,
+        `    缺失证据：${draft.missingEvidence.trim() || '尚未填写'}`,
+        `    信心等级：${causationConfidenceLabels[draft.confidence]}`,
       )
     })
     lines.push('')
@@ -1167,10 +1598,12 @@ function buildTaskLibraryTasks({
   onOpenScenario,
   onLoadCompare,
   onLoadCompareLens,
+  onLoadCausationInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
+  onLoadCausationInquiry: (inquiryId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -1290,6 +1723,37 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  causationInquiryDefinitions.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Causation Lab', '因果与变化', ...inquiry.tags, ...inquiry.suggestedCategories.map((category) => causeCategoryLabels[category])]
+    const task: LibraryTask = {
+      id: `causation:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || '跨场景因果探究',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: '因果与历史变化',
+      source: 'causation',
+      sourceLabel: 'Causation Lab',
+      durationMinutes,
+      durationBand,
+      summary: inquiry.drivingQuestion,
+      deliverable: '因果简报：背景条件、触发因素、约束、选择、短期后果、长期变化、偶然性与缺失证据',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Causation Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadCausationInquiry(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      formatSheet: () => formatCausationTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.focus, ...tags].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   compareLenses.forEach((lens) => {
     const durationMinutes = 35
     const durationBand = getDurationBand(durationMinutes)
@@ -1384,6 +1848,8 @@ function App() {
   const [missionWorkState, setMissionWorkState] = useState<MissionWorkState>(loadMissionWorkState)
   const [argumentDraftState, setArgumentDraftState] = useState<ArgumentDraftState>(loadArgumentDraftState)
   const [corroborationDraftState, setCorroborationDraftState] = useState<CorroborationDraftState>(loadCorroborationDraftState)
+  const [causationDraftState, setCausationDraftState] = useState<CausationDraftState>(loadCausationDraftState)
+  const [selectedCausationInquiryId, setSelectedCausationInquiryId] = useState(causationInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
@@ -1410,6 +1876,7 @@ function App() {
     [compareScenarioA, compareScenarioBId],
   )
   const selectedLens = useMemo(() => getCompareLensByKey(selectedLensKey), [selectedLensKey])
+  const causationEvidenceByInquiry = useMemo(getCausationInquiryEvidenceMap, [])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -1473,6 +1940,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [corroborationDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistCausationDraftState(causationDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [causationDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1605,6 +2084,15 @@ function App() {
     })
   }
 
+  function loadCausationInquiry(inquiryId: string) {
+    if (!causationInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
+      return
+    }
+
+    setSelectedCausationInquiryId(inquiryId)
+    scrollToSection(sectionIds.causationLab, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -1636,17 +2124,27 @@ function App() {
         onOpenScenario={selectScenario}
         onLoadCompareLens={loadCompareLens}
       />
+      <CausationLabPanel
+        selectedInquiryId={selectedCausationInquiryId}
+        evidenceByInquiry={causationEvidenceByInquiry}
+        draftState={causationDraftState}
+        onSelectInquiry={setSelectedCausationInquiryId}
+        onUpdateDraftState={setCausationDraftState}
+        onOpenScenario={selectScenario}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
         workspaceState={workspaceState}
         workspaceStats={workspaceStats}
         corroborationDraftState={corroborationDraftState}
+        causationDraftState={causationDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
         onLoadCompare={loadCompareFromInquiryPath}
         onLoadCompareLens={loadCompareLens}
+        onLoadCausationInquiry={loadCausationInquiry}
       />
       <GuidedSessionPanel
         selectedScenarioId={selectedScenario.id}
@@ -3241,23 +3739,300 @@ function SourceAtlasPanel({
   )
 }
 
+function CausationLabPanel({
+  selectedInquiryId,
+  evidenceByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedInquiryId: string
+  evidenceByInquiry: Record<string, CausationEvidence[]>
+  draftState: CausationDraftState
+  onSelectInquiry: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<CausationDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedInquiry = causationInquiryDefinitions.find((inquiry) => inquiry.id === selectedInquiryId) ?? causationInquiryDefinitions[0]
+  const evidence = evidenceByInquiry[selectedInquiry.id] ?? []
+  const currentDraft = draftState[selectedInquiry.id] ?? getEmptyCausationDraft()
+  const selectedEvidence = currentDraft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is CausationEvidence => Boolean(entry))
+  const scenarioStops = selectedInquiry.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  function updateDraft(updates: Partial<Omit<CausationDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedInquiry.id]: {
+        ...(currentState[selectedInquiry.id] ?? getEmptyCausationDraft()),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextSelectedEvidenceIds = currentDraft.selectedEvidenceIds.includes(evidenceId)
+      ? currentDraft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.selectedEvidenceIds, evidenceId]
+
+    setCopyStatus('idle')
+    updateDraft({ selectedEvidenceIds: nextSelectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyCausationBrief() {
+    try {
+      await copyTextToClipboard(formatCausationBrief(selectedInquiry, evidence, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  if (!selectedInquiry) {
+    return null
+  }
+
+  return (
+    <section id={sectionIds.causationLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="causation-lab-title">
+      <div className="rounded-[2rem] border border-orange-200/15 bg-orange-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-orange-100">
+          <Route size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">causation & change lab 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="causation-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Causation & Change Lab / 因果与历史变化工作台 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有 scenarios 派生 6 个因果探究，把时间线、历史选择、Scene Reader、来源和任务证据放入同一条 evidence rail，帮助区分背景条件、直接触发、约束、人的选择、短期后果与长期变化。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActiveCausationDrafts(draftState).length} 个因果草稿 · 当前已选 {selectedEvidence.length}/{evidence.length} 条证据
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <aside className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {causationInquiryDefinitions.map((inquiry) => {
+                const isSelected = inquiry.id === selectedInquiry.id
+                const inquiryDraft = draftState[inquiry.id]
+                const status = inquiryDraft && hasCausationDraftActivity(inquiryDraft) ? 'draft' : 'not-started'
+
+                return (
+                  <button
+                    key={inquiry.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectInquiry(inquiry.id)
+                      setCopyStatus('idle')
+                    }}
+                    className={`rounded-3xl border p-4 text-left transition ${
+                      isSelected
+                        ? 'border-orange-200/45 bg-orange-100/[0.09]'
+                        : 'border-white/10 bg-black/20 hover:border-orange-100/25 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span>{inquiry.subtitle}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${status === 'draft' ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100' : 'border-white/10 bg-white/[0.035] text-stone-500'}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {inquiry.suggestedCategories.slice(0, 3).map((category) => <Tag key={`${inquiry.id}-${category}`}>{causeCategoryLabels[category]}</Tag>)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">场景路径</h3>
+              <div className="mt-3 space-y-2">
+                {scenarioStops.map((scenario, index) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-left text-sm transition hover:border-teal-100/25"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-stone-950" style={{ backgroundColor: scenario.accent }}>{index + 1}</span>
+                    <span>
+                      <span className="block font-medium text-stone-100">{scenario.title}</span>
+                      <span className="block text-xs text-stone-500">{scenario.year} · {scenario.location}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-orange-200/15 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-orange-100/70">selected inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedInquiry.focus}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyCausationBrief()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '因果简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出因果简报'}
+                </button>
+              </div>
+              <p className="mt-3 rounded-2xl border border-orange-200/15 bg-orange-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                {selectedInquiry.drivingQuestion}
+              </p>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <section className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4" aria-labelledby="causation-evidence-rail-title">
+                <h3 id="causation-evidence-rail-title" className="font-semibold text-stone-50">Evidence rail / 证据轨</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">勾选要纳入因果简报的证据；每条证据自动显示原因类别 chips。</p>
+                <div className="mt-4 max-h-[760px] space-y-3 overflow-y-auto pr-1">
+                  {evidence.map((entry) => {
+                    const isSelected = currentDraft.selectedEvidenceIds.includes(entry.id)
+
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 transition ${isSelected ? 'border-amber-200/35 bg-amber-100/[0.07]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvidence(entry.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-2 py-0.5 text-teal-100">{entry.label}</span>
+                              <span>{entry.scenario.title}</span>
+                            </div>
+                            <h4 className="mt-2 font-semibold text-stone-100">{entry.title}</h4>
+                            <p className="mt-2 text-sm leading-6 text-stone-400">{entry.text}</p>
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {entry.categories.map((category) => (
+                                <span key={`${entry.id}-${category}`} className="rounded-full border border-orange-200/20 bg-orange-100/[0.055] px-2.5 py-1 text-[0.68rem] text-orange-100">
+                                  {causeCategoryLabels[category]}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4" aria-labelledby="causation-draft-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 id="causation-draft-title" className="font-semibold text-stone-50">Causation draft / 因果草稿</h3>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearDraft}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-orange-200/30 hover:text-orange-100"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['backgroundConditions', 'background conditions / 背景条件', '哪些长期结构、环境或制度先存在？'],
+                    ['immediateTriggers', 'immediate triggers / 直接触发', '哪些事件或消息让变化开始加速？'],
+                    ['constraints', 'constraints / 约束条件', '身份、制度、地理或来源边界怎样限制行动？'],
+                    ['humanChoices', 'human choices / 人的选择', '普通人、商人、国家或机构做了哪些选择？'],
+                    ['shortTermConsequences', 'short-term consequences / 短期后果', '这些选择立刻改变了什么？'],
+                    ['longTermChange', 'long-term change / 长期变化', '这些原因如何汇入更大的历史变化？'],
+                    ['contingency', 'contingency / 偶然性', '如果条件改变，结果可能怎样不同？'],
+                    ['missingEvidence', 'missing evidence / 缺失证据', '还缺哪些声音、材料或互证？'],
+                  ] as [keyof Omit<CausationDraft, 'confidence' | 'selectedEvidenceIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea
+                        value={currentDraft[field]}
+                        onChange={(event) => updateDraft({ [field]: event.target.value })}
+                        rows={field === 'longTermChange' || field === 'missingEvidence' ? 3 : 2}
+                        placeholder={placeholder}
+                        className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-orange-200/50"
+                      />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select
+                      value={currentDraft.confidence}
+                      onChange={(event) => updateDraft({ confidence: event.target.value as CausationConfidence })}
+                      className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-orange-200/50"
+                    >
+                      {(Object.entries(causationConfidenceLabels) as [CausationConfidence, string][]).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '因果简报会优先导出已勾选证据；若未勾选，则导出前 8 条证据起点。'}
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
   workspaceState,
   workspaceStats,
   corroborationDraftState,
+  causationDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
   workspaceStats: WorkspaceStats
   corroborationDraftState: CorroborationDraftState
+  causationDraftState: CausationDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
   const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
+  const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -3271,7 +4046,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -3311,6 +4086,7 @@ function PortfolioPanel({
               { label: '跨场景条目', value: workspaceStats.totalEntries },
               { label: '跨场景完成', value: workspaceStats.completedEntries },
               { label: '互证草稿', value: corroborationDraftCount },
+              { label: '因果草稿', value: causationDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -3357,10 +4133,12 @@ function TaskLibraryPanel({
   onOpenScenario,
   onLoadCompare,
   onLoadCompareLens,
+  onLoadCausationInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
+  onLoadCausationInquiry: (inquiryId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -3370,8 +4148,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -3484,6 +4262,7 @@ function TaskLibraryPanel({
               <option value="lesson">Lesson Pack</option>
               <option value="inquiry">Inquiry Paths</option>
               <option value="compare">Compare Lenses</option>
+              <option value="causation">Causation Lab</option>
             </select>
           </label>
         </div>
@@ -3525,7 +4304,7 @@ function TaskLibraryPanel({
                     onClick={task.onPrimaryAction}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
                   >
-                    {task.source === 'compare' || task.source === 'inquiry' ? <Scale size={16} /> : <ArrowRight size={16} />}
+                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' ? <Scale size={16} /> : <ArrowRight size={16} />}
                     {task.primaryActionLabel}
                   </button>
                 ) : null}
