@@ -53,6 +53,7 @@ const corroborationStudioStorageKey = 'timeatlas:corroboration-studio-drafts'
 const causationLabStorageKey = 'timeatlas:causation-lab-drafts'
 const periodizationLabStorageKey = 'timeatlas:periodization-lab-drafts'
 const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
+const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -68,6 +69,7 @@ const sectionIds = {
   causationLab: 'causation-lab',
   periodizationLab: 'periodization-lab',
   perspectivesLab: 'perspectives-agency-lab',
+  contextLab: 'context-scale-lab',
   compareLab: 'compare-lab',
 } as const
 
@@ -258,6 +260,48 @@ type PeriodizationDraft = {
 
 type PeriodizationDraftState = Record<string, PeriodizationDraft>
 
+type ContextConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type ContextDraft = {
+  localSetting: string
+  regionalConnections: string
+  largeScaleForces: string
+  sourceContext: string
+  anachronismRisk: string
+  contextClaim: string
+  missingContext: string
+  confidence: ContextConfidence
+  selectedEvidenceIds: string[]
+  updatedAt?: string
+}
+
+type ContextDraftState = Record<string, ContextDraft>
+
+type ContextInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  focus: string
+  tags: string[]
+  scaleFrame: string
+}
+
+type ContextEvidenceLabel = 'local' | 'regional' | 'imperial-global' | 'source-context' | 'presentism-risk'
+
+type ContextEvidence = {
+  id: string
+  inquiryId: string
+  scenario: Scenario
+  label: ContextEvidenceLabel
+  sourceType: 'scenario-context' | 'timeline' | 'key-term' | 'daily-life' | 'scene-beat' | 'decision-context' | 'decision-option' | 'source' | 'real-history' | 'source-evidence-use'
+  title: string
+  text: string
+  scaleHint: string
+  tags: string[]
+}
+
 type PerspectivesConfidence = 'high' | 'medium' | 'low' | 'uncertain'
 
 type PerspectivesDraft = {
@@ -352,7 +396,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 
@@ -437,6 +481,23 @@ const corroborationConfidenceLabels: Record<CorroborationConfidence, string> = {
 const causationConfidenceLabels: Record<CausationConfidence, string> = corroborationConfidenceLabels
 const periodizationConfidenceLabels: Record<PeriodizationConfidence, string> = corroborationConfidenceLabels
 const perspectivesConfidenceLabels: Record<PerspectivesConfidence, string> = corroborationConfidenceLabels
+const contextConfidenceLabels: Record<ContextConfidence, string> = corroborationConfidenceLabels
+
+const contextEvidenceLabelText: Record<ContextEvidenceLabel, string> = {
+  local: 'local / 地方现场',
+  regional: 'regional / 区域连接',
+  'imperial-global': 'imperial-global / 帝国-全球尺度',
+  'source-context': 'source-context / 来源情境',
+  'presentism-risk': 'presentism-risk / 当下主义风险',
+}
+
+const contextScaleLadder = [
+  { key: 'local', title: 'Local / 地方现场', prompt: '地点、城市秩序、劳动节奏和日常选择先在哪里发生？' },
+  { key: 'regional', title: 'Regional / 区域连接', prompt: '港口、季风、城市腹地、书信或市场如何把多个地点连接起来？' },
+  { key: 'imperial-global', title: 'Imperial-global / 帝国-全球', prompt: '帝国规则、商品链、战争、殖民或全球需求如何改变地方处境？' },
+  { key: 'source-context', title: 'Source context / 来源情境', prompt: '这条材料由谁留下、保存在哪里、能看见和看不见什么？' },
+  { key: 'presentism-risk', title: 'Presentism risk / 当下主义风险', prompt: '哪些后见之明、现代概念或道德捷径可能压扁当时处境？' },
+] satisfies { key: ContextEvidenceLabel, title: string, prompt: string }[]
 
 const perspectivesEvidenceLabelText: Record<PerspectivesEvidenceLabel, string> = {
   'actor position': 'actor position / 行动者位置',
@@ -526,6 +587,70 @@ const causationInquiryDefinitions: CausationInquiry[] = [
   },
 ]
 
+
+
+const contextInquiryDefinitions: ContextInquiry[] = [
+  {
+    id: 'city-order-daily-work',
+    title: '城市秩序与日常劳动',
+    subtitle: 'City order / daily work',
+    drivingQuestion: '城市规则、街市空间、行会或国家秩序如何进入普通人的一天？',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'ming-jiangnan-scholar'],
+    focus: '从地点、年份、日常劳动、scene beats 和决策语境出发，把普通人的选择放回城市秩序与生活尺度中。',
+    tags: ['城市秩序', '日常劳动', '市场', '制度', '地方尺度'],
+    scaleFrame: '先定位街市/学校/家庭等 local setting，再说明区域市场或国家制度如何改变日常工作。',
+  },
+  {
+    id: 'monsoon-ports-intermediaries',
+    title: '季风港口与跨文化中介',
+    subtitle: 'Monsoon ports / intermediaries',
+    drivingQuestion: '季风、港口、语言和信用怎样塑造跨文化中介的机会与风险？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    focus: '把港口地方现场、印度洋/南海区域连接、书信/通译/合约与来源幸存条件放在同一尺度梯上。',
+    tags: ['季风', '港口', '跨文化中介', '信用', '区域连接'],
+    scaleFrame: '从码头和书信的地方证据，逐级连接到季风航线、港口网络和帝国规则。',
+  },
+  {
+    id: 'commodity-empires-scale-shifts',
+    title: '商品帝国的尺度转换',
+    subtitle: 'Commodity empires / scale shifts',
+    drivingQuestion: '糖、棉、黄金和通商规则如何把地方劳动转化为帝国或全球尺度的压力？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador', 'kilwa-swahili-gold-merchant'],
+    focus: '追踪商品链、劳动纪律、港口中介和市场需求如何在 local、regional 与 imperial-global 之间转换。',
+    tags: ['商品帝国', '尺度转换', '劳动纪律', '棉花', '糖业'],
+    scaleFrame: '不要只说“全球化”；说明具体商品链如何穿过某个身体、工厂、港口或档案。',
+  },
+  {
+    id: 'knowledge-cities-media-thresholds',
+    title: '知识城市与媒介门槛',
+    subtitle: 'Knowledge cities / media thresholds',
+    drivingQuestion: '纸张、手稿、书信、学校和考试如何决定谁能进入知识世界？',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice'],
+    focus: '比较知识城市中的日常学习、媒介门槛、区域流动和档案保存，把“知识传播”情境化。',
+    tags: ['知识城市', '媒介门槛', '纸张', '手稿', '教育'],
+    scaleFrame: '从抄写、求学或书信的 local practice，连接到区域知识网络和来源可见性。',
+  },
+  {
+    id: 'crisis-news-daily-life',
+    title: '危机新闻进入日常生活',
+    subtitle: 'Crisis news / daily life',
+    drivingQuestion: '战争、征服、起义或市场危机的消息抵达后，日常生活的哪些尺度同时变化？',
+    scenarioIds: ['wwii-london-civilian', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'saint-domingue-sugar-worker', 'colonial-bombay-mill-worker'],
+    focus: '区分消息抵达的地方体验、区域安全网络、帝国战争/殖民压力与当事人的可得知识。',
+    tags: ['危机新闻', '日常生活', '安全', '不确定性', '当下主义风险'],
+    scaleFrame: '把“我们知道后来发生什么”和“当时人能知道什么”分开，避免后见之明。',
+  },
+  {
+    id: 'archive-context-visibility',
+    title: '档案情境与可见性',
+    subtitle: 'Archive context / visibility',
+    drivingQuestion: '来源保存了哪些尺度的历史，又让哪些地方经验、劳动身体或声音不可见？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker', 'wwii-london-civilian'],
+    focus: '用 sources、sourceEvidenceUse 与 realHistory 说明来源情境、保存条件、可见性和解释风险。',
+    tags: ['档案情境', '可见性', '来源限制', '缺席声音', '解释风险'],
+    scaleFrame: '把 archive 当成历史尺度的一部分：它能连接远方，也会过滤普通人的地方经验。',
+  },
+]
 
 const perspectivesInquiryDefinitions: PerspectivesInquiry[] = [
   {
@@ -922,6 +1047,51 @@ function parsePeriodizationDraftState(rawState: string | null) {
   }
 }
 
+
+function parseContextDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as ContextDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<ContextDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in contextConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            localSetting: typeof draft.localSetting === 'string' ? draft.localSetting : '',
+            regionalConnections: typeof draft.regionalConnections === 'string' ? draft.regionalConnections : '',
+            largeScaleForces: typeof draft.largeScaleForces === 'string' ? draft.largeScaleForces : '',
+            sourceContext: typeof draft.sourceContext === 'string' ? draft.sourceContext : '',
+            anachronismRisk: typeof draft.anachronismRisk === 'string' ? draft.anachronismRisk : '',
+            contextClaim: typeof draft.contextClaim === 'string' ? draft.contextClaim : '',
+            missingContext: typeof draft.missingContext === 'string' ? draft.missingContext : '',
+            confidence,
+            selectedEvidenceIds,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies ContextDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as ContextDraftState
+  }
+}
+
 function parsePerspectivesDraftState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -1145,6 +1315,31 @@ function persistPeriodizationDraftState(state: PeriodizationDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(periodizationLabStorageKey, serializedState)
+}
+
+
+function loadContextDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseContextDraftState(localStorage?.getItem(contextLabStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseContextDraftState(sessionStorage?.getItem(contextLabStorageKey) ?? null)
+}
+
+function persistContextDraftState(state: ContextDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(contextLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(contextLabStorageKey, serializedState)
 }
 
 function loadPerspectivesDraftState() {
@@ -1371,6 +1566,39 @@ function getEmptyPeriodizationDraft(): PeriodizationDraft {
   }
 }
 
+
+function getEmptyContextDraft(): ContextDraft {
+  return {
+    localSetting: '',
+    regionalConnections: '',
+    largeScaleForces: '',
+    sourceContext: '',
+    anachronismRisk: '',
+    contextClaim: '',
+    missingContext: '',
+    confidence: 'uncertain',
+    selectedEvidenceIds: [],
+  }
+}
+
+function hasContextDraftActivity(draft: ContextDraft) {
+  return Boolean(
+    draft.localSetting.trim()
+      || draft.regionalConnections.trim()
+      || draft.largeScaleForces.trim()
+      || draft.sourceContext.trim()
+      || draft.anachronismRisk.trim()
+      || draft.contextClaim.trim()
+      || draft.missingContext.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.selectedEvidenceIds.length,
+  )
+}
+
+function getActiveContextDrafts(contextDraftState: ContextDraftState) {
+  return Object.entries(contextDraftState).filter(([, draft]) => hasContextDraftActivity(draft))
+}
+
 function getEmptyPerspectivesDraft(): PerspectivesDraft {
   return {
     actorView: '',
@@ -1423,6 +1651,262 @@ function hasPeriodizationDraftActivity(draft: PeriodizationDraft) {
 
 function getActivePeriodizationDrafts(periodizationDraftState: PeriodizationDraftState) {
   return Object.entries(periodizationDraftState).filter(([, draft]) => hasPeriodizationDraftActivity(draft))
+}
+
+
+function inferContextDailyLifeKeys(inquiry: ContextInquiry): DailyLifeKey[] {
+  if (inquiry.id.includes('knowledge')) {
+    return ['education', 'work', 'freedoms', 'risks']
+  }
+
+  if (inquiry.id.includes('commodity')) {
+    return ['work', 'risks', 'home', 'freedoms']
+  }
+
+  if (inquiry.id.includes('crisis')) {
+    return ['risks', 'home', 'work', 'freedoms']
+  }
+
+  if (inquiry.id.includes('monsoon') || inquiry.id.includes('city')) {
+    return ['work', 'freedoms', 'risks', 'education']
+  }
+
+  return ['work', 'risks', 'education', 'freedoms']
+}
+
+function getContextEvidenceLabel(inquiry: ContextInquiry, sourceType: ContextEvidence['sourceType'], text: string): ContextEvidenceLabel {
+  const normalizedText = `${inquiry.id} ${inquiry.tags.join(' ')} ${text}`.toLowerCase()
+
+  if (sourceType === 'source' || sourceType === 'source-evidence-use') {
+    return 'source-context'
+  }
+
+  if (sourceType === 'real-history' || normalizedText.includes('empire') || normalizedText.includes('global') || normalizedText.includes('colonial') || normalizedText.includes('帝国') || normalizedText.includes('殖民') || normalizedText.includes('全球')) {
+    return 'imperial-global'
+  }
+
+  if (normalizedText.includes('monsoon') || normalizedText.includes('port') || normalizedText.includes('route') || normalizedText.includes('regional') || normalizedText.includes('季风') || normalizedText.includes('港') || normalizedText.includes('区域') || normalizedText.includes('路线')) {
+    return 'regional'
+  }
+
+  if (sourceType === 'decision-option' || normalizedText.includes('risk') || normalizedText.includes('后见') || normalizedText.includes('当下') || normalizedText.includes('presentism')) {
+    return 'presentism-risk'
+  }
+
+  return 'local'
+}
+
+function getContextScaleHint(label: ContextEvidenceLabel) {
+  return {
+    local: '定位地方现场：谁在什么地点、制度和日常压力下行动？',
+    regional: '连接区域网络：路线、季节、港口、市场或城市腹地如何扩大处境？',
+    'imperial-global': '上推大尺度力量：帝国规则、殖民、战争或商品链怎样进入地方？',
+    'source-context': '追问来源情境：谁记录、谁保存、谁不可见？',
+    'presentism-risk': '警惕当下主义：哪些后见之明或现代概念需要被标出？',
+  }[label]
+}
+
+function buildContextEvidenceEntry(
+  inquiry: ContextInquiry,
+  scenario: Scenario,
+  sourceType: ContextEvidence['sourceType'],
+  idSuffix: string,
+  title: string,
+  text: string,
+  tags: string[] = [],
+): ContextEvidence {
+  const label = getContextEvidenceLabel(inquiry, sourceType, text)
+
+  return {
+    id: `${inquiry.id}:${scenario.id}:${idSuffix}`,
+    inquiryId: inquiry.id,
+    scenario,
+    label,
+    sourceType,
+    title,
+    text,
+    scaleHint: getContextScaleHint(label),
+    tags: [...new Set([scenario.era, scenario.location, scenario.region, ...tags])],
+  }
+}
+
+function buildContextEvidenceForInquiry(inquiry: ContextInquiry): ContextEvidence[] {
+  const preferredDailyLifeKeys = inferContextDailyLifeKeys(inquiry)
+
+  return inquiry.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+
+    if (!scenario) {
+      return []
+    }
+
+    const scenarioContext = buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'scenario-context',
+      'scenario-context',
+      `${scenario.year} · ${scenario.era} · ${scenario.location}`,
+      `${scenario.identity} / ${scenario.role}｜${scenario.summary}`,
+      [scenario.theme, scenario.identity, scenario.role],
+    )
+    const timelineEvidence = scenario.timeline.slice(0, 3).map((event, index) => buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'timeline',
+      `timeline:${index}`,
+      event.title,
+      `${event.year}｜${event.text}`,
+      ['timeline', event.year],
+    ))
+    const keyTermEvidence = scenario.keyTerms.slice(0, 2).map((term, index) => buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'key-term',
+      `key-term:${index}`,
+      term.term,
+      term.definition,
+      ['keyTerms', term.term],
+    ))
+    const dailyLifeEvidence = scenario.dailyLife
+      .filter((section) => preferredDailyLifeKeys.includes(section.key))
+      .slice(0, 3)
+      .map((section) => buildContextEvidenceEntry(
+        inquiry,
+        scenario,
+        'daily-life',
+        `daily:${section.key}`,
+        `${section.label}：${section.title}`,
+        section.text,
+        [section.label, section.key, scenario.theme],
+      ))
+    const sceneBeatEvidence = scenario.sceneBeats.slice(0, 3).map((beat, index) => buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'scene-beat',
+      `scene:${index}`,
+      beat.title,
+      `${beat.timeLabel}｜${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+      [...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+    ))
+    const decisionContext = buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'decision-context',
+      'decision:context',
+      scenario.decision.prompt,
+      scenario.decision.context,
+      ['decision context', scenario.theme],
+    )
+    const decisionOptions = scenario.decision.options.slice(0, 2).map((option) => buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'decision-option',
+      `option:${option.id}`,
+      option.label,
+      `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`,
+      ['decision option', option.stance],
+    ))
+    const sourceEvidence = scenario.sources.slice(0, 3).map((source, index) => buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'source',
+      `source:${index}`,
+      source.title,
+      `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}｜史料追问：${source.sourceQuestion}`,
+      [sourceTypeLabels[source.sourceType], ...source.evidenceTags],
+    ))
+    const realHistoryEvidence = buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'real-history',
+      'real-history',
+      '真实历史走向',
+      scenario.realHistory,
+      ['realHistory', scenario.theme],
+    )
+    const sourceUseEvidence = buildContextEvidenceEntry(
+      inquiry,
+      scenario,
+      'source-evidence-use',
+      'source-evidence-use',
+      'source evidence use / 来源使用边界',
+      scenario.sourceEvidenceUse,
+      ['sourceEvidenceUse', scenario.theme],
+    )
+
+    return [
+      scenarioContext,
+      ...timelineEvidence,
+      ...keyTermEvidence,
+      ...dailyLifeEvidence,
+      ...sceneBeatEvidence,
+      decisionContext,
+      ...decisionOptions,
+      ...sourceEvidence,
+      realHistoryEvidence,
+      sourceUseEvidence,
+    ]
+  })
+}
+
+function getContextInquiryEvidenceMap() {
+  return Object.fromEntries(
+    contextInquiryDefinitions.map((inquiry) => [inquiry.id, buildContextEvidenceForInquiry(inquiry)]),
+  ) as Record<string, ContextEvidence[]>
+}
+
+function formatContextBrief(inquiry: ContextInquiry, evidence: ContextEvidence[], draft: ContextDraft) {
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is ContextEvidence => Boolean(entry))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : evidence.slice(0, 10)
+
+  return [
+    'TimeAtlas Context & Scale Lab / 历史情境化与尺度工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `探究：${inquiry.title}｜${inquiry.subtitle}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `尺度框架：${inquiry.scaleFrame}`,
+    '',
+    '一、尺度梯',
+    ...contextScaleLadder.map((step, index) => `${index + 1}. ${step.title}：${step.prompt}`),
+    '',
+    '二、已选证据',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.scenario.title}｜${contextEvidenceLabelText[entry.label]}｜${entry.title}\n   ${entry.text}\n   尺度用途：${entry.scaleHint}\n   标签：${entry.tags.join('、') || '无'}`),
+    '',
+    '三、历史情境化草稿',
+    `地方现场：${draft.localSetting.trim() || '尚未填写'}`,
+    `区域连接：${draft.regionalConnections.trim() || '尚未填写'}`,
+    `大尺度力量：${draft.largeScaleForces.trim() || '尚未填写'}`,
+    `来源情境：${draft.sourceContext.trim() || '尚未填写'}`,
+    `时代错置风险：${draft.anachronismRisk.trim() || '尚未填写'}`,
+    `情境化判断：${draft.contextClaim.trim() || '尚未填写'}`,
+    `缺失情境：${draft.missingContext.trim() || '尚未填写'}`,
+    `信心等级：${contextConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatContextTaskSheet(inquiry: ContextInquiry) {
+  const evidence = buildContextEvidenceForInquiry(inquiry).slice(0, 10)
+
+  return [
+    `TimeAtlas Context & Scale Lab Assignment：${inquiry.title}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `建议场景：${inquiry.scenarioIds.map((id) => getScenarioById(id)?.title).filter(Boolean).join(' × ')}`,
+    '',
+    '任务：用地方现场、区域连接、大尺度力量、来源情境、时代错置风险、情境化判断与缺失情境组织一份 Context Brief。',
+    '',
+    '尺度梯：',
+    ...contextScaleLadder.map((step) => `- ${step.title}：${step.prompt}`),
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${contextEvidenceLabelText[entry.label]}｜${entry.title}：${entry.text}`),
+    '',
+    `交付物：一份历史情境化简报，必须点名至少 4 条证据，并说明一个 presentism-risk / 时代错置风险。`,
+  ].join('\n')
 }
 
 function inferPerspectivesDailyLifeKeys(inquiry: PerspectivesInquiry): DailyLifeKey[] {
@@ -2016,15 +2500,18 @@ function formatLearningArchive(
   causationDraftState: CausationDraftState,
   periodizationDraftState: PeriodizationDraftState,
   perspectivesDraftState: PerspectivesDraftState,
+  contextDraftState: ContextDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
   const activePeriodizationDrafts = getActivePeriodizationDrafts(periodizationDraftState)
   const activePerspectivesDrafts = getActivePerspectivesDrafts(perspectivesDraftState)
+  const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
+  const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -2039,6 +2526,7 @@ function formatLearningArchive(
     `- 因果变化草稿：${activeCausationDrafts.length}`,
     `- 历史分期草稿：${activePeriodizationDrafts.length}`,
     `- 多视角与能动性草稿：${activePerspectivesDrafts.length}`,
+    `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     '',
   ]
 
@@ -2176,6 +2664,33 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activeContextDrafts.length > 0) {
+    lines.push('历史情境化与尺度工作台：')
+    activeContextDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = contextInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+      const evidence = contextEvidenceByInquiry[inquiryId] ?? []
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is ContextEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${contextEvidenceLabelText[entry.label]}｜${entry.title}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    地方现场：${draft.localSetting.trim() || '尚未填写'}`,
+        `    区域连接：${draft.regionalConnections.trim() || '尚未填写'}`,
+        `    大尺度力量：${draft.largeScaleForces.trim() || '尚未填写'}`,
+        `    来源情境：${draft.sourceContext.trim() || '尚未填写'}`,
+        `    时代错置风险：${draft.anachronismRisk.trim() || '尚未填写'}`,
+        `    情境化判断：${draft.contextClaim.trim() || '尚未填写'}`,
+        `    缺失情境：${draft.missingContext.trim() || '尚未填写'}`,
+        `    信心等级：${contextConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCorroborationDrafts.length > 0) {
     const sourceAtlasEntries = buildSourceAtlasEntries()
 
@@ -2201,7 +2716,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 14) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿或完成记录。')
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -2446,6 +2961,7 @@ function buildTaskLibraryTasks({
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
+  onLoadContextInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -2453,6 +2969,7 @@ function buildTaskLibraryTasks({
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
+  onLoadContextInquiry: (inquiryId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -2665,6 +3182,37 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  contextInquiryDefinitions.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Context & Scale Lab', '历史情境化', '尺度分析', 'contextualization', ...inquiry.tags]
+    const task: LibraryTask = {
+      id: `contextualization:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || '跨场景情境化探究',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: '历史情境化与尺度',
+      source: 'contextualization',
+      sourceLabel: 'Context & Scale Lab',
+      durationMinutes,
+      durationBand,
+      summary: inquiry.drivingQuestion,
+      deliverable: 'Context Brief：地方现场、区域连接、大尺度力量、来源情境、时代错置风险、情境化判断与缺失情境',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Context Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadContextInquiry(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      formatSheet: () => formatContextTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.focus, inquiry.scaleFrame, ...tags].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   compareLenses.forEach((lens) => {
     const durationMinutes = 35
     const durationBand = getDurationBand(durationMinutes)
@@ -2765,6 +3313,8 @@ function App() {
   const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
   const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
   const [selectedPerspectivesInquiryId, setSelectedPerspectivesInquiryId] = useState(perspectivesInquiryDefinitions[0]?.id ?? '')
+  const [contextDraftState, setContextDraftState] = useState<ContextDraftState>(loadContextDraftState)
+  const [selectedContextInquiryId, setSelectedContextInquiryId] = useState(contextInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
@@ -2794,6 +3344,7 @@ function App() {
   const causationEvidenceByInquiry = useMemo(getCausationInquiryEvidenceMap, [])
   const periodizationEvidenceByInquiry = useMemo(getPeriodizationInquiryEvidenceMap, [])
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
+  const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -2893,6 +3444,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [perspectivesDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistContextDraftState(contextDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [contextDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -3052,6 +3615,15 @@ function App() {
     scrollToSection(sectionIds.perspectivesLab, prefersReducedMotion)
   }
 
+  function loadContextInquiry(inquiryId: string) {
+    if (!contextInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
+      return
+    }
+
+    setSelectedContextInquiryId(inquiryId)
+    scrollToSection(sectionIds.contextLab, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -3107,6 +3679,14 @@ function App() {
         onUpdateDraftState={setPerspectivesDraftState}
         onOpenScenario={selectScenario}
       />
+      <ContextScaleLabPanel
+        selectedInquiryId={selectedContextInquiryId}
+        evidenceByInquiry={contextEvidenceByInquiry}
+        draftState={contextDraftState}
+        onSelectInquiry={setSelectedContextInquiryId}
+        onUpdateDraftState={setContextDraftState}
+        onOpenScenario={selectScenario}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
@@ -3116,6 +3696,7 @@ function App() {
         causationDraftState={causationDraftState}
         periodizationDraftState={periodizationDraftState}
         perspectivesDraftState={perspectivesDraftState}
+        contextDraftState={contextDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
@@ -3124,6 +3705,7 @@ function App() {
         onLoadCausationInquiry={loadCausationInquiry}
         onLoadPeriodizationInquiry={loadPeriodizationInquiry}
         onLoadPerspectivesInquiry={loadPerspectivesInquiry}
+        onLoadContextInquiry={loadContextInquiry}
       />
       <GuidedSessionPanel
         selectedScenarioId={selectedScenario.id}
@@ -5592,6 +6174,312 @@ function PerspectivesAgencyLabPanel({
   )
 }
 
+
+function ContextScaleLabPanel({
+  selectedInquiryId,
+  evidenceByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedInquiryId: string
+  evidenceByInquiry: Record<string, ContextEvidence[]>
+  draftState: ContextDraftState
+  onSelectInquiry: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<ContextDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedInquiry = contextInquiryDefinitions.find((inquiry) => inquiry.id === selectedInquiryId) ?? contextInquiryDefinitions[0]
+
+  if (!selectedInquiry) {
+    return null
+  }
+
+  const evidence = evidenceByInquiry[selectedInquiry.id] ?? []
+  const currentDraft = draftState[selectedInquiry.id] ?? getEmptyContextDraft()
+  const selectedEvidence = currentDraft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is ContextEvidence => Boolean(entry))
+  const scenarioStops = selectedInquiry.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+  const scaleCounts = contextScaleLadder.map((step) => ({
+    ...step,
+    count: evidence.filter((entry) => entry.label === step.key).length,
+    selectedCount: selectedEvidence.filter((entry) => entry.label === step.key).length,
+  }))
+
+  function updateDraft(updates: Partial<Omit<ContextDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedInquiry.id]: {
+        ...(currentState[selectedInquiry.id] ?? getEmptyContextDraft()),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextSelectedEvidenceIds = currentDraft.selectedEvidenceIds.includes(evidenceId)
+      ? currentDraft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.selectedEvidenceIds, evidenceId]
+
+    setCopyStatus('idle')
+    updateDraft({ selectedEvidenceIds: nextSelectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyContextBrief() {
+    try {
+      await copyTextToClipboard(formatContextBrief(selectedInquiry, evidence, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id={sectionIds.contextLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="context-lab-title">
+      <div className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-cyan-100">
+          <Compass size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">context & scale lab 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="context-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Context & Scale Lab / 历史情境化与尺度工作台 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有场景字段生成 6 个情境化探究，沿 local、regional、imperial-global、source-context 与 presentism-risk 尺度梯组织证据，不改变 scenario schema。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActiveContextDrafts(draftState).length} 个情境化草稿 · 当前已选 {selectedEvidence.length}/{evidence.length} 条证据
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <aside className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {contextInquiryDefinitions.map((inquiry) => {
+                const isSelected = inquiry.id === selectedInquiry.id
+                const inquiryDraft = draftState[inquiry.id]
+                const status = inquiryDraft && hasContextDraftActivity(inquiryDraft) ? 'draft' : 'not-started'
+
+                return (
+                  <button
+                    key={inquiry.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectInquiry(inquiry.id)
+                      setCopyStatus('idle')
+                    }}
+                    className={`rounded-3xl border p-4 text-left transition ${
+                      isSelected
+                        ? 'border-cyan-200/45 bg-cyan-100/[0.09]'
+                        : 'border-white/10 bg-black/20 hover:border-cyan-100/25 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span>{inquiry.subtitle}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${status === 'draft' ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100' : 'border-white/10 bg-white/[0.035] text-stone-500'}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {inquiry.tags.slice(0, 3).map((tag) => <Tag key={`${inquiry.id}-${tag}`}>{tag}</Tag>)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Scale ladder / 尺度梯</h3>
+              <div className="mt-3 space-y-3">
+                {scaleCounts.map((step, index) => (
+                  <div key={step.key} className="rounded-2xl border border-cyan-200/10 bg-cyan-100/[0.035] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium text-cyan-100">{index + 1}. {step.title}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-stone-400">{step.selectedCount}/{step.count}</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{step.prompt}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">场景路径</h3>
+              <div className="mt-3 space-y-2">
+                {scenarioStops.map((scenario, index) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-left text-sm transition hover:border-cyan-100/25"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-stone-950" style={{ backgroundColor: scenario.accent }}>{index + 1}</span>
+                    <span>
+                      <span className="block font-medium text-stone-100">{scenario.title}</span>
+                      <span className="block text-xs text-stone-500">{scenario.year} · {scenario.location} · {scenario.region}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-cyan-200/15 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-cyan-100/70">selected inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedInquiry.focus}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyContextBrief()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '情境化简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出 Context Brief'}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
+                <p className="rounded-2xl border border-cyan-200/15 bg-cyan-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  {selectedInquiry.drivingQuestion}
+                </p>
+                <p className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  <span className="font-semibold text-amber-100">尺度框架：</span>{selectedInquiry.scaleFrame}
+                </p>
+              </div>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <section className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4" aria-labelledby="context-evidence-title">
+                <h3 id="context-evidence-title" className="font-semibold text-stone-50">Selectable evidence / 可选情境证据</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">证据只抽取 year/era/location/region、timeline、keyTerms、dailyLife、sceneBeats、decision、sources、realHistory 与 sourceEvidenceUse。</p>
+                <div className="mt-4 max-h-[760px] space-y-3 overflow-y-auto pr-1">
+                  {evidence.map((entry) => {
+                    const isSelected = currentDraft.selectedEvidenceIds.includes(entry.id)
+
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 transition ${isSelected ? 'border-amber-200/35 bg-amber-100/[0.07]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvidence(entry.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="rounded-full border border-cyan-200/20 bg-cyan-100/[0.06] px-2 py-0.5 text-cyan-100">{contextEvidenceLabelText[entry.label]}</span>
+                              <span>{entry.scenario.title}</span>
+                            </div>
+                            <h4 className="mt-2 font-semibold text-stone-100">{entry.title}</h4>
+                            <p className="mt-2 text-sm leading-6 text-stone-400">{entry.text}</p>
+                            <p className="mt-3 rounded-2xl border border-cyan-200/10 bg-cyan-100/[0.035] p-3 text-xs leading-5 text-stone-400">
+                              <span className="font-semibold text-cyan-100">尺度用途：</span>{entry.scaleHint}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {entry.tags.slice(0, 5).map((tag) => <Tag key={`${entry.id}-${tag}`}>{tag}</Tag>)}
+                              <button
+                                type="button"
+                                onClick={() => onOpenScenario(entry.scenario.id, entry.sourceType === 'source' || entry.sourceType === 'source-evidence-use' ? sectionIds.sourceReader : sectionIds.sceneReader)}
+                                className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-cyan-200/30 hover:text-cyan-100"
+                              >
+                                打开相关场景
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4" aria-labelledby="context-draft-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 id="context-draft-title" className="font-semibold text-stone-50">Context draft / 情境化草稿</h3>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearDraft}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-cyan-200/30 hover:text-cyan-100"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['localSetting', 'local setting / 地方现场', '地点、城市/港口/工厂/家庭秩序如何塑造这一天？'],
+                    ['regionalConnections', 'regional connections / 区域连接', '哪些路线、城市、季节、市场或书信网络连接这个地方？'],
+                    ['largeScaleForces', 'large-scale forces / 大尺度力量', '帝国、殖民、战争、商品链或制度如何进入地方？'],
+                    ['sourceContext', 'source context / 来源情境', '材料由谁记录、保存，为谁服务，能见度怎样？'],
+                    ['anachronismRisk', 'anachronism risk / 时代错置风险', '我可能把哪些现代概念或后见之明投射回去？'],
+                    ['contextClaim', 'context claim / 情境化判断', '把地方、区域、大尺度与来源情境整合成一句判断。'],
+                    ['missingContext', 'missing context / 缺失情境', '还缺哪些地点、群体、来源或尺度证据？'],
+                  ] as [keyof Omit<ContextDraft, 'confidence' | 'selectedEvidenceIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea
+                        value={currentDraft[field]}
+                        onChange={(event) => updateDraft({ [field]: event.target.value })}
+                        rows={field === 'contextClaim' || field === 'sourceContext' || field === 'missingContext' ? 3 : 2}
+                        placeholder={placeholder}
+                        className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/50"
+                      />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select
+                      value={currentDraft.confidence}
+                      onChange={(event) => updateDraft({ confidence: event.target.value as ContextConfidence })}
+                      className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-cyan-200/50"
+                    >
+                      {(Object.entries(contextConfidenceLabels) as [ContextConfidence, string][]).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : 'Context Brief 会优先导出已勾选证据；若未勾选，则导出前 10 条证据。'}
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -5601,6 +6489,7 @@ function PortfolioPanel({
   causationDraftState,
   periodizationDraftState,
   perspectivesDraftState,
+  contextDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -5610,6 +6499,7 @@ function PortfolioPanel({
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
   perspectivesDraftState: PerspectivesDraftState
+  contextDraftState: ContextDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -5618,6 +6508,7 @@ function PortfolioPanel({
   const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
   const periodizationDraftCount = getActivePeriodizationDrafts(periodizationDraftState).length
   const perspectivesDraftCount = getActivePerspectivesDrafts(perspectivesDraftState).length
+  const contextDraftCount = getActiveContextDrafts(contextDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -5631,7 +6522,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -5674,6 +6565,7 @@ function PortfolioPanel({
               { label: '因果草稿', value: causationDraftCount },
               { label: '分期草稿', value: periodizationDraftCount },
               { label: '多视角草稿', value: perspectivesDraftCount },
+              { label: '情境化草稿', value: contextDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -5723,6 +6615,7 @@ function TaskLibraryPanel({
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
+  onLoadContextInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -5730,6 +6623,7 @@ function TaskLibraryPanel({
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
+  onLoadContextInquiry: (inquiryId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -5739,8 +6633,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -5856,6 +6750,7 @@ function TaskLibraryPanel({
               <option value="causation">Causation Lab</option>
               <option value="periodization">Periodization Lab</option>
               <option value="perspectives">Perspectives Lab</option>
+              <option value="contextualization">Context & Scale Lab</option>
             </select>
           </label>
         </div>
@@ -5897,7 +6792,7 @@ function TaskLibraryPanel({
                     onClick={task.onPrimaryAction}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
                   >
-                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' ? <Scale size={16} /> : <ArrowRight size={16} />}
+                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' || task.source === 'contextualization' ? <Scale size={16} /> : <ArrowRight size={16} />}
                     {task.primaryActionLabel}
                   </button>
                 ) : null}
