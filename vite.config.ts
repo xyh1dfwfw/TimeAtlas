@@ -9,6 +9,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/src/data/scenarios.ts')) {
+            return 'scenarios'
+          }
+
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'react'
           }
