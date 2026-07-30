@@ -31,6 +31,7 @@ import {
   type AtlasInquiryPath,
   type AtlasMapRoute,
   type CompareLens,
+  type DailyLifeKey,
   type ActivityPack,
   type ActivityPackMode,
   type DecisionOption,
@@ -51,6 +52,7 @@ const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
 const corroborationStudioStorageKey = 'timeatlas:corroboration-studio-drafts'
 const causationLabStorageKey = 'timeatlas:causation-lab-drafts'
 const periodizationLabStorageKey = 'timeatlas:periodization-lab-drafts'
+const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -65,6 +67,7 @@ const sectionIds = {
   sourceReader: 'source-reader',
   causationLab: 'causation-lab',
   periodizationLab: 'periodization-lab',
+  perspectivesLab: 'perspectives-agency-lab',
   compareLab: 'compare-lab',
 } as const
 
@@ -255,6 +258,51 @@ type PeriodizationDraft = {
 
 type PeriodizationDraftState = Record<string, PeriodizationDraft>
 
+type PerspectivesConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type PerspectivesDraft = {
+  actorView: string
+  constraints: string
+  availableKnowledge: string
+  stakesAndRisks: string
+  agencyClaim: string
+  presentismWarning: string
+  sourcePerspectiveLimits: string
+  missingVoices: string
+  confidence: PerspectivesConfidence
+  selectedEvidenceIds: string[]
+  updatedAt?: string
+}
+
+type PerspectivesDraftState = Record<string, PerspectivesDraft>
+
+type PerspectivesInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  focus: string
+  tags: string[]
+  agencyFrame: string
+}
+
+type PerspectivesEvidenceLabel = 'actor position' | 'constraint' | 'knowledge limit' | 'risk/stake' | 'source perspective' | 'absent voice'
+
+type PerspectivesEvidence = {
+  id: string
+  inquiryId: string
+  scenario: Scenario
+  label: PerspectivesEvidenceLabel
+  sourceType: 'identity-role-summary' | 'daily-life' | 'scene-beat' | 'decision-context' | 'decision-option' | 'source' | 'source-evidence-use'
+  title: string
+  text: string
+  sourcePerspective?: string
+  sourceReliability?: string
+  sourceQuestion?: string
+  tags: string[]
+}
+
 type PeriodizationInquiry = {
   id: string
   title: string
@@ -304,7 +352,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 
@@ -388,6 +436,23 @@ const corroborationConfidenceLabels: Record<CorroborationConfidence, string> = {
 
 const causationConfidenceLabels: Record<CausationConfidence, string> = corroborationConfidenceLabels
 const periodizationConfidenceLabels: Record<PeriodizationConfidence, string> = corroborationConfidenceLabels
+const perspectivesConfidenceLabels: Record<PerspectivesConfidence, string> = corroborationConfidenceLabels
+
+const perspectivesEvidenceLabelText: Record<PerspectivesEvidenceLabel, string> = {
+  'actor position': 'actor position / 行动者位置',
+  constraint: 'constraint / 约束',
+  'knowledge limit': 'knowledge limit / 知识边界',
+  'risk/stake': 'risk/stake / 风险与利害',
+  'source perspective': 'source perspective / 来源视角',
+  'absent voice': 'absent voice / 缺席声音',
+}
+
+const perspectivesAntiPresentismChecklist = [
+  '我是否先说明当时人的身份、角色和可见选择，而不是直接用今天的价值判断替代？',
+  '我是否区分“他们知道什么”和“后来的我们知道什么”？',
+  '我是否把制度、市场、身体风险、家庭责任或来源保存条件写成约束，而不是把行动者写成全能或全被动？',
+  '我是否点名至少一种来源视角限制，并承认哪些声音没有被记录？',
+]
 
 const causeCategoryLabels: Record<CauseCategory, string> = {
   economic: 'economic / 经济',
@@ -461,6 +526,69 @@ const causationInquiryDefinitions: CausationInquiry[] = [
   },
 ]
 
+
+const perspectivesInquiryDefinitions: PerspectivesInquiry[] = [
+  {
+    id: 'ordinary-choice-boundaries',
+    title: '普通人的选择边界',
+    subtitle: 'Ordinary choice boundaries',
+    drivingQuestion: '普通人面对历史岔路时，哪些选择真的可行，哪些只是后人想象的自由？',
+    scenarioIds: ['song-bianjing-apprentice', 'wwii-london-civilian', 'colonial-bombay-mill-worker', 'saint-domingue-sugar-worker'],
+    focus: '从身份、日常责任、决策语境和选项后果出发，判断行动空间的边界。',
+    tags: ['agency', 'choice boundaries', 'ordinary people', 'anti-presentism'],
+    agencyFrame: '把普通人写成有判断、有策略但受限制的历史行动者。',
+  },
+  {
+    id: 'who-speaks-who-is-recorded',
+    title: '谁发声，谁被记录',
+    subtitle: 'Who speaks / who is recorded',
+    drivingQuestion: '来源保存了谁的语言、机构或后世解释，又把哪些当事人的经验留在沉默中？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker'],
+    focus: '比较来源 perspective、reliability、source question 与缺席声音，避免把幸存档案当成完整历史。',
+    tags: ['archive silence', 'source perspective', 'recorded voices', 'missing voices'],
+    agencyFrame: '用来源边界说明谁能留下证词，谁只能被他人间接记录。',
+  },
+  {
+    id: 'market-intermediaries',
+    title: '市场中介与协商空间',
+    subtitle: 'Market intermediaries',
+    drivingQuestion: '商人、经纪、通译和学徒如何在规则、信用、语言和权力之间创造有限的行动空间？',
+    scenarioIds: ['tang-changan-merchant', 'fustat-geniza-merchant-apprentice', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'kilwa-swahili-gold-merchant'],
+    focus: '从 role、market daily life、decision context/options 和 sourceEvidenceUse 中寻找中介的能力与限制。',
+    tags: ['markets', 'intermediaries', 'credit', 'translation', 'rules'],
+    agencyFrame: '市场能动性不是自由交易，而是在制度、信用与语言门槛中协商。',
+  },
+  {
+    id: 'labor-discipline-body-risk',
+    title: '劳动纪律与身体风险',
+    subtitle: 'Labor discipline / body risk',
+    drivingQuestion: '劳动者面对时间纪律、强制、工资和身体风险时，能动性表现在哪里？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker'],
+    focus: '用 dailyLife、sceneBeats 与决策选项解释身体、纪律和生计如何限制或塑造选择。',
+    tags: ['labor discipline', 'body risk', 'coercion', 'factory time'],
+    agencyFrame: '在高压劳动环境中，能动性常表现为风险判断、节奏调整、互助或保全。',
+  },
+  {
+    id: 'safety-judgments-in-crisis',
+    title: '危机中的安全判断',
+    subtitle: 'Safety judgments in crisis',
+    drivingQuestion: '当战争、征服、起义或价格危机逼近，普通人如何在不完整信息中判断安全？',
+    scenarioIds: ['wwii-london-civilian', 'malacca-monsoon-port-broker', 'tenochtitlan-market-seller', 'song-bianjing-apprentice', 'colonial-bombay-mill-worker'],
+    focus: '把场景张力、知识限制、风险利害和选项后果并列，分析危机中的判断而非事后责备。',
+    tags: ['crisis', 'safety', 'uncertainty', 'risk judgment'],
+    agencyFrame: '危机能动性依赖有限消息、社区关系、身体安全和可承受损失。',
+  },
+  {
+    id: 'thresholds-into-knowledge-worlds',
+    title: '进入知识世界的门槛',
+    subtitle: 'Thresholds into knowledge worlds',
+    drivingQuestion: '纸张、手稿、学校、考试、书信和语言如何决定谁能进入知识世界？',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice'],
+    focus: '从身份角色、education daily life、sceneBeats、decision context 和来源边界中寻找知识门槛。',
+    tags: ['knowledge', 'education', 'manuscripts', 'letters', 'thresholds'],
+    agencyFrame: '知识能动性来自学习、抄写、请教、考试或通信，但总被身份、资源和保存条件限制。',
+  },
+]
 
 const periodizationInquiryDefinitions: PeriodizationInquiry[] = [
   {
@@ -794,6 +922,51 @@ function parsePeriodizationDraftState(rawState: string | null) {
   }
 }
 
+function parsePerspectivesDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as PerspectivesDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<PerspectivesDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in perspectivesConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            actorView: typeof draft.actorView === 'string' ? draft.actorView : '',
+            constraints: typeof draft.constraints === 'string' ? draft.constraints : '',
+            availableKnowledge: typeof draft.availableKnowledge === 'string' ? draft.availableKnowledge : '',
+            stakesAndRisks: typeof draft.stakesAndRisks === 'string' ? draft.stakesAndRisks : '',
+            agencyClaim: typeof draft.agencyClaim === 'string' ? draft.agencyClaim : '',
+            presentismWarning: typeof draft.presentismWarning === 'string' ? draft.presentismWarning : '',
+            sourcePerspectiveLimits: typeof draft.sourcePerspectiveLimits === 'string' ? draft.sourcePerspectiveLimits : '',
+            missingVoices: typeof draft.missingVoices === 'string' ? draft.missingVoices : '',
+            confidence,
+            selectedEvidenceIds,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies PerspectivesDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as PerspectivesDraftState
+  }
+}
+
 function parseGuidedSessionProgressState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -972,6 +1145,30 @@ function persistPeriodizationDraftState(state: PeriodizationDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(periodizationLabStorageKey, serializedState)
+}
+
+function loadPerspectivesDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parsePerspectivesDraftState(localStorage?.getItem(perspectivesLabStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parsePerspectivesDraftState(sessionStorage?.getItem(perspectivesLabStorageKey) ?? null)
+}
+
+function persistPerspectivesDraftState(state: PerspectivesDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(perspectivesLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(perspectivesLabStorageKey, serializedState)
 }
 
 function loadGuidedSessionProgressState() {
@@ -1174,6 +1371,40 @@ function getEmptyPeriodizationDraft(): PeriodizationDraft {
   }
 }
 
+function getEmptyPerspectivesDraft(): PerspectivesDraft {
+  return {
+    actorView: '',
+    constraints: '',
+    availableKnowledge: '',
+    stakesAndRisks: '',
+    agencyClaim: '',
+    presentismWarning: '',
+    sourcePerspectiveLimits: '',
+    missingVoices: '',
+    confidence: 'uncertain',
+    selectedEvidenceIds: [],
+  }
+}
+
+function hasPerspectivesDraftActivity(draft: PerspectivesDraft) {
+  return Boolean(
+    draft.actorView.trim()
+      || draft.constraints.trim()
+      || draft.availableKnowledge.trim()
+      || draft.stakesAndRisks.trim()
+      || draft.agencyClaim.trim()
+      || draft.presentismWarning.trim()
+      || draft.sourcePerspectiveLimits.trim()
+      || draft.missingVoices.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.selectedEvidenceIds.length,
+  )
+}
+
+function getActivePerspectivesDrafts(perspectivesDraftState: PerspectivesDraftState) {
+  return Object.entries(perspectivesDraftState).filter(([, draft]) => hasPerspectivesDraftActivity(draft))
+}
+
 function hasPeriodizationDraftActivity(draft: PeriodizationDraft) {
   return Boolean(
     draft.periodStart.trim()
@@ -1192,6 +1423,185 @@ function hasPeriodizationDraftActivity(draft: PeriodizationDraft) {
 
 function getActivePeriodizationDrafts(periodizationDraftState: PeriodizationDraftState) {
   return Object.entries(periodizationDraftState).filter(([, draft]) => hasPeriodizationDraftActivity(draft))
+}
+
+function inferPerspectivesDailyLifeKeys(inquiry: PerspectivesInquiry): DailyLifeKey[] {
+  if (inquiry.id.includes('knowledge')) {
+    return ['education', 'work', 'freedoms', 'risks']
+  }
+
+  if (inquiry.id.includes('labor')) {
+    return ['work', 'risks', 'home', 'freedoms']
+  }
+
+  if (inquiry.id.includes('market')) {
+    return ['work', 'freedoms', 'risks', 'education']
+  }
+
+  if (inquiry.id.includes('safety') || inquiry.id.includes('choice')) {
+    return ['risks', 'home', 'work', 'freedoms']
+  }
+
+  return ['work', 'risks', 'freedoms', 'education']
+}
+
+function buildPerspectivesEvidenceForInquiry(inquiry: PerspectivesInquiry): PerspectivesEvidence[] {
+  const preferredDailyLifeKeys = inferPerspectivesDailyLifeKeys(inquiry)
+
+  return inquiry.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+
+    if (!scenario) {
+      return []
+    }
+
+    const identityEvidence: PerspectivesEvidence = {
+      id: `${inquiry.id}:${scenario.id}:identity-role-summary`,
+      inquiryId: inquiry.id,
+      scenario,
+      label: 'actor position',
+      sourceType: 'identity-role-summary',
+      title: `${scenario.identity} / ${scenario.role}`,
+      text: `${scenario.summary}`,
+      tags: [scenario.region, scenario.theme, scenario.identity, scenario.role],
+    }
+    const dailyLifeEvidence = scenario.dailyLife
+      .filter((section) => preferredDailyLifeKeys.includes(section.key))
+      .slice(0, 3)
+      .map((section): PerspectivesEvidence => ({
+        id: `${inquiry.id}:${scenario.id}:daily:${section.key}`,
+        inquiryId: inquiry.id,
+        scenario,
+        label: section.key === 'risks' ? 'risk/stake' : section.key === 'freedoms' ? 'constraint' : 'actor position',
+        sourceType: 'daily-life',
+        title: `${section.label}：${section.title}`,
+        text: section.text,
+        tags: [section.label, section.key, scenario.theme],
+      }))
+    const sceneBeatEvidence = scenario.sceneBeats.slice(0, 3).map((beat, index): PerspectivesEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:scene:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      label: inquiry.id.includes('safety') || inquiry.id.includes('labor') ? 'risk/stake' : 'knowledge limit',
+      sourceType: 'scene-beat',
+      title: beat.title,
+      text: `${beat.timeLabel}｜${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+      tags: [...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+    }))
+    const decisionContext: PerspectivesEvidence = {
+      id: `${inquiry.id}:${scenario.id}:decision:context`,
+      inquiryId: inquiry.id,
+      scenario,
+      label: 'constraint',
+      sourceType: 'decision-context',
+      title: scenario.decision.prompt,
+      text: scenario.decision.context,
+      tags: ['decision context', scenario.theme],
+    }
+    const decisionOptions = scenario.decision.options.slice(0, 3).map((option): PerspectivesEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:option:${option.id}`,
+      inquiryId: inquiry.id,
+      scenario,
+      label: 'risk/stake',
+      sourceType: 'decision-option',
+      title: option.label,
+      text: `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`,
+      tags: ['decision option', option.stance],
+    }))
+    const sourcePerspectiveEvidence = scenario.sources.slice(0, 3).map((source, index): PerspectivesEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:source:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      label: inquiry.id.includes('who-speaks') || source.reliabilityNote.includes('缺') || source.reliabilityNote.toLowerCase().includes('missing') ? 'absent voice' : 'source perspective',
+      sourceType: 'source',
+      title: source.title,
+      text: `${source.excerpt}`,
+      sourcePerspective: source.perspective,
+      sourceReliability: source.reliabilityNote,
+      sourceQuestion: source.sourceQuestion,
+      tags: source.evidenceTags,
+    }))
+    const sourceUseEvidence: PerspectivesEvidence = {
+      id: `${inquiry.id}:${scenario.id}:source-evidence-use`,
+      inquiryId: inquiry.id,
+      scenario,
+      label: 'knowledge limit',
+      sourceType: 'source-evidence-use',
+      title: 'source evidence use / 来源使用边界',
+      text: scenario.sourceEvidenceUse,
+      tags: ['sourceEvidenceUse', scenario.theme],
+    }
+
+    return [identityEvidence, ...dailyLifeEvidence, ...sceneBeatEvidence, decisionContext, ...decisionOptions, ...sourcePerspectiveEvidence, sourceUseEvidence]
+  })
+}
+
+function getPerspectivesInquiryEvidenceMap() {
+  return Object.fromEntries(
+    perspectivesInquiryDefinitions.map((inquiry) => [inquiry.id, buildPerspectivesEvidenceForInquiry(inquiry)]),
+  ) as Record<string, PerspectivesEvidence[]>
+}
+
+function formatPerspectivesBrief(inquiry: PerspectivesInquiry, evidence: PerspectivesEvidence[], draft: PerspectivesDraft) {
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is PerspectivesEvidence => Boolean(entry))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : evidence.slice(0, 10)
+
+  return [
+    'TimeAtlas Perspectives & Agency Lab / 多视角与历史能动性工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `探究：${inquiry.title}｜${inquiry.subtitle}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `能动性框架：${inquiry.agencyFrame}`,
+    '',
+    '一、已选证据',
+    ...evidenceForExport.map((entry, index) => [
+      `${index + 1}. ${entry.scenario.title}｜${perspectivesEvidenceLabelText[entry.label]}｜${entry.title}`,
+      `   ${entry.text}`,
+      entry.sourcePerspective ? `   来源视角：${entry.sourcePerspective}` : '',
+      entry.sourceReliability ? `   可靠边界：${entry.sourceReliability}` : '',
+      entry.sourceQuestion ? `   史料追问：${entry.sourceQuestion}` : '',
+      `   标签：${entry.tags.join('、') || '无'}`,
+    ].filter(Boolean).join('\n')),
+    '',
+    '二、反当下主义检查',
+    ...perspectivesAntiPresentismChecklist.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    '三、多视角与能动性草稿',
+    `行动者视角：${draft.actorView.trim() || '尚未填写'}`,
+    `约束条件：${draft.constraints.trim() || '尚未填写'}`,
+    `可得知识：${draft.availableKnowledge.trim() || '尚未填写'}`,
+    `利害与风险：${draft.stakesAndRisks.trim() || '尚未填写'}`,
+    `能动性判断：${draft.agencyClaim.trim() || '尚未填写'}`,
+    `反当下主义警示：${draft.presentismWarning.trim() || '尚未填写'}`,
+    `来源视角限制：${draft.sourcePerspectiveLimits.trim() || '尚未填写'}`,
+    `缺席声音：${draft.missingVoices.trim() || '尚未填写'}`,
+    `信心等级：${perspectivesConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatPerspectivesTaskSheet(inquiry: PerspectivesInquiry) {
+  const evidence = buildPerspectivesEvidenceForInquiry(inquiry).slice(0, 10)
+
+  return [
+    `TimeAtlas Perspectives & Agency Lab Assignment：${inquiry.title}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `建议场景：${inquiry.scenarioIds.map((id) => getScenarioById(id)?.title).filter(Boolean).join(' × ')}`,
+    '',
+    '任务：用行动者视角、约束、可得知识、风险利害、能动性判断、反当下主义警示、来源视角限制和缺席声音组织一份多视角简报。',
+    '',
+    '反当下主义检查：',
+    ...perspectivesAntiPresentismChecklist.map((item) => `- ${item}`),
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${perspectivesEvidenceLabelText[entry.label]}｜${entry.title}：${entry.text}`),
+    '',
+    `交付物：一份多视角与能动性简报，必须点名至少 4 条证据，并说明来源视角限制与缺席声音。`,
+  ].join('\n')
 }
 
 function getTimelineYearValue(year: string, fallbackYear: number) {
@@ -1605,13 +2015,16 @@ function formatLearningArchive(
   corroborationDraftState: CorroborationDraftState,
   causationDraftState: CausationDraftState,
   periodizationDraftState: PeriodizationDraftState,
+  perspectivesDraftState: PerspectivesDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
   const activePeriodizationDrafts = getActivePeriodizationDrafts(periodizationDraftState)
+  const activePerspectivesDrafts = getActivePerspectivesDrafts(perspectivesDraftState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
+  const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -1625,6 +2038,7 @@ function formatLearningArchive(
     `- 史料互证草稿：${activeCorroborationDrafts.length}`,
     `- 因果变化草稿：${activeCausationDrafts.length}`,
     `- 历史分期草稿：${activePeriodizationDrafts.length}`,
+    `- 多视角与能动性草稿：${activePerspectivesDrafts.length}`,
     '',
   ]
 
@@ -1734,6 +2148,34 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activePerspectivesDrafts.length > 0) {
+    lines.push('多视角与历史能动性工作台：')
+    activePerspectivesDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = perspectivesInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+      const evidence = perspectivesEvidenceByInquiry[inquiryId] ?? []
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is PerspectivesEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${perspectivesEvidenceLabelText[entry.label]}｜${entry.title}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    行动者视角：${draft.actorView.trim() || '尚未填写'}`,
+        `    约束条件：${draft.constraints.trim() || '尚未填写'}`,
+        `    可得知识：${draft.availableKnowledge.trim() || '尚未填写'}`,
+        `    利害与风险：${draft.stakesAndRisks.trim() || '尚未填写'}`,
+        `    能动性判断：${draft.agencyClaim.trim() || '尚未填写'}`,
+        `    反当下主义警示：${draft.presentismWarning.trim() || '尚未填写'}`,
+        `    来源视角限制：${draft.sourcePerspectiveLimits.trim() || '尚未填写'}`,
+        `    缺席声音：${draft.missingVoices.trim() || '尚未填写'}`,
+        `    信心等级：${perspectivesConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCorroborationDrafts.length > 0) {
     const sourceAtlasEntries = buildSourceAtlasEntries()
 
@@ -1758,8 +2200,8 @@ function formatLearningArchive(
     lines.push('')
   }
 
-  if (lines.length <= 13) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、分期草稿或完成记录。')
+  if (lines.length <= 14) {
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -2003,12 +2445,14 @@ function buildTaskLibraryTasks({
   onLoadCompareLens,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
+  onLoadPerspectivesInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
+  onLoadPerspectivesInquiry: (inquiryId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -2190,6 +2634,37 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  perspectivesInquiryDefinitions.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Perspectives & Agency Lab', '多视角', '历史能动性', ...inquiry.tags]
+    const task: LibraryTask = {
+      id: `perspectives:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || '跨场景多视角探究',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: '多视角与历史能动性',
+      source: 'perspectives',
+      sourceLabel: 'Perspectives Lab',
+      durationMinutes,
+      durationBand,
+      summary: inquiry.drivingQuestion,
+      deliverable: '多视角简报：行动者视角、约束、可得知识、风险利害、能动性判断、反当下主义警示、来源限制与缺席声音',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Perspectives Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadPerspectivesInquiry(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      formatSheet: () => formatPerspectivesTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.focus, inquiry.agencyFrame, ...tags].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   compareLenses.forEach((lens) => {
     const durationMinutes = 35
     const durationBand = getDurationBand(durationMinutes)
@@ -2288,6 +2763,8 @@ function App() {
   const [selectedCausationInquiryId, setSelectedCausationInquiryId] = useState(causationInquiryDefinitions[0]?.id ?? '')
   const [periodizationDraftState, setPeriodizationDraftState] = useState<PeriodizationDraftState>(loadPeriodizationDraftState)
   const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
+  const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
+  const [selectedPerspectivesInquiryId, setSelectedPerspectivesInquiryId] = useState(perspectivesInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
@@ -2316,6 +2793,7 @@ function App() {
   const selectedLens = useMemo(() => getCompareLensByKey(selectedLensKey), [selectedLensKey])
   const causationEvidenceByInquiry = useMemo(getCausationInquiryEvidenceMap, [])
   const periodizationEvidenceByInquiry = useMemo(getPeriodizationInquiryEvidenceMap, [])
+  const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -2403,6 +2881,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [periodizationDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistPerspectivesDraftState(perspectivesDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [perspectivesDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2553,6 +3043,15 @@ function App() {
     scrollToSection(sectionIds.periodizationLab, prefersReducedMotion)
   }
 
+  function loadPerspectivesInquiry(inquiryId: string) {
+    if (!perspectivesInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
+      return
+    }
+
+    setSelectedPerspectivesInquiryId(inquiryId)
+    scrollToSection(sectionIds.perspectivesLab, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -2600,6 +3099,14 @@ function App() {
         onUpdateDraftState={setPeriodizationDraftState}
         onOpenScenario={selectScenario}
       />
+      <PerspectivesAgencyLabPanel
+        selectedInquiryId={selectedPerspectivesInquiryId}
+        evidenceByInquiry={perspectivesEvidenceByInquiry}
+        draftState={perspectivesDraftState}
+        onSelectInquiry={setSelectedPerspectivesInquiryId}
+        onUpdateDraftState={setPerspectivesDraftState}
+        onOpenScenario={selectScenario}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
@@ -2608,6 +3115,7 @@ function App() {
         corroborationDraftState={corroborationDraftState}
         causationDraftState={causationDraftState}
         periodizationDraftState={periodizationDraftState}
+        perspectivesDraftState={perspectivesDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
@@ -2615,6 +3123,7 @@ function App() {
         onLoadCompareLens={loadCompareLens}
         onLoadCausationInquiry={loadCausationInquiry}
         onLoadPeriodizationInquiry={loadPeriodizationInquiry}
+        onLoadPerspectivesInquiry={loadPerspectivesInquiry}
       />
       <GuidedSessionPanel
         selectedScenarioId={selectedScenario.id}
@@ -4785,6 +5294,304 @@ function PeriodizationLabPanel({
   )
 }
 
+function PerspectivesAgencyLabPanel({
+  selectedInquiryId,
+  evidenceByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedInquiryId: string
+  evidenceByInquiry: Record<string, PerspectivesEvidence[]>
+  draftState: PerspectivesDraftState
+  onSelectInquiry: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<PerspectivesDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedInquiry = perspectivesInquiryDefinitions.find((inquiry) => inquiry.id === selectedInquiryId) ?? perspectivesInquiryDefinitions[0]
+
+  if (!selectedInquiry) {
+    return null
+  }
+
+  const evidence = evidenceByInquiry[selectedInquiry.id] ?? []
+  const currentDraft = draftState[selectedInquiry.id] ?? getEmptyPerspectivesDraft()
+  const selectedEvidence = currentDraft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is PerspectivesEvidence => Boolean(entry))
+  const scenarioStops = selectedInquiry.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  function updateDraft(updates: Partial<Omit<PerspectivesDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedInquiry.id]: {
+        ...(currentState[selectedInquiry.id] ?? getEmptyPerspectivesDraft()),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextSelectedEvidenceIds = currentDraft.selectedEvidenceIds.includes(evidenceId)
+      ? currentDraft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.selectedEvidenceIds, evidenceId]
+
+    setCopyStatus('idle')
+    updateDraft({ selectedEvidenceIds: nextSelectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyPerspectivesBrief() {
+    try {
+      await copyTextToClipboard(formatPerspectivesBrief(selectedInquiry, evidence, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id={sectionIds.perspectivesLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="perspectives-lab-title">
+      <div className="rounded-[2rem] border border-violet-200/15 bg-violet-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-violet-100">
+          <Users size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">perspectives & agency lab 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="perspectives-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Perspectives & Agency Lab / 多视角与历史能动性工作台 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有 scenarios 派生 6 个多视角探究，只使用身份/角色/摘要、dailyLife、scene beats、decision context/options、sources 与 sourceEvidenceUse，帮助判断普通人如何在约束、有限知识、风险和来源沉默中行动。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActivePerspectivesDrafts(draftState).length} 个多视角草稿 · 当前已选 {selectedEvidence.length}/{evidence.length} 条证据
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <aside className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {perspectivesInquiryDefinitions.map((inquiry) => {
+                const isSelected = inquiry.id === selectedInquiry.id
+                const inquiryDraft = draftState[inquiry.id]
+                const status = inquiryDraft && hasPerspectivesDraftActivity(inquiryDraft) ? 'draft' : 'not-started'
+
+                return (
+                  <button
+                    key={inquiry.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectInquiry(inquiry.id)
+                      setCopyStatus('idle')
+                    }}
+                    className={`rounded-3xl border p-4 text-left transition ${
+                      isSelected
+                        ? 'border-violet-200/45 bg-violet-100/[0.09]'
+                        : 'border-white/10 bg-black/20 hover:border-violet-100/25 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span>{inquiry.subtitle}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${status === 'draft' ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100' : 'border-white/10 bg-white/[0.035] text-stone-500'}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {inquiry.tags.slice(0, 3).map((tag) => <Tag key={`${inquiry.id}-${tag}`}>{tag}</Tag>)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">场景与反当下主义检查</h3>
+              <div className="mt-3 space-y-2">
+                {scenarioStops.map((scenario, index) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-left text-sm transition hover:border-violet-100/25"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-stone-950" style={{ backgroundColor: scenario.accent }}>{index + 1}</span>
+                    <span>
+                      <span className="block font-medium text-stone-100">{scenario.title}</span>
+                      <span className="block text-xs text-stone-500">{scenario.identity} · {scenario.location}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <ul className="mt-4 space-y-2 text-sm leading-6 text-stone-400">
+                {perspectivesAntiPresentismChecklist.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <CheckCircle2 size={15} className="mt-1 shrink-0 text-violet-100" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-violet-200/15 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-violet-100/70">selected inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedInquiry.focus}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyPerspectivesBrief()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '多视角简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出多视角简报'}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
+                <p className="rounded-2xl border border-violet-200/15 bg-violet-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  {selectedInquiry.drivingQuestion}
+                </p>
+                <p className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  <span className="font-semibold text-amber-100">能动性框架：</span>{selectedInquiry.agencyFrame}
+                </p>
+              </div>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <section className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4" aria-labelledby="perspectives-evidence-title">
+                <h3 id="perspectives-evidence-title" className="font-semibold text-stone-50">Selectable evidence / 可选证据</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">勾选证据纳入简报；标签覆盖 actor position、constraint、knowledge limit、risk/stake、source perspective 与 absent voice。</p>
+                <div className="mt-4 max-h-[760px] space-y-3 overflow-y-auto pr-1">
+                  {evidence.map((entry) => {
+                    const isSelected = currentDraft.selectedEvidenceIds.includes(entry.id)
+
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 transition ${isSelected ? 'border-amber-200/35 bg-amber-100/[0.07]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvidence(entry.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="rounded-full border border-violet-200/20 bg-violet-100/[0.06] px-2 py-0.5 text-violet-100">{perspectivesEvidenceLabelText[entry.label]}</span>
+                              <span>{entry.scenario.title}</span>
+                            </div>
+                            <h4 className="mt-2 font-semibold text-stone-100">{entry.title}</h4>
+                            <p className="mt-2 text-sm leading-6 text-stone-400">{entry.text}</p>
+                            {entry.sourcePerspective || entry.sourceReliability || entry.sourceQuestion ? (
+                              <dl className="mt-3 grid gap-2 rounded-2xl border border-violet-200/10 bg-violet-100/[0.035] p-3 text-xs leading-5 text-stone-400">
+                                {entry.sourcePerspective ? <div><dt className="font-semibold text-violet-100">来源视角</dt><dd>{entry.sourcePerspective}</dd></div> : null}
+                                {entry.sourceReliability ? <div><dt className="font-semibold text-violet-100">可靠边界</dt><dd>{entry.sourceReliability}</dd></div> : null}
+                                {entry.sourceQuestion ? <div><dt className="font-semibold text-violet-100">史料追问</dt><dd>{entry.sourceQuestion}</dd></div> : null}
+                              </dl>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {entry.tags.slice(0, 5).map((tag) => <Tag key={`${entry.id}-${tag}`}>{tag}</Tag>)}
+                              <button
+                                type="button"
+                                onClick={() => onOpenScenario(entry.scenario.id, entry.sourceType === 'source' ? sectionIds.sourceReader : sectionIds.sceneReader)}
+                                className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-violet-200/30 hover:text-violet-100"
+                              >
+                                打开相关场景
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4" aria-labelledby="perspectives-draft-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 id="perspectives-draft-title" className="font-semibold text-stone-50">Perspectives draft / 多视角草稿</h3>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearDraft}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-violet-200/30 hover:text-violet-100"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['actorView', 'actor view / 行动者视角', '从这个身份当时的位置看，问题是什么？'],
+                    ['constraints', 'constraints / 约束条件', '制度、市场、家庭、身体、语言或暴力如何限制行动？'],
+                    ['availableKnowledge', 'available knowledge / 可得知识', '当事人可能知道什么？哪些后果只有后来的我们知道？'],
+                    ['stakesAndRisks', 'stakes and risks / 利害与风险', '选择会影响谁的安全、生计、名声或未来？'],
+                    ['agencyClaim', 'agency claim / 能动性判断', '在约束中，当事人仍能做出怎样的判断、协商或抵抗？'],
+                    ['presentismWarning', 'presentism warning / 反当下主义警示', '我需要避免哪种今天视角的误读？'],
+                    ['sourcePerspectiveLimits', 'source perspective limits / 来源视角限制', '材料由谁记录、为谁服务、看不见什么？'],
+                    ['missingVoices', 'missing voices / 缺席声音', '哪些人没有直接发声？还需要什么来源？'],
+                  ] as [keyof Omit<PerspectivesDraft, 'confidence' | 'selectedEvidenceIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea
+                        value={currentDraft[field]}
+                        onChange={(event) => updateDraft({ [field]: event.target.value })}
+                        rows={field === 'agencyClaim' || field === 'sourcePerspectiveLimits' || field === 'missingVoices' ? 3 : 2}
+                        placeholder={placeholder}
+                        className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-violet-200/50"
+                      />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select
+                      value={currentDraft.confidence}
+                      onChange={(event) => updateDraft({ confidence: event.target.value as PerspectivesConfidence })}
+                      className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-violet-200/50"
+                    >
+                      {(Object.entries(perspectivesConfidenceLabels) as [PerspectivesConfidence, string][]).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '多视角简报会优先导出已勾选证据；若未勾选，则导出前 10 条证据。'}
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -4793,6 +5600,7 @@ function PortfolioPanel({
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
+  perspectivesDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -4801,6 +5609,7 @@ function PortfolioPanel({
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
+  perspectivesDraftState: PerspectivesDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -4808,6 +5617,7 @@ function PortfolioPanel({
   const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
   const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
   const periodizationDraftCount = getActivePeriodizationDrafts(periodizationDraftState).length
+  const perspectivesDraftCount = getActivePerspectivesDrafts(perspectivesDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -4821,7 +5631,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -4863,6 +5673,7 @@ function PortfolioPanel({
               { label: '互证草稿', value: corroborationDraftCount },
               { label: '因果草稿', value: causationDraftCount },
               { label: '分期草稿', value: periodizationDraftCount },
+              { label: '多视角草稿', value: perspectivesDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -4911,12 +5722,14 @@ function TaskLibraryPanel({
   onLoadCompareLens,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
+  onLoadPerspectivesInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
+  onLoadPerspectivesInquiry: (inquiryId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -4926,8 +5739,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -5041,6 +5854,8 @@ function TaskLibraryPanel({
               <option value="inquiry">Inquiry Paths</option>
               <option value="compare">Compare Lenses</option>
               <option value="causation">Causation Lab</option>
+              <option value="periodization">Periodization Lab</option>
+              <option value="perspectives">Perspectives Lab</option>
             </select>
           </label>
         </div>
@@ -5082,7 +5897,7 @@ function TaskLibraryPanel({
                     onClick={task.onPrimaryAction}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
                   >
-                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' ? <Scale size={16} /> : <ArrowRight size={16} />}
+                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' ? <Scale size={16} /> : <ArrowRight size={16} />}
                     {task.primaryActionLabel}
                   </button>
                 ) : null}
