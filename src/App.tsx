@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowRight,
@@ -48,6 +48,7 @@ const defaultCompareLensKey = compareLenses[0]?.key ?? 'daily-life'
 const missionProgressStorageKey = 'timeatlas:mission-progress'
 const missionWorkStorageKey = 'timeatlas:mission-work'
 const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
+const corroborationStudioStorageKey = 'timeatlas:corroboration-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -175,6 +176,20 @@ type ArgumentDraft = {
 
 type ArgumentDraftState = Record<string, ArgumentDraft>
 
+type CorroborationConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type CorroborationDraft = {
+  sourceIds: string[]
+  provisionalClaim: string
+  supportingEvidence: string
+  tensions: string
+  absentVoices: string
+  confidence: CorroborationConfidence
+  updatedAt?: string
+}
+
+type CorroborationDraftState = Record<string, CorroborationDraft>
+
 
 type WorkspaceEntry = {
   notes: string
@@ -252,6 +267,36 @@ type SourceAtlasEntry = {
   scenario: Scenario
   source: Scenario['sources'][number]
   searchText: string
+}
+
+const corroborationMethodCards = [
+  {
+    key: 'sourcing',
+    title: 'Sourcing / 来源判断',
+    prompt: '先问谁写/谁保存/为谁服务：作者、机构、媒介和可靠边界会怎样塑造这条证据？',
+  },
+  {
+    key: 'contextualization',
+    title: 'Contextualization / 情境化',
+    prompt: '把每条来源放回它的时代、地点、制度和日常压力中，避免用今天的问题直接替代当时人的处境。',
+  },
+  {
+    key: 'corroboration',
+    title: 'Corroboration / 互证',
+    prompt: '寻找相互支持、相互修正或相互冲突的线索：哪些事实被多条来源照亮？哪些只是单一视角？',
+  },
+  {
+    key: 'silence',
+    title: 'Silence / 沉默与缺席',
+    prompt: '记录材料看不见的人、问题和经验，并写出下一步最需要补充的来源类型。',
+  },
+]
+
+const corroborationConfidenceLabels: Record<CorroborationConfidence, string> = {
+  high: 'High / 较高',
+  medium: 'Medium / 中等',
+  low: 'Low / 较低',
+  uncertain: 'Uncertain / 仍不确定',
 }
 
 function getEmptyWorkspaceEntry(): WorkspaceEntry {
@@ -391,6 +436,47 @@ function parseArgumentDraftState(rawState: string | null) {
   }
 }
 
+function parseCorroborationDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as CorroborationDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<CorroborationDraft>
+        const sourceIds = Array.isArray(draft.sourceIds)
+          ? draft.sourceIds.filter((item): item is string => typeof item === 'string').sort()
+          : key.split('|').filter(Boolean).sort()
+        const confidence = draft.confidence && draft.confidence in corroborationConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            sourceIds,
+            provisionalClaim: typeof draft.provisionalClaim === 'string' ? draft.provisionalClaim : '',
+            supportingEvidence: typeof draft.supportingEvidence === 'string' ? draft.supportingEvidence : '',
+            tensions: typeof draft.tensions === 'string' ? draft.tensions : '',
+            absentVoices: typeof draft.absentVoices === 'string' ? draft.absentVoices : '',
+            confidence,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies CorroborationDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as CorroborationDraftState
+  }
+}
+
 function parseGuidedSessionProgressState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -497,6 +583,30 @@ function persistArgumentDraftState(state: ArgumentDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(argumentStudioStorageKey, serializedState)
+}
+
+function loadCorroborationDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseCorroborationDraftState(localStorage?.getItem(corroborationStudioStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseCorroborationDraftState(sessionStorage?.getItem(corroborationStudioStorageKey) ?? null)
+}
+
+function persistCorroborationDraftState(state: CorroborationDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(corroborationStudioStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(corroborationStudioStorageKey, serializedState)
 }
 
 function loadGuidedSessionProgressState() {
@@ -652,12 +762,81 @@ function getEmptyArgumentDraft(): ArgumentDraft {
   }
 }
 
+function getCorroborationBasketKey(sourceIds: string[]) {
+  return [...sourceIds].sort().join('|')
+}
+
+function getEmptyCorroborationDraft(sourceIds: string[] = []): CorroborationDraft {
+  const sortedSourceIds = [...sourceIds].sort()
+
+  return {
+    sourceIds: sortedSourceIds,
+    provisionalClaim: '',
+    supportingEvidence: '',
+    tensions: '',
+    absentVoices: '',
+    confidence: 'uncertain',
+  }
+}
+
+function hasCorroborationDraftActivity(draft: CorroborationDraft) {
+  return Boolean(
+    draft.provisionalClaim.trim()
+      || draft.supportingEvidence.trim()
+      || draft.tensions.trim()
+      || draft.absentVoices.trim()
+      || draft.confidence !== 'uncertain',
+  )
+}
+
+function getActiveCorroborationDrafts(corroborationDraftState: CorroborationDraftState) {
+  return Object.entries(corroborationDraftState).filter(([, draft]) => hasCorroborationDraftActivity(draft))
+}
+
+function formatSourceCorroborationBrief(entries: SourceAtlasEntry[], draft: CorroborationDraft) {
+  if (entries.length < 2) {
+    return ''
+  }
+
+  return [
+    'TimeAtlas Corroboration Studio / 史料互证工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `Basket key：${getCorroborationBasketKey(entries.map((entry) => entry.id))}`,
+    `所选来源数：${entries.length}`,
+    '',
+    '一、互证来源矩阵',
+    ...entries.flatMap((entry, index) => [
+      `${index + 1}. ${entry.scenario.title}｜${entry.source.title}`,
+      `   来源类型：${sourceTypeLabels[entry.source.sourceType]} / ${entry.source.creator}`,
+      `   时空情境：${entry.scenario.era} · ${entry.scenario.location} · ${entry.scenario.identity}`,
+      `   摘记：${entry.source.excerpt}`,
+      `   视角：${entry.source.perspective}`,
+      `   可靠边界：${entry.source.reliabilityNote}`,
+      `   史料追问：${entry.source.sourceQuestion}`,
+      `   标签：${entry.source.evidenceTags.join('、')}`,
+    ]),
+    '',
+    '二、方法检查',
+    ...corroborationMethodCards.map((card, index) => `${index + 1}. ${card.title}：${card.prompt}`),
+    '',
+    '三、互证草稿',
+    `临时历史判断：${draft.provisionalClaim.trim() || '尚未填写'}`,
+    `支持证据：${draft.supportingEvidence.trim() || '尚未填写'}`,
+    `张力 / 冲突：${draft.tensions.trim() || '尚未填写'}`,
+    `缺席声音 / 仍需来源：${draft.absentVoices.trim() || '尚未填写'}`,
+    `信心等级：${corroborationConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
 function formatLearningArchive(
   missionWorkState: MissionWorkState,
   completedMissionIdsByScenario: Record<string, string[]>,
   workspaceState: WorkspaceState,
+  corroborationDraftState: CorroborationDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
+  const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -668,6 +847,7 @@ function formatLearningArchive(
     `- 跨场景已完成：${workspaceStats.completedEntries}`,
     `- 跨场景草稿：${workspaceStats.draftEntries}`,
     `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
+    `- 史料互证草稿：${activeCorroborationDrafts.length}`,
     '',
   ]
 
@@ -720,8 +900,32 @@ function formatLearningArchive(
     lines.push('')
   }
 
-  if (lines.length <= 12) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿或完成记录。')
+  if (activeCorroborationDrafts.length > 0) {
+    const sourceAtlasEntries = buildSourceAtlasEntries()
+
+    lines.push('史料互证工作台：')
+    activeCorroborationDrafts.forEach(([basketKey, draft]) => {
+      const sourceTitles = draft.sourceIds
+        .map((sourceId) => sourceAtlasEntries.find((entry) => entry.id === sourceId))
+        .filter((entry): entry is SourceAtlasEntry => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${entry.source.title}`)
+
+      lines.push(
+        `  - Basket ${basketKey}`,
+        `    来源：${sourceTitles.join('；') || '来源组合已变化'}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    临时历史判断：${draft.provisionalClaim.trim() || '尚未填写'}`,
+        `    支持证据：${draft.supportingEvidence.trim() || '尚未填写'}`,
+        `    张力 / 冲突：${draft.tensions.trim() || '尚未填写'}`,
+        `    缺席声音 / 仍需来源：${draft.absentVoices.trim() || '尚未填写'}`,
+        `    信心等级：${corroborationConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (lines.length <= 13) {
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -1179,6 +1383,7 @@ function App() {
   )
   const [missionWorkState, setMissionWorkState] = useState<MissionWorkState>(loadMissionWorkState)
   const [argumentDraftState, setArgumentDraftState] = useState<ArgumentDraftState>(loadArgumentDraftState)
+  const [corroborationDraftState, setCorroborationDraftState] = useState<CorroborationDraftState>(loadCorroborationDraftState)
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
@@ -1256,6 +1461,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [argumentDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistCorroborationDraftState(corroborationDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [corroborationDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1414,6 +1631,8 @@ function App() {
         onLoadCompare={loadCompareFromInquiryPath}
       />
       <SourceAtlasPanel
+        corroborationDraftState={corroborationDraftState}
+        onUpdateCorroborationDraftState={setCorroborationDraftState}
         onOpenScenario={selectScenario}
         onLoadCompareLens={loadCompareLens}
       />
@@ -1422,6 +1641,7 @@ function App() {
         missionWorkState={missionWorkState}
         workspaceState={workspaceState}
         workspaceStats={workspaceStats}
+        corroborationDraftState={corroborationDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
@@ -2448,9 +2668,13 @@ function formatSourceJudgmentWorksheet(entries: SourceAtlasEntry[]) {
 }
 
 function SourceAtlasPanel({
+  corroborationDraftState,
+  onUpdateCorroborationDraftState,
   onOpenScenario,
   onLoadCompareLens,
 }: {
+  corroborationDraftState: CorroborationDraftState
+  onUpdateCorroborationDraftState: Dispatch<SetStateAction<CorroborationDraftState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompareLens: (lens: CompareLens) => void
 }) {
@@ -2496,6 +2720,10 @@ function SourceAtlasPanel({
   const selectedEntries = selectedSourceIds
     .map((id) => sourceAtlasEntries.find((entry) => entry.id === id))
     .filter((entry): entry is SourceAtlasEntry => Boolean(entry))
+  const currentBasketKey = getCorroborationBasketKey(selectedSourceIds)
+  const currentCorroborationDraft = currentBasketKey
+    ? corroborationDraftState[currentBasketKey] ?? getEmptyCorroborationDraft(selectedSourceIds)
+    : getEmptyCorroborationDraft()
   const sourceCredibilityLens = compareLenses.find((lens) => lens.key === 'source-credibility')
   const archiveGapCards = [
     {
@@ -2528,6 +2756,51 @@ function SourceAtlasPanel({
 
       return [...currentIds, entryId]
     })
+  }
+
+  function updateCurrentCorroborationDraft(updates: Partial<Omit<CorroborationDraft, 'sourceIds' | 'updatedAt'>>) {
+    if (selectedEntries.length < 2 || selectedEntries.length > 4 || !currentBasketKey) {
+      return
+    }
+
+    const sortedSourceIds = selectedEntries.map((entry) => entry.id).sort()
+
+    onUpdateCorroborationDraftState((currentState) => ({
+      ...currentState,
+      [currentBasketKey]: {
+        ...(currentState[currentBasketKey] ?? getEmptyCorroborationDraft(sortedSourceIds)),
+        sourceIds: sortedSourceIds,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function clearCurrentCorroborationDraft() {
+    if (!currentBasketKey) {
+      return
+    }
+
+    onUpdateCorroborationDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[currentBasketKey]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyCorroborationBrief() {
+    if (selectedEntries.length < 2 || selectedEntries.length > 4) {
+      setCopyStatus('failed')
+      return
+    }
+
+    try {
+      await copyTextToClipboard(formatSourceCorroborationBrief(selectedEntries, currentCorroborationDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
   }
 
   async function copyWorksheet() {
@@ -2672,7 +2945,7 @@ function SourceAtlasPanel({
                 <ClipboardList size={18} />
                 <h3 className="font-semibold">Evidence Basket</h3>
               </div>
-              <p className="mt-2 text-sm leading-6 text-stone-400">选择 2-4 条来源后复制“史料判断”工作纸。</p>
+              <p className="mt-2 text-sm leading-6 text-stone-400">选择 2-4 条来源后复制“史料判断”工作纸，并在右侧打开史料互证工作台。</p>
               <div className="mt-3 space-y-2">
                 {selectedEntries.length > 0 ? selectedEntries.map((entry) => (
                   <button
@@ -2695,6 +2968,15 @@ function SourceAtlasPanel({
                 >
                   {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
                   {copyStatus === 'copied' ? '工作纸已复制' : '复制史料判断工作纸'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyCorroborationBrief()}
+                  disabled={selectedEntries.length < 2 || selectedEntries.length > 4}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-stone-600"
+                >
+                  {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'copied' ? '互证简报已复制' : '复制互证简报'}
                 </button>
                 {sourceCredibilityLens ? (
                   <button
@@ -2787,6 +3069,167 @@ function SourceAtlasPanel({
           </div>
         </div>
 
+        <div className="mt-5 rounded-[1.75rem] border border-teal-200/15 bg-black/20 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-teal-100">
+                <ShieldAlert size={18} />
+                <span className="text-xs uppercase tracking-[0.24em]">corroboration studio / 史料互证工作台 1.0</span>
+              </div>
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">从证据篮到临时历史判断</h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">
+                选择 2-4 条来源后，用来源判断、情境化、互证和沉默四步记录可支持的判断、张力与还需要补足的材料。同一组来源会按排序后的 basket key 自动恢复草稿。
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-stone-400">
+              {selectedEntries.length >= 2 && selectedEntries.length <= 4
+                ? `当前组合：${currentBasketKey}`
+                : '需要 2-4 条来源才能生成互证简报'}
+            </div>
+          </div>
+
+          {selectedEntries.length >= 2 && selectedEntries.length <= 4 ? (
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-3xl border border-white/10">
+                  <div className="grid grid-cols-[0.85fr_1.1fr_1fr] bg-white/[0.04] text-xs uppercase tracking-[0.16em] text-stone-500">
+                    <div className="p-3">来源 / Source</div>
+                    <div className="border-l border-white/10 p-3">视角与可靠边界</div>
+                    <div className="border-l border-white/10 p-3">可互证线索</div>
+                  </div>
+                  {selectedEntries.map((entry) => (
+                    <div key={`matrix-${entry.id}`} className="grid grid-cols-[0.85fr_1.1fr_1fr] border-t border-white/10 text-sm leading-6 text-stone-400">
+                      <div className="p-3">
+                        <div className="font-semibold text-stone-100">{entry.source.title}</div>
+                        <div className="mt-1 text-xs text-stone-500">{entry.scenario.title} · {sourceTypeLabels[entry.source.sourceType]}</div>
+                      </div>
+                      <div className="border-l border-white/10 p-3">
+                        <div><span className="text-teal-100">Perspective：</span>{entry.source.perspective}</div>
+                        <div className="mt-1"><span className="text-amber-100">Reliability：</span>{entry.source.reliabilityNote}</div>
+                      </div>
+                      <div className="border-l border-white/10 p-3">
+                        <div>{entry.source.excerpt}</div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {entry.source.evidenceTags.slice(0, 4).map((tag) => (
+                            <span key={`${entry.id}-matrix-${tag}`} className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-stone-500">{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {corroborationMethodCards.map((card) => (
+                    <article key={card.key} className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                      <h4 className="font-semibold text-amber-100">{card.title}</h4>
+                      <p className="mt-2 text-sm leading-6 text-stone-400">{card.prompt}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-stone-50">互证草稿</h4>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {currentCorroborationDraft.updatedAt
+                        ? `已恢复：${new Date(currentCorroborationDraft.updatedAt).toLocaleString()}`
+                        : '尚未保存此来源组合的草稿'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearCurrentCorroborationDraft}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-orange-200/30 hover:text-orange-100"
+                  >
+                    清空当前草稿
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">provisional claim / 临时历史判断</span>
+                    <textarea
+                      value={currentCorroborationDraft.provisionalClaim}
+                      onChange={(event) => updateCurrentCorroborationDraft({ provisionalClaim: event.target.value })}
+                      rows={3}
+                      className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/50"
+                      placeholder="这些来源共同支持的、仍可修正的一句话判断……"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">supporting evidence / 支持证据</span>
+                    <textarea
+                      value={currentCorroborationDraft.supportingEvidence}
+                      onChange={(event) => updateCurrentCorroborationDraft({ supportingEvidence: event.target.value })}
+                      rows={4}
+                      className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/50"
+                      placeholder="列出互相支持的线索，并注明来自哪几条来源……"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">tensions / conflicts / 张力与冲突</span>
+                    <textarea
+                      value={currentCorroborationDraft.tensions}
+                      onChange={(event) => updateCurrentCorroborationDraft({ tensions: event.target.value })}
+                      rows={3}
+                      className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/50"
+                      placeholder="哪些来源之间存在解释差异、记录偏向或时间/身份张力？"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">absent voices / needed sources / 缺席声音与仍需来源</span>
+                    <textarea
+                      value={currentCorroborationDraft.absentVoices}
+                      onChange={(event) => updateCurrentCorroborationDraft({ absentVoices: event.target.value })}
+                      rows={3}
+                      className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/50"
+                      placeholder="哪些人没有留下声音？还需要口述、账簿、考古、法律、报刊或其他材料？"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select
+                      value={currentCorroborationDraft.confidence}
+                      onChange={(event) => updateCurrentCorroborationDraft({ confidence: event.target.value as CorroborationConfidence })}
+                      className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-teal-200/50"
+                    >
+                      {(Object.entries(corroborationConfidenceLabels) as [CorroborationConfidence, string][]).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => void copyCorroborationBrief()}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+                  >
+                    {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+                    {copyStatus === 'copied' ? '互证简报已复制' : '复制互证简报'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void copyWorksheet()}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                  >
+                    <ClipboardList size={16} />
+                    复制判断工作纸
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 rounded-3xl border border-dashed border-white/10 p-4 text-sm leading-6 text-stone-500">
+              Evidence Basket 当前为 {selectedEntries.length}/4。互证工作台和简报生成需要至少 2 条、最多 4 条来源。
+            </p>
+          )}
+        </div>
+
         {visibleEntries.length > 60 ? (
           <p className="mt-4 text-sm text-stone-500">已显示前 60 条来源；可使用搜索、类型、场景或标签筛选继续缩小范围。</p>
         ) : null}
@@ -2803,15 +3246,18 @@ function PortfolioPanel({
   missionWorkState,
   workspaceState,
   workspaceStats,
+  corroborationDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
   workspaceStats: WorkspaceStats
+  corroborationDraftState: CorroborationDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
+  const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -2825,7 +3271,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -2864,6 +3310,7 @@ function PortfolioPanel({
               { label: '已触达身份', value: activeScenarioCount },
               { label: '跨场景条目', value: workspaceStats.totalEntries },
               { label: '跨场景完成', value: workspaceStats.completedEntries },
+              { label: '互证草稿', value: corroborationDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
