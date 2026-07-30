@@ -1715,6 +1715,11 @@ function ScenarioGallery({
                     <Tag>{scenario.region}</Tag>
                     <Tag>{scenario.year}</Tag>
                   </div>
+                  <div className="flex flex-wrap gap-2 pt-1 text-[0.68rem] uppercase tracking-[0.16em] text-stone-500">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{scenario.sceneBeats.length} scenes</span>
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{scenario.activityPacks.length} activities</span>
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{scenario.sources.length} sources</span>
+                  </div>
                   <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3">
                     <div className="flex items-center justify-between gap-3 text-xs text-stone-400">
                       <span>任务完成 {progressLabel}</span>
@@ -2622,7 +2627,7 @@ function TaskLibraryPanel({
         </label>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {visibleTasks.slice(0, 36).map((task) => (
+          {visibleTasks.slice(0, 48).map((task) => (
             <article key={task.id} className="flex min-h-full flex-col rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
                 <span className="rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-3 py-1 text-sky-100">{task.sourceLabel}</span>
@@ -2675,8 +2680,8 @@ function TaskLibraryPanel({
           ))}
         </div>
 
-        {visibleTasks.length > 36 ? (
-          <p className="mt-4 text-sm text-stone-500">已显示前 36 个结果；可继续使用搜索或筛选缩小范围。</p>
+        {visibleTasks.length > 48 ? (
+          <p className="mt-4 text-sm text-stone-500">已显示前 48 个结果；可继续使用搜索或筛选缩小范围。</p>
         ) : null}
         {visibleTasks.length === 0 ? (
           <p className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">没有匹配的任务。请放宽搜索、类别、场景、时长或来源型筛选。</p>
