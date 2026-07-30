@@ -54,6 +54,7 @@ const causationLabStorageKey = 'timeatlas:causation-lab-drafts'
 const periodizationLabStorageKey = 'timeatlas:periodization-lab-drafts'
 const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
 const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
+const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -70,6 +71,7 @@ const sectionIds = {
   periodizationLab: 'periodization-lab',
   perspectivesLab: 'perspectives-agency-lab',
   contextLab: 'context-scale-lab',
+  significanceLab: 'significance-memory-lab',
   compareLab: 'compare-lab',
 } as const
 
@@ -302,6 +304,49 @@ type ContextEvidence = {
   tags: string[]
 }
 
+type SignificanceConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type SignificanceDraft = {
+  eventOrProcess: string
+  whoItMatteredTo: string
+  contemporarySignificance: string
+  longTermSignificance: string
+  scaleOfImpact: string
+  contestedMeaning: string
+  sourceLimits: string
+  significanceClaim: string
+  selectedEvidenceIds: string[]
+  confidence: SignificanceConfidence
+  updatedAt?: string
+}
+
+type SignificanceDraftState = Record<string, SignificanceDraft>
+
+type SignificanceInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  focus: string
+  tags: string[]
+  memoryFrame: string
+}
+
+type SignificanceEvidenceLabel = 'immediate-impact' | 'long-term-change' | 'scale-reach' | 'contested-meaning' | 'memory-archive' | 'ordinary-life'
+
+type SignificanceEvidence = {
+  id: string
+  inquiryId: string
+  scenario: Scenario
+  label: SignificanceEvidenceLabel
+  sourceType: 'identity-summary' | 'timeline' | 'daily-life' | 'scene-beat' | 'decision-context' | 'decision-option' | 'source' | 'real-history' | 'interpretation-note' | 'source-evidence-use'
+  title: string
+  text: string
+  significanceHint: string
+  tags: string[]
+}
+
 type PerspectivesConfidence = 'high' | 'medium' | 'low' | 'uncertain'
 
 type PerspectivesDraft = {
@@ -396,7 +441,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 
@@ -482,6 +527,25 @@ const causationConfidenceLabels: Record<CausationConfidence, string> = corrobora
 const periodizationConfidenceLabels: Record<PeriodizationConfidence, string> = corroborationConfidenceLabels
 const perspectivesConfidenceLabels: Record<PerspectivesConfidence, string> = corroborationConfidenceLabels
 const contextConfidenceLabels: Record<ContextConfidence, string> = corroborationConfidenceLabels
+const significanceConfidenceLabels: Record<SignificanceConfidence, string> = corroborationConfidenceLabels
+
+const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
+  'immediate-impact': 'immediate-impact / 当时影响',
+  'long-term-change': 'long-term-change / 长期变化',
+  'scale-reach': 'scale-reach / 影响尺度',
+  'contested-meaning': 'contested-meaning / 意义争议',
+  'memory-archive': 'memory-archive / 记忆与档案',
+  'ordinary-life': 'ordinary-life / 普通生活',
+}
+
+const significanceCriteriaLadder = [
+  { key: 'immediate-impact', title: 'Immediate impact / 当时影响', prompt: '它当时改变了谁的安全、生计、知识、选择或制度位置？' },
+  { key: 'long-term-change', title: 'Long-term change / 长期变化', prompt: '后来的制度、商品链、知识传播、公共记忆或生活方式如何被它改变？' },
+  { key: 'scale-reach', title: 'Scale & reach / 尺度与范围', prompt: '意义停留在个人/社区，还是连接到区域、帝国、全球或跨时代影响？' },
+  { key: 'contested-meaning', title: 'Contested meaning / 意义争议', prompt: '不同群体会怎样解释、纪念、淡化或反驳它的重要性？' },
+  { key: 'memory-archive', title: 'Memory & archive / 记忆与档案', prompt: '哪些来源保存了它，哪些沉默改变了我们判断它重要性的方式？' },
+  { key: 'ordinary-life', title: 'Ordinary life / 普通生活', prompt: '普通人的日常经验如何证明“大历史”不是只由精英事件构成？' },
+] satisfies { key: SignificanceEvidenceLabel, title: string, prompt: string }[]
 
 const contextEvidenceLabelText: Record<ContextEvidenceLabel, string> = {
   local: 'local / 地方现场',
@@ -588,6 +652,70 @@ const causationInquiryDefinitions: CausationInquiry[] = [
 ]
 
 
+
+
+const significanceInquiryDefinitions: SignificanceInquiry[] = [
+  {
+    id: 'ordinary-people-matter',
+    title: '普通人为什么重要',
+    subtitle: 'Why ordinary people matter',
+    drivingQuestion: '为什么一个商人、学徒、学生、劳动者或居民的日常选择也能成为重要历史？',
+    scenarioIds: ['song-bianjing-apprentice', 'wwii-london-civilian', 'colonial-bombay-mill-worker', 'saint-domingue-sugar-worker', 'tenochtitlan-market-seller'],
+    focus: '用身份、日常生活、scene beats 与选择后果说明普通人的经验如何揭示制度、市场、战争和劳动秩序。',
+    tags: ['ordinary people', 'daily life', 'agency', 'memory'],
+    memoryFrame: '把普通生活当作历史意义的入口，而不是宏大事件的背景噪音。',
+  },
+  {
+    id: 'commodity-chains-changing-worlds',
+    title: '商品链如何改变世界',
+    subtitle: 'Commodity chains changing worlds',
+    drivingQuestion: '糖、棉、黄金、纸张或港口货物流动为什么能改变劳动、制度和远方社会？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador', 'kilwa-swahili-gold-merchant'],
+    focus: '连接商品链中的即时影响、长期变化、尺度扩展和来源沉默，判断“改变世界”的具体含义。',
+    tags: ['commodity chains', 'labor', 'markets', 'empire'],
+    memoryFrame: '不要只说“全球化”；说明商品链如何穿过某个身体、港口、工厂和档案。',
+  },
+  {
+    id: 'knowledge-preservation-transmission',
+    title: '知识保存与传播',
+    subtitle: 'Knowledge preservation / transmission',
+    drivingQuestion: '手稿、纸张、学校、书信和档案为什么会影响谁能学习、保存和传递知识？',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice'],
+    focus: '比较媒介、学习门槛、保存条件和后世记忆，判断知识传播的历史意义。',
+    tags: ['knowledge', 'manuscripts', 'paper', 'archives'],
+    memoryFrame: '知识的意义既在传播，也在被保存、筛选和重新解释。',
+  },
+  {
+    id: 'crisis-public-memory',
+    title: '危机经验与公共记忆',
+    subtitle: 'Crisis experience / public memory',
+    drivingQuestion: '战争、征服、起义或价格危机进入普通生活后，为什么会变成公共记忆或历史争议？',
+    scenarioIds: ['wwii-london-civilian', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'saint-domingue-sugar-worker', 'colonial-bombay-mill-worker'],
+    focus: '从危机当下经验、长远后果、不同群体解释和记忆材料边界判断意义。',
+    tags: ['crisis', 'public memory', 'war', 'conquest', 'uncertainty'],
+    memoryFrame: '公共记忆来自真实痛苦、后世叙事和档案可见性的共同塑形。',
+  },
+  {
+    id: 'market-rules-institutional-legacy',
+    title: '市场规则与制度遗产',
+    subtitle: 'Market rules / institutional legacy',
+    drivingQuestion: '税、行会、通商规则、信用和身份边界为什么会留下长期制度遗产？',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'malacca-monsoon-port-broker', 'fustat-geniza-merchant-apprentice'],
+    focus: '把市场规则的当时影响、长期制度遗产、跨区域范围和争议性意义并列分析。',
+    tags: ['market rules', 'institutions', 'credit', 'legacy'],
+    memoryFrame: '市场不是无规则空间；制度遗产常保存在合约、惯例、税制和后世解释中。',
+  },
+  {
+    id: 'archive-silence-changing-significance',
+    title: '档案沉默如何改变意义',
+    subtitle: 'Archive silence changing significance',
+    drivingQuestion: '当资料只留下商人、国家、殖民者或后世研究者的声音时，历史意义会怎样被改变？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker', 'wwii-london-civilian'],
+    focus: '用来源视角、可靠边界、source question、interpretationNote 和 sourceEvidenceUse 判断沉默如何限制或放大意义。',
+    tags: ['archive silence', 'source limits', 'memory', 'contested meaning'],
+    memoryFrame: '档案沉默不是空白背景；它会直接改变谁被认为“重要”。',
+  },
+]
 
 const contextInquiryDefinitions: ContextInquiry[] = [
   {
@@ -1342,6 +1470,76 @@ function persistContextDraftState(state: ContextDraftState) {
   getSafeStorage('sessionStorage')?.setItem(contextLabStorageKey, serializedState)
 }
 
+
+function parseSignificanceDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as SignificanceDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<SignificanceDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in significanceConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            eventOrProcess: typeof draft.eventOrProcess === 'string' ? draft.eventOrProcess : '',
+            whoItMatteredTo: typeof draft.whoItMatteredTo === 'string' ? draft.whoItMatteredTo : '',
+            contemporarySignificance: typeof draft.contemporarySignificance === 'string' ? draft.contemporarySignificance : '',
+            longTermSignificance: typeof draft.longTermSignificance === 'string' ? draft.longTermSignificance : '',
+            scaleOfImpact: typeof draft.scaleOfImpact === 'string' ? draft.scaleOfImpact : '',
+            contestedMeaning: typeof draft.contestedMeaning === 'string' ? draft.contestedMeaning : '',
+            sourceLimits: typeof draft.sourceLimits === 'string' ? draft.sourceLimits : '',
+            significanceClaim: typeof draft.significanceClaim === 'string' ? draft.significanceClaim : '',
+            selectedEvidenceIds,
+            confidence,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies SignificanceDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as SignificanceDraftState
+  }
+}
+
+function loadSignificanceDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseSignificanceDraftState(localStorage?.getItem(significanceLabStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseSignificanceDraftState(sessionStorage?.getItem(significanceLabStorageKey) ?? null)
+}
+
+function persistSignificanceDraftState(state: SignificanceDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(significanceLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(significanceLabStorageKey, serializedState)
+}
+
 function loadPerspectivesDraftState() {
   const localStorage = getSafeStorage('localStorage')
   const sessionStorage = getSafeStorage('sessionStorage')
@@ -1653,6 +1851,305 @@ function getActivePeriodizationDrafts(periodizationDraftState: PeriodizationDraf
   return Object.entries(periodizationDraftState).filter(([, draft]) => hasPeriodizationDraftActivity(draft))
 }
 
+
+
+function getEmptySignificanceDraft(): SignificanceDraft {
+  return {
+    eventOrProcess: '',
+    whoItMatteredTo: '',
+    contemporarySignificance: '',
+    longTermSignificance: '',
+    scaleOfImpact: '',
+    contestedMeaning: '',
+    sourceLimits: '',
+    significanceClaim: '',
+    selectedEvidenceIds: [],
+    confidence: 'uncertain',
+  }
+}
+
+function hasSignificanceDraftActivity(draft: SignificanceDraft) {
+  return Boolean(
+    draft.eventOrProcess.trim()
+      || draft.whoItMatteredTo.trim()
+      || draft.contemporarySignificance.trim()
+      || draft.longTermSignificance.trim()
+      || draft.scaleOfImpact.trim()
+      || draft.contestedMeaning.trim()
+      || draft.sourceLimits.trim()
+      || draft.significanceClaim.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.selectedEvidenceIds.length,
+  )
+}
+
+function getActiveSignificanceDrafts(significanceDraftState: SignificanceDraftState) {
+  return Object.entries(significanceDraftState).filter(([, draft]) => hasSignificanceDraftActivity(draft))
+}
+
+function inferSignificanceDailyLifeKeys(inquiry: SignificanceInquiry): DailyLifeKey[] {
+  if (inquiry.id.includes('knowledge')) {
+    return ['education', 'work', 'freedoms', 'risks']
+  }
+
+  if (inquiry.id.includes('commodity')) {
+    return ['work', 'risks', 'home', 'freedoms']
+  }
+
+  if (inquiry.id.includes('crisis')) {
+    return ['risks', 'home', 'work', 'freedoms']
+  }
+
+  if (inquiry.id.includes('market')) {
+    return ['work', 'freedoms', 'risks', 'education']
+  }
+
+  return ['work', 'risks', 'home', 'education']
+}
+
+function getSignificanceEvidenceLabel(inquiry: SignificanceInquiry, sourceType: SignificanceEvidence['sourceType'], text: string): SignificanceEvidenceLabel {
+  const normalizedText = `${inquiry.id} ${inquiry.tags.join(' ')} ${text}`.toLowerCase()
+
+  if (sourceType === 'source' || sourceType === 'source-evidence-use' || sourceType === 'interpretation-note' || normalizedText.includes('archive') || normalizedText.includes('source') || normalizedText.includes('档案') || normalizedText.includes('来源') || normalizedText.includes('沉默')) {
+    return 'memory-archive'
+  }
+
+  if (sourceType === 'real-history' || normalizedText.includes('long') || normalizedText.includes('legacy') || normalizedText.includes('长期') || normalizedText.includes('遗产') || normalizedText.includes('后来')) {
+    return 'long-term-change'
+  }
+
+  if (normalizedText.includes('empire') || normalizedText.includes('global') || normalizedText.includes('region') || normalizedText.includes('commodity') || normalizedText.includes('帝国') || normalizedText.includes('全球') || normalizedText.includes('区域') || normalizedText.includes('商品')) {
+    return 'scale-reach'
+  }
+
+  if (sourceType === 'decision-option' || normalizedText.includes('contested') || normalizedText.includes('meaning') || normalizedText.includes('risk') || normalizedText.includes('争议') || normalizedText.includes('意义') || normalizedText.includes('风险')) {
+    return 'contested-meaning'
+  }
+
+  if (sourceType === 'identity-summary' || sourceType === 'daily-life' || normalizedText.includes('ordinary') || normalizedText.includes('daily') || normalizedText.includes('普通') || normalizedText.includes('日常')) {
+    return 'ordinary-life'
+  }
+
+  return 'immediate-impact'
+}
+
+function getSignificanceHint(label: SignificanceEvidenceLabel) {
+  return {
+    'immediate-impact': '说明当时谁受到影响，以及影响如何进入选择、身体、安全或生计。',
+    'long-term-change': '连接后续制度、商品链、知识传播、社会变化或历史遗产。',
+    'scale-reach': '判断影响范围：个人、社区、城市、区域、帝国、全球或跨时代。',
+    'contested-meaning': '标出不同群体可能如何争论、纪念或否认这件事的重要性。',
+    'memory-archive': '检查来源如何保存、过滤或沉默，从而改变意义判断。',
+    'ordinary-life': '用普通生活证明历史意义不只属于精英、国家或战争大事件。',
+  }[label]
+}
+
+function buildSignificanceEvidenceEntry(
+  inquiry: SignificanceInquiry,
+  scenario: Scenario,
+  sourceType: SignificanceEvidence['sourceType'],
+  idSuffix: string,
+  title: string,
+  text: string,
+  tags: string[] = [],
+): SignificanceEvidence {
+  const label = getSignificanceEvidenceLabel(inquiry, sourceType, text)
+
+  return {
+    id: `${inquiry.id}:${scenario.id}:${idSuffix}`,
+    inquiryId: inquiry.id,
+    scenario,
+    label,
+    sourceType,
+    title,
+    text,
+    significanceHint: getSignificanceHint(label),
+    tags: [...new Set([scenario.era, scenario.location, scenario.region, scenario.theme, ...tags])],
+  }
+}
+
+function buildSignificanceEvidenceForInquiry(inquiry: SignificanceInquiry): SignificanceEvidence[] {
+  const preferredDailyLifeKeys = inferSignificanceDailyLifeKeys(inquiry)
+
+  return inquiry.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+
+    if (!scenario) {
+      return []
+    }
+
+    const identityEvidence = buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'identity-summary',
+      'identity-summary',
+      scenario.identity,
+      scenario.summary,
+      [scenario.identity],
+    )
+    const timelineEvidence = scenario.timeline.slice(0, 3).map((event, index) => buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'timeline',
+      `timeline:${index}`,
+      event.title,
+      `${event.year}｜${event.text}`,
+      ['timeline', event.year],
+    ))
+    const dailyLifeEvidence = scenario.dailyLife
+      .filter((section) => preferredDailyLifeKeys.includes(section.key))
+      .slice(0, 3)
+      .map((section) => buildSignificanceEvidenceEntry(
+        inquiry,
+        scenario,
+        'daily-life',
+        `daily:${section.key}`,
+        `${section.label}：${section.title}`,
+        section.text,
+        [section.label, section.key],
+      ))
+    const sceneBeatEvidence = scenario.sceneBeats.slice(0, 3).map((beat, index) => buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'scene-beat',
+      `scene:${index}`,
+      beat.title,
+      `${beat.timeLabel}｜${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+      [...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+    ))
+    const decisionContext = buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'decision-context',
+      'decision:context',
+      scenario.decision.prompt,
+      scenario.decision.context,
+      ['decision context'],
+    )
+    const decisionOptions = scenario.decision.options.slice(0, 3).map((option) => buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'decision-option',
+      `option:${option.id}`,
+      option.label,
+      `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`,
+      ['decision option', option.stance],
+    ))
+    const sourceEvidence = scenario.sources.slice(0, 3).map((source, index) => buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'source',
+      `source:${index}`,
+      source.title,
+      `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}｜史料追问：${source.sourceQuestion}`,
+      [sourceTypeLabels[source.sourceType], ...source.evidenceTags],
+    ))
+    const realHistoryEvidence = buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'real-history',
+      'real-history',
+      '真实历史走向',
+      scenario.realHistory,
+      ['realHistory'],
+    )
+    const interpretationEvidence = buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'interpretation-note',
+      'interpretation-note',
+      'interpretation note / 解释提示',
+      scenario.interpretationNote,
+      ['interpretationNote'],
+    )
+    const sourceUseEvidence = buildSignificanceEvidenceEntry(
+      inquiry,
+      scenario,
+      'source-evidence-use',
+      'source-evidence-use',
+      'source evidence use / 来源使用边界',
+      scenario.sourceEvidenceUse,
+      ['sourceEvidenceUse'],
+    )
+
+    return [
+      identityEvidence,
+      ...timelineEvidence,
+      ...dailyLifeEvidence,
+      ...sceneBeatEvidence,
+      decisionContext,
+      ...decisionOptions,
+      ...sourceEvidence,
+      realHistoryEvidence,
+      interpretationEvidence,
+      sourceUseEvidence,
+    ]
+  })
+}
+
+function getSignificanceInquiryEvidenceMap() {
+  return Object.fromEntries(
+    significanceInquiryDefinitions.map((inquiry) => [inquiry.id, buildSignificanceEvidenceForInquiry(inquiry)]),
+  ) as Record<string, SignificanceEvidence[]>
+}
+
+function formatSignificanceBrief(inquiry: SignificanceInquiry, evidence: SignificanceEvidence[], draft: SignificanceDraft) {
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is SignificanceEvidence => Boolean(entry))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : evidence.slice(0, 10)
+
+  return [
+    'TimeAtlas Significance & Memory Lab / 历史意义与记忆工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `探究：${inquiry.title}｜${inquiry.subtitle}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `记忆框架：${inquiry.memoryFrame}`,
+    '',
+    '一、Significance criteria ladder / 意义标准梯',
+    ...significanceCriteriaLadder.map((step, index) => `${index + 1}. ${step.title}：${step.prompt}`),
+    '',
+    '二、已选证据',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.scenario.title}｜${significanceEvidenceLabelText[entry.label]}｜${entry.title}
+   ${entry.text}
+   意义用途：${entry.significanceHint}
+   标签：${entry.tags.join('、') || '无'}`),
+    '',
+    '三、历史意义与记忆草稿',
+    `事件/过程：${draft.eventOrProcess.trim() || '尚未填写'}`,
+    `对谁重要：${draft.whoItMatteredTo.trim() || '尚未填写'}`,
+    `当时意义：${draft.contemporarySignificance.trim() || '尚未填写'}`,
+    `长期意义：${draft.longTermSignificance.trim() || '尚未填写'}`,
+    `影响尺度：${draft.scaleOfImpact.trim() || '尚未填写'}`,
+    `争议意义：${draft.contestedMeaning.trim() || '尚未填写'}`,
+    `来源限制：${draft.sourceLimits.trim() || '尚未填写'}`,
+    `意义主张：${draft.significanceClaim.trim() || '尚未填写'}`,
+    `信心等级：${significanceConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatSignificanceTaskSheet(inquiry: SignificanceInquiry) {
+  const evidence = buildSignificanceEvidenceForInquiry(inquiry).slice(0, 10)
+
+  return [
+    `TimeAtlas Significance & Memory Lab Assignment：${inquiry.title}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `建议场景：${inquiry.scenarioIds.map((id) => getScenarioById(id)?.title).filter(Boolean).join(' × ')}`,
+    '',
+    '任务：用事件/过程、对谁重要、当时意义、长期意义、影响尺度、争议意义、来源限制和意义主张组织一份 Significance Brief。',
+    '',
+    '意义标准梯：',
+    ...significanceCriteriaLadder.map((step) => `- ${step.title}：${step.prompt}`),
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${significanceEvidenceLabelText[entry.label]}｜${entry.title}：${entry.text}`),
+    '',
+    `交付物：一份历史意义与记忆简报，必须点名至少 4 条证据，并说明一个 archive/memory limitation。`,
+  ].join('\n')
+}
 
 function inferContextDailyLifeKeys(inquiry: ContextInquiry): DailyLifeKey[] {
   if (inquiry.id.includes('knowledge')) {
@@ -2501,6 +2998,7 @@ function formatLearningArchive(
   periodizationDraftState: PeriodizationDraftState,
   perspectivesDraftState: PerspectivesDraftState,
   contextDraftState: ContextDraftState,
+  significanceDraftState: SignificanceDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
@@ -2508,10 +3006,12 @@ function formatLearningArchive(
   const activePeriodizationDrafts = getActivePeriodizationDrafts(periodizationDraftState)
   const activePerspectivesDrafts = getActivePerspectivesDrafts(perspectivesDraftState)
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
+  const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
+  const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -2527,6 +3027,7 @@ function formatLearningArchive(
     `- 历史分期草稿：${activePeriodizationDrafts.length}`,
     `- 多视角与能动性草稿：${activePerspectivesDrafts.length}`,
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
+    `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
     '',
   ]
 
@@ -2691,6 +3192,34 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activeSignificanceDrafts.length > 0) {
+    lines.push('历史意义与记忆工作台：')
+    activeSignificanceDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = significanceInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+      const evidence = significanceEvidenceByInquiry[inquiryId] ?? []
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is SignificanceEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${significanceEvidenceLabelText[entry.label]}｜${entry.title}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    事件/过程：${draft.eventOrProcess.trim() || '尚未填写'}`,
+        `    对谁重要：${draft.whoItMatteredTo.trim() || '尚未填写'}`,
+        `    当时意义：${draft.contemporarySignificance.trim() || '尚未填写'}`,
+        `    长期意义：${draft.longTermSignificance.trim() || '尚未填写'}`,
+        `    影响尺度：${draft.scaleOfImpact.trim() || '尚未填写'}`,
+        `    争议意义：${draft.contestedMeaning.trim() || '尚未填写'}`,
+        `    来源限制：${draft.sourceLimits.trim() || '尚未填写'}`,
+        `    意义主张：${draft.significanceClaim.trim() || '尚未填写'}`,
+        `    信心等级：${significanceConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCorroborationDrafts.length > 0) {
     const sourceAtlasEntries = buildSourceAtlasEntries()
 
@@ -2716,7 +3245,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 14) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿或完成记录。')
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -2962,6 +3491,7 @@ function buildTaskLibraryTasks({
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
+  onLoadSignificanceInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -2970,6 +3500,7 @@ function buildTaskLibraryTasks({
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
+  onLoadSignificanceInquiry: (inquiryId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -3213,6 +3744,37 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  significanceInquiryDefinitions.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Significance & Memory Lab', '历史意义', '记忆', 'significance', ...inquiry.tags]
+    const task: LibraryTask = {
+      id: `significance:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || '跨场景历史意义探究',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: '历史意义与记忆',
+      source: 'significance',
+      sourceLabel: 'Significance Lab',
+      durationMinutes,
+      durationBand,
+      summary: inquiry.drivingQuestion,
+      deliverable: 'Significance Brief：事件/过程、对谁重要、当时意义、长期意义、影响尺度、争议意义、来源限制与意义主张',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Significance Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadSignificanceInquiry(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      formatSheet: () => formatSignificanceTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.focus, inquiry.memoryFrame, ...tags].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   compareLenses.forEach((lens) => {
     const durationMinutes = 35
     const durationBand = getDurationBand(durationMinutes)
@@ -3314,6 +3876,8 @@ function App() {
   const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
   const [selectedPerspectivesInquiryId, setSelectedPerspectivesInquiryId] = useState(perspectivesInquiryDefinitions[0]?.id ?? '')
   const [contextDraftState, setContextDraftState] = useState<ContextDraftState>(loadContextDraftState)
+  const [significanceDraftState, setSignificanceDraftState] = useState<SignificanceDraftState>(loadSignificanceDraftState)
+  const [selectedSignificanceInquiryId, setSelectedSignificanceInquiryId] = useState(significanceInquiryDefinitions[0]?.id ?? '')
   const [selectedContextInquiryId, setSelectedContextInquiryId] = useState(contextInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
@@ -3345,6 +3909,7 @@ function App() {
   const periodizationEvidenceByInquiry = useMemo(getPeriodizationInquiryEvidenceMap, [])
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
+  const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -3456,6 +4021,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [contextDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistSignificanceDraftState(significanceDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [significanceDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -3624,6 +4201,15 @@ function App() {
     scrollToSection(sectionIds.contextLab, prefersReducedMotion)
   }
 
+  function loadSignificanceInquiry(inquiryId: string) {
+    if (!significanceInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
+      return
+    }
+
+    setSelectedSignificanceInquiryId(inquiryId)
+    scrollToSection(sectionIds.significanceLab, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -3687,6 +4273,14 @@ function App() {
         onUpdateDraftState={setContextDraftState}
         onOpenScenario={selectScenario}
       />
+      <SignificanceMemoryLabPanel
+        selectedInquiryId={selectedSignificanceInquiryId}
+        evidenceByInquiry={significanceEvidenceByInquiry}
+        draftState={significanceDraftState}
+        onSelectInquiry={setSelectedSignificanceInquiryId}
+        onUpdateDraftState={setSignificanceDraftState}
+        onOpenScenario={selectScenario}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
@@ -3697,6 +4291,7 @@ function App() {
         periodizationDraftState={periodizationDraftState}
         perspectivesDraftState={perspectivesDraftState}
         contextDraftState={contextDraftState}
+        significanceDraftState={significanceDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
@@ -3706,6 +4301,7 @@ function App() {
         onLoadPeriodizationInquiry={loadPeriodizationInquiry}
         onLoadPerspectivesInquiry={loadPerspectivesInquiry}
         onLoadContextInquiry={loadContextInquiry}
+        onLoadSignificanceInquiry={loadSignificanceInquiry}
       />
       <GuidedSessionPanel
         selectedScenarioId={selectedScenario.id}
@@ -6480,6 +7076,313 @@ function ContextScaleLabPanel({
   )
 }
 
+
+function SignificanceMemoryLabPanel({
+  selectedInquiryId,
+  evidenceByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedInquiryId: string
+  evidenceByInquiry: Record<string, SignificanceEvidence[]>
+  draftState: SignificanceDraftState
+  onSelectInquiry: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<SignificanceDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedInquiry = significanceInquiryDefinitions.find((inquiry) => inquiry.id === selectedInquiryId) ?? significanceInquiryDefinitions[0]
+
+  if (!selectedInquiry) {
+    return null
+  }
+
+  const evidence = evidenceByInquiry[selectedInquiry.id] ?? []
+  const currentDraft = draftState[selectedInquiry.id] ?? getEmptySignificanceDraft()
+  const selectedEvidence = currentDraft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is SignificanceEvidence => Boolean(entry))
+  const scenarioStops = selectedInquiry.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+  const ladderCounts = significanceCriteriaLadder.map((step) => ({
+    ...step,
+    count: evidence.filter((entry) => entry.label === step.key).length,
+    selectedCount: selectedEvidence.filter((entry) => entry.label === step.key).length,
+  }))
+
+  function updateDraft(updates: Partial<Omit<SignificanceDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedInquiry.id]: {
+        ...(currentState[selectedInquiry.id] ?? getEmptySignificanceDraft()),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextSelectedEvidenceIds = currentDraft.selectedEvidenceIds.includes(evidenceId)
+      ? currentDraft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.selectedEvidenceIds, evidenceId]
+
+    setCopyStatus('idle')
+    updateDraft({ selectedEvidenceIds: nextSelectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copySignificanceBrief() {
+    try {
+      await copyTextToClipboard(formatSignificanceBrief(selectedInquiry, evidence, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id={sectionIds.significanceLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="significance-lab-title">
+      <div className="rounded-[2rem] border border-rose-200/15 bg-rose-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-rose-100">
+          <Landmark size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">significance & memory lab 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="significance-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Significance & Memory Lab / 历史意义与记忆工作台 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有场景字段生成 6 个历史意义探究，沿 immediate-impact、long-term-change、scale-reach、contested-meaning、memory-archive 与 ordinary-life 标准梯组织证据，不改变 scenario schema。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActiveSignificanceDrafts(draftState).length} 个意义草稿 · 当前已选 {selectedEvidence.length}/{evidence.length} 条证据
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <aside className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {significanceInquiryDefinitions.map((inquiry) => {
+                const isSelected = inquiry.id === selectedInquiry.id
+                const inquiryDraft = draftState[inquiry.id]
+                const status = inquiryDraft && hasSignificanceDraftActivity(inquiryDraft) ? 'draft' : 'not-started'
+
+                return (
+                  <button
+                    key={inquiry.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectInquiry(inquiry.id)
+                      setCopyStatus('idle')
+                    }}
+                    className={`rounded-3xl border p-4 text-left transition ${
+                      isSelected
+                        ? 'border-rose-200/45 bg-rose-100/[0.09]'
+                        : 'border-white/10 bg-black/20 hover:border-rose-100/25 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span>{inquiry.subtitle}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${status === 'draft' ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100' : 'border-white/10 bg-white/[0.035] text-stone-500'}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {inquiry.tags.slice(0, 3).map((tag) => <Tag key={`${inquiry.id}-${tag}`}>{tag}</Tag>)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Significance criteria ladder / 意义标准梯</h3>
+              <div className="mt-3 space-y-3">
+                {ladderCounts.map((step, index) => (
+                  <div key={step.key} className="rounded-2xl border border-rose-200/10 bg-rose-100/[0.035] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium text-rose-100">{index + 1}. {step.title}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-stone-400">{step.selectedCount}/{step.count}</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{step.prompt}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">场景路径</h3>
+              <div className="mt-3 space-y-2">
+                {scenarioStops.map((scenario, index) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-left text-sm transition hover:border-rose-100/25"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-stone-950" style={{ backgroundColor: scenario.accent }}>{index + 1}</span>
+                    <span>
+                      <span className="block font-medium text-stone-100">{scenario.title}</span>
+                      <span className="block text-xs text-stone-500">{scenario.year} · {scenario.location} · {scenario.region}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-rose-200/15 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-rose-100/70">selected inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedInquiry.focus}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copySignificanceBrief()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '意义简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出 Significance Brief'}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
+                <p className="rounded-2xl border border-rose-200/15 bg-rose-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  {selectedInquiry.drivingQuestion}
+                </p>
+                <p className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  <span className="font-semibold text-amber-100">记忆框架：</span>{selectedInquiry.memoryFrame}
+                </p>
+              </div>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <section className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4" aria-labelledby="significance-evidence-title">
+                <h3 id="significance-evidence-title" className="font-semibold text-stone-50">Selectable evidence / 可选意义证据</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">证据只抽取 identity/summary、前几条 timeline、selected dailyLife、sceneBeats、decision、sources、realHistory、interpretationNote 与 sourceEvidenceUse。</p>
+                <div className="mt-4 max-h-[760px] space-y-3 overflow-y-auto pr-1">
+                  {evidence.map((entry) => {
+                    const isSelected = currentDraft.selectedEvidenceIds.includes(entry.id)
+
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 transition ${isSelected ? 'border-amber-200/35 bg-amber-100/[0.07]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvidence(entry.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="rounded-full border border-rose-200/20 bg-rose-100/[0.06] px-2 py-0.5 text-rose-100">{significanceEvidenceLabelText[entry.label]}</span>
+                              <span>{entry.scenario.title}</span>
+                            </div>
+                            <h4 className="mt-2 font-semibold text-stone-100">{entry.title}</h4>
+                            <p className="mt-2 text-sm leading-6 text-stone-400">{entry.text}</p>
+                            <p className="mt-3 rounded-2xl border border-rose-200/10 bg-rose-100/[0.035] p-3 text-xs leading-5 text-stone-400">
+                              <span className="font-semibold text-rose-100">意义用途：</span>{entry.significanceHint}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {entry.tags.slice(0, 5).map((tag) => <Tag key={`${entry.id}-${tag}`}>{tag}</Tag>)}
+                              <button
+                                type="button"
+                                onClick={() => onOpenScenario(entry.scenario.id, entry.sourceType === 'source' || entry.sourceType === 'source-evidence-use' || entry.sourceType === 'interpretation-note' ? sectionIds.sourceReader : sectionIds.sceneReader)}
+                                className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-rose-200/30 hover:text-rose-100"
+                              >
+                                打开相关场景
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4" aria-labelledby="significance-draft-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 id="significance-draft-title" className="font-semibold text-stone-50">Significance draft / 历史意义草稿</h3>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearDraft}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-rose-200/30 hover:text-rose-100"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['eventOrProcess', 'event or process / 事件或过程', '你要判断其意义的事件、过程或经验是什么？'],
+                    ['whoItMatteredTo', 'who it mattered to / 对谁重要', '它对哪些普通人、群体、机构或后世读者重要？'],
+                    ['contemporarySignificance', 'contemporary significance / 当时意义', '在当时，它如何改变选择、安全、生计、知识或规则？'],
+                    ['longTermSignificance', 'long-term significance / 长期意义', '后来的制度、商品链、知识传播、记忆或身份如何被改变？'],
+                    ['scaleOfImpact', 'scale of impact / 影响尺度', '影响停留在个人/社区，还是连接区域、帝国、全球或跨时代？'],
+                    ['contestedMeaning', 'contested meaning / 争议意义', '不同群体会怎样解释、纪念、反驳或淡化它？'],
+                    ['sourceLimits', 'source limits / 来源限制', '哪些来源保存了它？哪些沉默会改变重要性判断？'],
+                    ['significanceClaim', 'significance claim / 意义主张', '用一句可争辩的历史判断总结它为什么重要。'],
+                  ] as [keyof Omit<SignificanceDraft, 'confidence' | 'selectedEvidenceIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea
+                        value={currentDraft[field]}
+                        onChange={(event) => updateDraft({ [field]: event.target.value })}
+                        rows={field === 'significanceClaim' || field === 'sourceLimits' || field === 'longTermSignificance' ? 3 : 2}
+                        placeholder={placeholder}
+                        className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-rose-200/50"
+                      />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select
+                      value={currentDraft.confidence}
+                      onChange={(event) => updateDraft({ confidence: event.target.value as SignificanceConfidence })}
+                      className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-rose-200/50"
+                    >
+                      {(Object.entries(significanceConfidenceLabels) as [SignificanceConfidence, string][]).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : 'Significance Brief 会优先导出已勾选证据；若未勾选，则导出前 10 条证据。'}
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -6490,6 +7393,7 @@ function PortfolioPanel({
   periodizationDraftState,
   perspectivesDraftState,
   contextDraftState,
+  significanceDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -6500,6 +7404,7 @@ function PortfolioPanel({
   periodizationDraftState: PeriodizationDraftState
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
+  significanceDraftState: SignificanceDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -6509,6 +7414,7 @@ function PortfolioPanel({
   const periodizationDraftCount = getActivePeriodizationDrafts(periodizationDraftState).length
   const perspectivesDraftCount = getActivePerspectivesDrafts(perspectivesDraftState).length
   const contextDraftCount = getActiveContextDrafts(contextDraftState).length
+  const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -6522,7 +7428,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -6566,6 +7472,7 @@ function PortfolioPanel({
               { label: '分期草稿', value: periodizationDraftCount },
               { label: '多视角草稿', value: perspectivesDraftCount },
               { label: '情境化草稿', value: contextDraftCount },
+              { label: '意义草稿', value: significanceDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -6616,6 +7523,7 @@ function TaskLibraryPanel({
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
+  onLoadSignificanceInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -6624,6 +7532,7 @@ function TaskLibraryPanel({
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
+  onLoadSignificanceInquiry: (inquiryId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -6633,8 +7542,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -6751,6 +7660,7 @@ function TaskLibraryPanel({
               <option value="periodization">Periodization Lab</option>
               <option value="perspectives">Perspectives Lab</option>
               <option value="contextualization">Context & Scale Lab</option>
+              <option value="significance">Significance Lab</option>
             </select>
           </label>
         </div>
@@ -6792,7 +7702,7 @@ function TaskLibraryPanel({
                     onClick={task.onPrimaryAction}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
                   >
-                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' || task.source === 'contextualization' ? <Scale size={16} /> : <ArrowRight size={16} />}
+                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' || task.source === 'contextualization' || task.source === 'significance' ? <Scale size={16} /> : <ArrowRight size={16} />}
                     {task.primaryActionLabel}
                   </button>
                 ) : null}
