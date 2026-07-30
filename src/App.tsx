@@ -50,6 +50,7 @@ const missionWorkStorageKey = 'timeatlas:mission-work'
 const argumentStudioStorageKey = 'timeatlas:argument-studio-drafts'
 const corroborationStudioStorageKey = 'timeatlas:corroboration-studio-drafts'
 const causationLabStorageKey = 'timeatlas:causation-lab-drafts'
+const periodizationLabStorageKey = 'timeatlas:periodization-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -63,6 +64,7 @@ const sectionIds = {
   argumentStudio: 'argument-studio',
   sourceReader: 'source-reader',
   causationLab: 'causation-lab',
+  periodizationLab: 'periodization-lab',
   compareLab: 'compare-lab',
 } as const
 
@@ -234,6 +236,48 @@ type CausationEvidence = {
   categories: CauseCategory[]
 }
 
+type PeriodizationConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type PeriodizationDraft = {
+  periodStart: string
+  periodEnd: string
+  continuities: string
+  changes: string
+  turningPoint: string
+  beforeAfterEvidence: string
+  periodLabel: string
+  alternativePeriodization: string
+  missingEvidence: string
+  confidence: PeriodizationConfidence
+  selectedEvidenceIds: string[]
+  updatedAt?: string
+}
+
+type PeriodizationDraftState = Record<string, PeriodizationDraft>
+
+type PeriodizationInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  focus: string
+  tags: string[]
+  suggestedTurningPoint: string
+}
+
+type PeriodizationEvidence = {
+  id: string
+  inquiryId: string
+  scenario: Scenario
+  year: number
+  sourceType: 'scenario-year' | 'timeline' | 'scene-beat' | 'decision-context' | 'decision-option' | 'real-history' | 'source'
+  label: string
+  title: string
+  text: string
+  evidenceHint: string
+}
+
 type WorkspaceEntry = {
   notes: string
   checkedEvidence: string[]
@@ -260,7 +304,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 
@@ -343,6 +387,7 @@ const corroborationConfidenceLabels: Record<CorroborationConfidence, string> = {
 }
 
 const causationConfidenceLabels: Record<CausationConfidence, string> = corroborationConfidenceLabels
+const periodizationConfidenceLabels: Record<PeriodizationConfidence, string> = corroborationConfidenceLabels
 
 const causeCategoryLabels: Record<CauseCategory, string> = {
   economic: 'economic / 经济',
@@ -413,6 +458,70 @@ const causationInquiryDefinitions: CausationInquiry[] = [
     focus: '把“证据能说明的原因”和“沉默导致的风险”分开，避免把幸存档案误当完整历史。',
     tags: ['档案沉默', '来源限制', '因果判断', '缺席声音'],
     suggestedCategories: ['source-limitation', 'political-institutional', 'social-labor', 'cultural-knowledge'],
+  },
+]
+
+
+const periodizationInquiryDefinitions: PeriodizationInquiry[] = [
+  {
+    id: 'commodity-chains-labor-time-periods',
+    title: '商品链与劳动时间分期',
+    subtitle: 'Commodity chains / labor time',
+    drivingQuestion: '从糖业强制劳动到棉纺工厂时间，劳动纪律的连续性与转折应如何分期？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador'],
+    focus: '比较强制、工资、机器节奏、帝国贸易和港口中介，判断“商品帝国”中的劳动控制何时发生关键变化。',
+    tags: ['商品链', '劳动时间', '工厂纪律', '帝国贸易'],
+    suggestedTurningPoint: '工业工厂时间与全球棉花链把劳动控制从种植园强制扩展为机器节奏、工资纪律和殖民市场压力。',
+  },
+  {
+    id: 'knowledge-cities-media-periods',
+    title: '知识城市与媒介变化分期',
+    subtitle: 'Knowledge cities / media',
+    drivingQuestion: '纸张、手稿、学校、商业出版与书信档案如何改变知识传播的阶段？',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice'],
+    focus: '用城市、媒介、师承、市场和档案保存来划分知识流动的连续性与转折。',
+    tags: ['知识城市', '媒介', '手稿', '教育', '档案'],
+    suggestedTurningPoint: '从手抄与师承的高门槛传播，转向更依赖纸张市场、考试制度和商业书信的复合知识网络。',
+  },
+  {
+    id: 'port-credit-monsoon-world-periods',
+    title: '港口信用与季风世界分期',
+    subtitle: 'Port credit / monsoon world',
+    drivingQuestion: '季风航线、港口名声、合约与通译怎样把印度洋世界划分为不同交易阶段？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    focus: '按季节性、信用文书、港口中介、国家监管和殖民工业连接来判断转折点。',
+    tags: ['港口信用', '季风', '印度洋', '中介', '合约'],
+    suggestedTurningPoint: '信用文书与港口中介的连续性被更强的帝国监管和工业商品链重新组织。',
+  },
+  {
+    id: 'market-rules-long-change-periods',
+    title: '市场规则的长时段变化',
+    subtitle: 'Market rules / long change',
+    drivingQuestion: '从城市市场、行会、贡赋到帝国通商规则，市场规则的长期变化应怎样划段？',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'malacca-monsoon-port-broker'],
+    focus: '把税、身份、行会、国家权力、信用和港口规则放到同一时间轴，避免把市场想成无规则真空。',
+    tags: ['市场规则', '制度', '城市', '税', '信用'],
+    suggestedTurningPoint: '市场从城市与行会/国家规则并存，逐渐转向更远距离、跨帝国、由信用和通商制度共同塑形的规则环境。',
+  },
+  {
+    id: 'crisis-news-ordinary-safety-periods',
+    title: '危机新闻与普通安全分期',
+    subtitle: 'Crisis news / ordinary safety',
+    drivingQuestion: '当战争、起义、征服或价格危机抵达普通人，安全感的连续性与转折在哪里？',
+    scenarioIds: ['song-bianjing-apprentice', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker', 'wwii-london-civilian', 'colonial-bombay-mill-worker'],
+    focus: '比较消息速度、国家动员、社区互助、劳动风险和普通人的撤退/坚持选择。',
+    tags: ['危机消息', '普通安全', '战争', '起义', '社区'],
+    suggestedTurningPoint: '危机从局部传闻和市场震荡，转向更密集的国家动员、城市防护和全球新闻/工业风险。',
+  },
+  {
+    id: 'archive-visibility-changes-periods',
+    title: '档案可见性变化分期',
+    subtitle: 'Archive visibility changes',
+    drivingQuestion: '哪些人的声音在不同时期更容易进入档案？史料可见性的转折怎样影响历史分期？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker', 'wwii-london-civilian'],
+    focus: '追踪商人书信、考古/殖民记录、国家宣传与幸存档案，看见分期判断中的沉默。',
+    tags: ['档案可见性', '沉默', '来源限制', '普通人声音'],
+    suggestedTurningPoint: '从偶然幸存的商贸/考古材料，到更密集的国家、媒体和机构记录；但劳动者与被压迫者仍常被间接记录。',
   },
 ]
 
@@ -639,6 +748,52 @@ function parseCausationDraftState(rawState: string | null) {
   }
 }
 
+function parsePeriodizationDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as PeriodizationDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<PeriodizationDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in periodizationConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            periodStart: typeof draft.periodStart === 'string' ? draft.periodStart : '',
+            periodEnd: typeof draft.periodEnd === 'string' ? draft.periodEnd : '',
+            continuities: typeof draft.continuities === 'string' ? draft.continuities : '',
+            changes: typeof draft.changes === 'string' ? draft.changes : '',
+            turningPoint: typeof draft.turningPoint === 'string' ? draft.turningPoint : '',
+            beforeAfterEvidence: typeof draft.beforeAfterEvidence === 'string' ? draft.beforeAfterEvidence : '',
+            periodLabel: typeof draft.periodLabel === 'string' ? draft.periodLabel : '',
+            alternativePeriodization: typeof draft.alternativePeriodization === 'string' ? draft.alternativePeriodization : '',
+            missingEvidence: typeof draft.missingEvidence === 'string' ? draft.missingEvidence : '',
+            confidence,
+            selectedEvidenceIds,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies PeriodizationDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as PeriodizationDraftState
+  }
+}
+
 function parseGuidedSessionProgressState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -793,6 +948,30 @@ function persistCausationDraftState(state: CausationDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(causationLabStorageKey, serializedState)
+}
+
+function loadPeriodizationDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parsePeriodizationDraftState(localStorage?.getItem(periodizationLabStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parsePeriodizationDraftState(sessionStorage?.getItem(periodizationLabStorageKey) ?? null)
+}
+
+function persistPeriodizationDraftState(state: PeriodizationDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(periodizationLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(periodizationLabStorageKey, serializedState)
 }
 
 function loadGuidedSessionProgressState() {
@@ -977,6 +1156,197 @@ function hasCorroborationDraftActivity(draft: CorroborationDraft) {
 
 function getActiveCorroborationDrafts(corroborationDraftState: CorroborationDraftState) {
   return Object.entries(corroborationDraftState).filter(([, draft]) => hasCorroborationDraftActivity(draft))
+}
+
+function getEmptyPeriodizationDraft(): PeriodizationDraft {
+  return {
+    periodStart: '',
+    periodEnd: '',
+    continuities: '',
+    changes: '',
+    turningPoint: '',
+    beforeAfterEvidence: '',
+    periodLabel: '',
+    alternativePeriodization: '',
+    missingEvidence: '',
+    confidence: 'uncertain',
+    selectedEvidenceIds: [],
+  }
+}
+
+function hasPeriodizationDraftActivity(draft: PeriodizationDraft) {
+  return Boolean(
+    draft.periodStart.trim()
+      || draft.periodEnd.trim()
+      || draft.continuities.trim()
+      || draft.changes.trim()
+      || draft.turningPoint.trim()
+      || draft.beforeAfterEvidence.trim()
+      || draft.periodLabel.trim()
+      || draft.alternativePeriodization.trim()
+      || draft.missingEvidence.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.selectedEvidenceIds.length,
+  )
+}
+
+function getActivePeriodizationDrafts(periodizationDraftState: PeriodizationDraftState) {
+  return Object.entries(periodizationDraftState).filter(([, draft]) => hasPeriodizationDraftActivity(draft))
+}
+
+function getTimelineYearValue(year: string, fallbackYear: number) {
+  const match = year.match(/-?\d+/)
+
+  return match ? Number(match[0]) : fallbackYear
+}
+
+function buildPeriodizationEvidenceForInquiry(inquiry: PeriodizationInquiry): PeriodizationEvidence[] {
+  const evidence = inquiry.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+
+    if (!scenario) {
+      return []
+    }
+
+    const scenarioAnchor: PeriodizationEvidence = {
+      id: `${inquiry.id}:${scenario.id}:scenario-year`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: scenario.year,
+      sourceType: 'scenario-year',
+      label: 'Scenario year',
+      title: `${scenario.year} · ${scenario.title}`,
+      text: `${scenario.summary}｜${scenario.atmosphere}`,
+      evidenceHint: '用作分期时间锚点：这一身份所在年份能代表什么连续性或变化？',
+    }
+    const timelineEvidence = scenario.timeline.map((event, index): PeriodizationEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:timeline:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: getTimelineYearValue(event.year, scenario.year),
+      sourceType: 'timeline',
+      label: 'Timeline',
+      title: event.title,
+      text: `${event.year}｜${event.text}`,
+      evidenceHint: '按年份排序，判断它是长期延续、加速变化还是候选转折点。',
+    }))
+    const sceneBeatEvidence = scenario.sceneBeats.slice(0, 2).map((beat, index): PeriodizationEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:scene:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: scenario.year,
+      sourceType: 'scene-beat',
+      label: 'Scene beat',
+      title: beat.title,
+      text: `${beat.timeLabel}｜${beat.historicalTension}｜${beat.evidenceHook}`,
+      evidenceHint: '把日常张力放入“转折前/后”的生活经验对照。',
+    }))
+    const decisionContext: PeriodizationEvidence = {
+      id: `${inquiry.id}:${scenario.id}:decision:context`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: scenario.year,
+      sourceType: 'decision-context',
+      label: 'Decision context',
+      title: scenario.decision.prompt,
+      text: scenario.decision.context,
+      evidenceHint: '检验当时人的选择边界，避免只用宏观年份划分。',
+    }
+    const decisionOptions = scenario.decision.options.slice(0, 2).map((option): PeriodizationEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:option:${option.id}`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: scenario.year,
+      sourceType: 'decision-option',
+      label: 'Decision option',
+      title: option.label,
+      text: `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`,
+      evidenceHint: '比较选择后果：转折点是否真的改变了行动空间？',
+    }))
+    const realHistoryEvidence: PeriodizationEvidence = {
+      id: `${inquiry.id}:${scenario.id}:real-history`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: scenario.year,
+      sourceType: 'real-history',
+      label: 'Real history',
+      title: '真实历史走向',
+      text: scenario.realHistory,
+      evidenceHint: '用后续历史检验分期标签是否过宽、过窄或遗漏反例。',
+    }
+    const sourceEvidence = scenario.sources.slice(0, 2).map((source, index): PeriodizationEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:source:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      year: scenario.year,
+      sourceType: 'source',
+      label: sourceTypeLabels[source.sourceType],
+      title: source.title,
+      text: `${source.excerpt}｜${source.perspective}｜${source.reliabilityNote}`,
+      evidenceHint: '检查来源可见性：这条材料更容易证明延续、变化，还是档案限制？',
+    }))
+
+    return [scenarioAnchor, ...timelineEvidence, ...sceneBeatEvidence, decisionContext, ...decisionOptions, realHistoryEvidence, ...sourceEvidence]
+  })
+
+  return evidence.sort((first, second) => first.year - second.year || first.scenario.title.localeCompare(second.scenario.title, 'zh-Hans-CN') || first.label.localeCompare(second.label))
+}
+
+function getPeriodizationInquiryEvidenceMap() {
+  return Object.fromEntries(
+    periodizationInquiryDefinitions.map((inquiry) => [inquiry.id, buildPeriodizationEvidenceForInquiry(inquiry)]),
+  ) as Record<string, PeriodizationEvidence[]>
+}
+
+function formatPeriodizationBrief(inquiry: PeriodizationInquiry, evidence: PeriodizationEvidence[], draft: PeriodizationDraft) {
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is PeriodizationEvidence => Boolean(entry))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : evidence.slice(0, 10)
+
+  return [
+    'TimeAtlas Continuity & Turning Points Lab / 历史连续性与分期工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `探究：${inquiry.title}｜${inquiry.subtitle}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `建议转折点：${inquiry.suggestedTurningPoint}`,
+    '',
+    '一、时间顺序证据',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.year}｜${entry.scenario.title}｜${entry.label}｜${entry.title}\n   ${entry.text}\n   分期用途：${entry.evidenceHint}`),
+    '',
+    '二、分期草稿',
+    `时期起点：${draft.periodStart.trim() || '尚未填写'}`,
+    `时期终点：${draft.periodEnd.trim() || '尚未填写'}`,
+    `连续性：${draft.continuities.trim() || '尚未填写'}`,
+    `变化：${draft.changes.trim() || '尚未填写'}`,
+    `转折点：${draft.turningPoint.trim() || '尚未填写'}`,
+    `前后证据：${draft.beforeAfterEvidence.trim() || '尚未填写'}`,
+    `分期标签：${draft.periodLabel.trim() || '尚未填写'}`,
+    `替代分期：${draft.alternativePeriodization.trim() || '尚未填写'}`,
+    `缺失证据：${draft.missingEvidence.trim() || '尚未填写'}`,
+    `信心等级：${periodizationConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatPeriodizationTaskSheet(inquiry: PeriodizationInquiry) {
+  const evidence = buildPeriodizationEvidenceForInquiry(inquiry).slice(0, 10)
+
+  return [
+    `TimeAtlas Periodization Lab Assignment：${inquiry.title}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `分析焦点：${inquiry.focus}`,
+    `建议场景：${inquiry.scenarioIds.map((id) => getScenarioById(id)?.title).filter(Boolean).join(' × ')}`,
+    '',
+    '任务：按年份整理证据，提出一个时期起点、终点和转折点；同时说明连续性、变化、前后证据、替代分期与缺失材料。',
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.year}｜${entry.scenario.title}｜${entry.label}｜${entry.title}：${entry.text}`),
+    '',
+    `建议转折点：${inquiry.suggestedTurningPoint}`,
+    `交付物：一份分期简报，必须点名至少 4 条证据，并说明信心等级与替代分期。`,
+  ].join('\n')
 }
 
 function getEmptyCausationDraft(): CausationDraft {
@@ -1234,11 +1604,14 @@ function formatLearningArchive(
   workspaceState: WorkspaceState,
   corroborationDraftState: CorroborationDraftState,
   causationDraftState: CausationDraftState,
+  periodizationDraftState: PeriodizationDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
+  const activePeriodizationDrafts = getActivePeriodizationDrafts(periodizationDraftState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
+  const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -1251,6 +1624,7 @@ function formatLearningArchive(
     `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
     `- 史料互证草稿：${activeCorroborationDrafts.length}`,
     `- 因果变化草稿：${activeCausationDrafts.length}`,
+    `- 历史分期草稿：${activePeriodizationDrafts.length}`,
     '',
   ]
 
@@ -1331,6 +1705,35 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activePeriodizationDrafts.length > 0) {
+    lines.push('历史连续性与分期工作台：')
+    activePeriodizationDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = periodizationInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+      const evidence = periodizationEvidenceByInquiry[inquiryId] ?? []
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is PeriodizationEvidence => Boolean(entry))
+        .map((entry) => `${entry.year}｜${entry.scenario.title}｜${entry.label}｜${entry.title}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    时期起点：${draft.periodStart.trim() || '尚未填写'}`,
+        `    时期终点：${draft.periodEnd.trim() || '尚未填写'}`,
+        `    连续性：${draft.continuities.trim() || '尚未填写'}`,
+        `    变化：${draft.changes.trim() || '尚未填写'}`,
+        `    转折点：${draft.turningPoint.trim() || '尚未填写'}`,
+        `    前后证据：${draft.beforeAfterEvidence.trim() || '尚未填写'}`,
+        `    分期标签：${draft.periodLabel.trim() || '尚未填写'}`,
+        `    替代分期：${draft.alternativePeriodization.trim() || '尚未填写'}`,
+        `    缺失证据：${draft.missingEvidence.trim() || '尚未填写'}`,
+        `    信心等级：${periodizationConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCorroborationDrafts.length > 0) {
     const sourceAtlasEntries = buildSourceAtlasEntries()
 
@@ -1356,7 +1759,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 13) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿或完成记录。')
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、分期草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -1599,11 +2002,13 @@ function buildTaskLibraryTasks({
   onLoadCompare,
   onLoadCompareLens,
   onLoadCausationInquiry,
+  onLoadPeriodizationInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
   onLoadCausationInquiry: (inquiryId: string) => void
+  onLoadPeriodizationInquiry: (inquiryId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -1754,6 +2159,37 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  periodizationInquiryDefinitions.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Periodization Lab', '历史分期', '连续性与转折', ...inquiry.tags]
+    const task: LibraryTask = {
+      id: `periodization:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || '跨场景分期探究',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: '历史连续性与分期',
+      source: 'periodization',
+      sourceLabel: 'Periodization Lab',
+      durationMinutes,
+      durationBand,
+      summary: inquiry.drivingQuestion,
+      deliverable: '分期简报：时期起止、连续性、变化、转折点、前后证据、分期标签、替代分期与缺失证据',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Periodization Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadPeriodizationInquiry(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      formatSheet: () => formatPeriodizationTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.focus, inquiry.suggestedTurningPoint, ...tags].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   compareLenses.forEach((lens) => {
     const durationMinutes = 35
     const durationBand = getDurationBand(durationMinutes)
@@ -1850,6 +2286,8 @@ function App() {
   const [corroborationDraftState, setCorroborationDraftState] = useState<CorroborationDraftState>(loadCorroborationDraftState)
   const [causationDraftState, setCausationDraftState] = useState<CausationDraftState>(loadCausationDraftState)
   const [selectedCausationInquiryId, setSelectedCausationInquiryId] = useState(causationInquiryDefinitions[0]?.id ?? '')
+  const [periodizationDraftState, setPeriodizationDraftState] = useState<PeriodizationDraftState>(loadPeriodizationDraftState)
+  const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
@@ -1877,6 +2315,7 @@ function App() {
   )
   const selectedLens = useMemo(() => getCompareLensByKey(selectedLensKey), [selectedLensKey])
   const causationEvidenceByInquiry = useMemo(getCausationInquiryEvidenceMap, [])
+  const periodizationEvidenceByInquiry = useMemo(getPeriodizationInquiryEvidenceMap, [])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -1952,6 +2391,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [causationDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistPeriodizationDraftState(periodizationDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [periodizationDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2093,6 +2544,15 @@ function App() {
     scrollToSection(sectionIds.causationLab, prefersReducedMotion)
   }
 
+  function loadPeriodizationInquiry(inquiryId: string) {
+    if (!periodizationInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
+      return
+    }
+
+    setSelectedPeriodizationInquiryId(inquiryId)
+    scrollToSection(sectionIds.periodizationLab, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -2132,6 +2592,14 @@ function App() {
         onUpdateDraftState={setCausationDraftState}
         onOpenScenario={selectScenario}
       />
+      <PeriodizationLabPanel
+        selectedInquiryId={selectedPeriodizationInquiryId}
+        evidenceByInquiry={periodizationEvidenceByInquiry}
+        draftState={periodizationDraftState}
+        onSelectInquiry={setSelectedPeriodizationInquiryId}
+        onUpdateDraftState={setPeriodizationDraftState}
+        onOpenScenario={selectScenario}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
@@ -2139,12 +2607,14 @@ function App() {
         workspaceStats={workspaceStats}
         corroborationDraftState={corroborationDraftState}
         causationDraftState={causationDraftState}
+        periodizationDraftState={periodizationDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
         onLoadCompare={loadCompareFromInquiryPath}
         onLoadCompareLens={loadCompareLens}
         onLoadCausationInquiry={loadCausationInquiry}
+        onLoadPeriodizationInquiry={loadPeriodizationInquiry}
       />
       <GuidedSessionPanel
         selectedScenarioId={selectedScenario.id}
@@ -4013,6 +4483,308 @@ function CausationLabPanel({
   )
 }
 
+
+function PeriodizationLabPanel({
+  selectedInquiryId,
+  evidenceByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedInquiryId: string
+  evidenceByInquiry: Record<string, PeriodizationEvidence[]>
+  draftState: PeriodizationDraftState
+  onSelectInquiry: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<PeriodizationDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedInquiry = periodizationInquiryDefinitions.find((inquiry) => inquiry.id === selectedInquiryId) ?? periodizationInquiryDefinitions[0]
+
+  if (!selectedInquiry) {
+    return null
+  }
+
+  const evidence = evidenceByInquiry[selectedInquiry.id] ?? []
+  const currentDraft = draftState[selectedInquiry.id] ?? getEmptyPeriodizationDraft()
+  const selectedEvidence = currentDraft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is PeriodizationEvidence => Boolean(entry))
+  const scenarioStops = selectedInquiry.scenarioIds
+    .map((id) => getScenarioById(id))
+    .filter((scenario): scenario is Scenario => Boolean(scenario))
+    .sort((first, second) => first.year - second.year)
+  const chronologyStops = scenarioStops.map((scenario) => ({
+    scenario,
+    evidenceCount: evidence.filter((entry) => entry.scenario.id === scenario.id).length,
+  }))
+
+  function updateDraft(updates: Partial<Omit<PeriodizationDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedInquiry.id]: {
+        ...(currentState[selectedInquiry.id] ?? getEmptyPeriodizationDraft()),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextSelectedEvidenceIds = currentDraft.selectedEvidenceIds.includes(evidenceId)
+      ? currentDraft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.selectedEvidenceIds, evidenceId]
+
+    setCopyStatus('idle')
+    updateDraft({ selectedEvidenceIds: nextSelectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyPeriodizationBrief() {
+    try {
+      await copyTextToClipboard(formatPeriodizationBrief(selectedInquiry, evidence, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id={sectionIds.periodizationLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="periodization-lab-title">
+      <div className="rounded-[2rem] border border-sky-200/15 bg-sky-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-sky-100">
+          <Clock3 size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">continuity & turning points lab 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="periodization-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Continuity & Turning Points Lab / 历史连续性与分期工作台 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有 scenarios 派生 6 个分期探究，把 scenario year、timeline、Scene Reader、决策语境、真实历史和来源放入按年份排序的 chronology rail，帮助提出时期起止、连续性、变化与转折点。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActivePeriodizationDrafts(draftState).length} 个分期草稿 · 当前已选 {selectedEvidence.length}/{evidence.length} 条证据
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <aside className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {periodizationInquiryDefinitions.map((inquiry) => {
+                const isSelected = inquiry.id === selectedInquiry.id
+                const inquiryDraft = draftState[inquiry.id]
+                const status = inquiryDraft && hasPeriodizationDraftActivity(inquiryDraft) ? 'draft' : 'not-started'
+
+                return (
+                  <button
+                    key={inquiry.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectInquiry(inquiry.id)
+                      setCopyStatus('idle')
+                    }}
+                    className={`rounded-3xl border p-4 text-left transition ${
+                      isSelected
+                        ? 'border-sky-200/45 bg-sky-100/[0.09]'
+                        : 'border-white/10 bg-black/20 hover:border-sky-100/25 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span>{inquiry.subtitle}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${status === 'draft' ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100' : 'border-white/10 bg-white/[0.035] text-stone-500'}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {inquiry.tags.slice(0, 3).map((tag) => <Tag key={`${inquiry.id}-${tag}`}>{tag}</Tag>)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Chronology rail / 时间顺序</h3>
+              <p className="mt-2 text-sm leading-6 text-stone-500">按 scenario.year 排序，先看分期跨度，再进入场景阅读证据。</p>
+              <div className="mt-4 space-y-3">
+                {chronologyStops.map(({ scenario, evidenceCount }, index) => (
+                  <div key={scenario.id} className="relative pl-7">
+                    {index !== chronologyStops.length - 1 ? <div className="absolute bottom-[-0.9rem] left-[0.32rem] top-4 w-px bg-white/10" /> : null}
+                    <div className="absolute left-0 top-1.5 h-3 w-3 rounded-full" style={{ backgroundColor: scenario.accent }} />
+                    <div className="text-sm text-sky-100">{scenario.year}</div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)}
+                      className="mt-1 text-left font-semibold text-stone-100 transition hover:text-sky-100"
+                    >
+                      {scenario.title}
+                    </button>
+                    <p className="mt-1 text-xs leading-5 text-stone-500">{scenario.location} · {evidenceCount} 条证据</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-sky-200/15 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-sky-100/70">selected inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedInquiry.focus}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyPeriodizationBrief()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                >
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '分期简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出分期简报'}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+                <p className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  {selectedInquiry.drivingQuestion}
+                </p>
+                <p className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                  <span className="font-semibold text-amber-100">候选转折：</span>{selectedInquiry.suggestedTurningPoint}
+                </p>
+              </div>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <section className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4" aria-labelledby="periodization-evidence-title">
+                <h3 id="periodization-evidence-title" className="font-semibold text-stone-50">Turning-point evidence / 转折点证据卡</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-500">勾选要纳入分期简报的证据；证据已按年份排序。</p>
+                <div className="mt-4 max-h-[760px] space-y-3 overflow-y-auto pr-1">
+                  {evidence.map((entry) => {
+                    const isSelected = currentDraft.selectedEvidenceIds.includes(entry.id)
+
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 transition ${isSelected ? 'border-amber-200/35 bg-amber-100/[0.07]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvidence(entry.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-2 py-0.5 text-sky-100">{entry.year}</span>
+                              <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-2 py-0.5 text-teal-100">{entry.label}</span>
+                              <span>{entry.scenario.title}</span>
+                            </div>
+                            <h4 className="mt-2 font-semibold text-stone-100">{entry.title}</h4>
+                            <p className="mt-2 text-sm leading-6 text-stone-400">{entry.text}</p>
+                            <p className="mt-3 rounded-2xl border border-sky-200/10 bg-sky-100/[0.04] p-3 text-xs leading-5 text-sky-100/80">
+                              {entry.evidenceHint}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onOpenScenario(entry.scenario.id, sectionIds.sceneReader)}
+                                className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-sky-200/30 hover:text-sky-100"
+                              >
+                                打开 Scene Reader
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenScenario(entry.scenario.id, sectionIds.sourceReader)}
+                                className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-teal-200/30 hover:text-teal-100"
+                              >
+                                打开 Source Reader
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4" aria-labelledby="periodization-draft-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 id="periodization-draft-title" className="font-semibold text-stone-50">Periodization draft / 分期草稿</h3>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearDraft}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-sky-200/30 hover:text-sky-100"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['periodStart', 'period start / 时期起点', '你的分期从哪一年或哪类变化开始？'],
+                    ['periodEnd', 'period end / 时期终点', '你的分期到哪一年或哪类变化结束？'],
+                    ['continuities', 'continuities / 连续性', '哪些制度、风险、劳动或媒介保持连续？'],
+                    ['changes', 'changes / 变化', '哪些条件、速度、规模或行动空间发生变化？'],
+                    ['turningPoint', 'turning point / 转折点', '哪一年、事件或结构变化最能说明转折？'],
+                    ['beforeAfterEvidence', 'before-after evidence / 前后证据', '用至少两条证据说明转折前后差异。'],
+                    ['periodLabel', 'period label / 分期标签', '给这个时期一个可辩护的名称。'],
+                    ['alternativePeriodization', 'alternative periodization / 替代分期', '如果用另一个标准划分，会怎样不同？'],
+                    ['missingEvidence', 'missing evidence / 缺失证据', '还缺哪些来源、地区、身份或声音？'],
+                  ] as [keyof Omit<PeriodizationDraft, 'confidence' | 'selectedEvidenceIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea
+                        value={currentDraft[field]}
+                        onChange={(event) => updateDraft({ [field]: event.target.value })}
+                        rows={field === 'beforeAfterEvidence' || field === 'alternativePeriodization' || field === 'missingEvidence' ? 3 : 2}
+                        placeholder={placeholder}
+                        className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-sky-200/50"
+                      />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select
+                      value={currentDraft.confidence}
+                      onChange={(event) => updateDraft({ confidence: event.target.value as PeriodizationConfidence })}
+                      className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-sky-200/50"
+                    >
+                      {(Object.entries(periodizationConfidenceLabels) as [PeriodizationConfidence, string][]).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '分期简报会优先导出已勾选证据；若未勾选，则导出前 10 条时间证据。'}
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -4020,6 +4792,7 @@ function PortfolioPanel({
   workspaceStats,
   corroborationDraftState,
   causationDraftState,
+  periodizationDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -4027,12 +4800,14 @@ function PortfolioPanel({
   workspaceStats: WorkspaceStats
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
+  periodizationDraftState: PeriodizationDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
   const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
   const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
+  const periodizationDraftCount = getActivePeriodizationDrafts(periodizationDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -4046,7 +4821,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -4087,6 +4862,7 @@ function PortfolioPanel({
               { label: '跨场景完成', value: workspaceStats.completedEntries },
               { label: '互证草稿', value: corroborationDraftCount },
               { label: '因果草稿', value: causationDraftCount },
+              { label: '分期草稿', value: periodizationDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -4134,11 +4910,13 @@ function TaskLibraryPanel({
   onLoadCompare,
   onLoadCompareLens,
   onLoadCausationInquiry,
+  onLoadPeriodizationInquiry,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
   onLoadCausationInquiry: (inquiryId: string) => void
+  onLoadPeriodizationInquiry: (inquiryId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -4148,8 +4926,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
