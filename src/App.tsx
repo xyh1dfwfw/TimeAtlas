@@ -1546,7 +1546,7 @@ function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }
                 <div className="absolute inset-x-8 bottom-8 rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur">
                   <div className="flex items-center gap-3 text-amber-100">
                     <Route size={18} />
-                    <span className="font-medium">地图以后会长出来，第一版先从人的命运开始。</span>
+                    <span className="font-medium">从人物命运出发，连接时间、地点与跨区域路线。</span>
                   </div>
                 </div>
               </div>
@@ -2260,7 +2260,7 @@ function TimeSpaceAtlasPanel({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-5">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {atlasMapRoutes.map((route) => {
             const isSelected = route.id === selectedRoute.id
             const routeStops = route.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
@@ -3105,7 +3105,7 @@ function AtlasInquiryPathsPanel({
               Atlas Connections / Inquiry Pathways 8.0
             </h2>
             <p className="mt-3 max-w-3xl leading-7 text-stone-400">
-              五条策展式跨场景探究路径现在接入 Atlas Workspace：可勾选路径任务、保存探究草稿、标记完成，并复制 inquiry pack + user draft。
+              策展式跨场景探究路径现在接入 Atlas Workspace：可勾选路径任务、保存探究草稿、标记完成，并复制 inquiry pack + user draft。
             </p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
@@ -3113,7 +3113,7 @@ function AtlasInquiryPathsPanel({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 xl:grid-cols-5">
+        <div className="mt-6 grid gap-4">
           {atlasInquiryPaths.map((path) => {
             const lens = getCompareLensByKey(path.lensKey)
             const pathScenarios = path.scenarioIds
@@ -3125,7 +3125,7 @@ function AtlasInquiryPathsPanel({
             const checklist = [...path.tasks, ...path.rubric.map((item) => `评分：${item}`)]
 
             return (
-              <article key={path.id} className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4 xl:col-span-5">
+              <article key={path.id} className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4 ">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
