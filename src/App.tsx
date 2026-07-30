@@ -55,6 +55,7 @@ const periodizationLabStorageKey = 'timeatlas:periodization-lab-drafts'
 const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
 const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
 const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
+const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
@@ -72,6 +73,7 @@ const sectionIds = {
   perspectivesLab: 'perspectives-agency-lab',
   contextLab: 'context-scale-lab',
   significanceLab: 'significance-memory-lab',
+  synthesisStudio: 'synthesis-writing-studio',
   compareLab: 'compare-lab',
 } as const
 
@@ -333,6 +335,59 @@ type SignificanceInquiry = {
   memoryFrame: string
 }
 
+type SynthesisConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type SynthesisDraft = {
+  drivingQuestion: string
+  workingThesis: string
+  claimScope: string
+  evidenceIds: string[]
+  reasoningBridge: string
+  counterargument: string
+  sourceLimits: string
+  paragraphPlan: string
+  significanceLink: string
+  revisionChecklist: string
+  confidence: SynthesisConfidence
+  updatedAt?: string
+}
+
+type SynthesisDraftState = Record<string, SynthesisDraft>
+
+type SynthesisInquiryPreset = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  claimScope: string
+  focus: string
+  tags: string[]
+  paragraphFrame: string[]
+}
+
+type SynthesisEvidenceOrigin =
+  | 'corroboration'
+  | 'causation'
+  | 'periodization'
+  | 'perspectives'
+  | 'contextualization'
+  | 'significance'
+  | 'mission-work'
+  | 'workspace'
+
+type SynthesisEvidence = {
+  id: string
+  origin: SynthesisEvidenceOrigin
+  originLabel: string
+  title: string
+  text: string
+  tags: string[]
+  scenarioTitle?: string
+  scenarioId?: string
+  inquiryTitle?: string
+  updatedAt?: string
+}
+
 type SignificanceEvidenceLabel = 'immediate-impact' | 'long-term-change' | 'scale-reach' | 'contested-meaning' | 'memory-archive' | 'ordinary-life'
 
 type SignificanceEvidence = {
@@ -441,7 +496,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 
@@ -528,6 +583,7 @@ const periodizationConfidenceLabels: Record<PeriodizationConfidence, string> = c
 const perspectivesConfidenceLabels: Record<PerspectivesConfidence, string> = corroborationConfidenceLabels
 const contextConfidenceLabels: Record<ContextConfidence, string> = corroborationConfidenceLabels
 const significanceConfidenceLabels: Record<SignificanceConfidence, string> = corroborationConfidenceLabels
+const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
 const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
   'immediate-impact': 'immediate-impact / 当时影响',
@@ -714,6 +770,69 @@ const significanceInquiryDefinitions: SignificanceInquiry[] = [
     focus: '用来源视角、可靠边界、source question、interpretationNote 和 sourceEvidenceUse 判断沉默如何限制或放大意义。',
     tags: ['archive silence', 'source limits', 'memory', 'contested meaning'],
     memoryFrame: '档案沉默不是空白背景；它会直接改变谁被认为“重要”。',
+  },
+ ]
+
+const synthesisInquiryPresets: SynthesisInquiryPreset[] = [
+  {
+    id: 'ordinary-people-historical-change',
+    title: '普通人与历史变化',
+    subtitle: 'Ordinary people / historical change',
+    drivingQuestion: '普通人的日常选择如何揭示更大的历史变化，而不只是被动承受大事件？',
+    claimScope: '比较至少三个身份，连接日常选择、制度约束与长期变化。',
+    focus: '把普通人的行动、风险和证据限制综合成一段可争辩历史论证。',
+    tags: ['ordinary people', 'historical change', 'agency', 'daily life'],
+    paragraphFrame: ['主张普通人经验为何可作为历史变化证据', '用两个或三个场景互证变化机制', '承认来源沉默并连接历史意义'],
+  },
+  {
+    id: 'markets-power-risk',
+    title: '市场、权力与风险',
+    subtitle: 'Markets / power / risk',
+    drivingQuestion: '市场活动如何被国家权力、信用规则、身份边界和风险判断共同塑造？',
+    claimScope: '比较港口、城市市场或工厂场景，说明市场不是无规则真空。',
+    focus: '综合制度、市场机会、风险与行动边界，形成对市场权力关系的解释。',
+    tags: ['markets', 'power', 'risk', 'institutions'],
+    paragraphFrame: ['界定市场中的权力与风险', '排列跨场景证据说明规则如何塑造选择', '回应“市场自由”或单因解释的反驳'],
+  },
+  {
+    id: 'commodity-chains-labor',
+    title: '商品链与劳动',
+    subtitle: 'Commodity chains / labor',
+    drivingQuestion: '糖、棉、黄金或港口货物流动如何把远方需求、劳动纪律和身体风险连接起来？',
+    claimScope: '至少使用两个劳动/商品链场景，并区分强制、工资、工厂时间与港口中介。',
+    focus: '把商品链写成穿过身体、时间、制度和档案的历史过程。',
+    tags: ['commodity chains', 'labor', 'discipline', 'empire'],
+    paragraphFrame: ['提出商品链改变劳动关系的主张', '用劳动现场和市场/制度证据搭桥', '说明档案沉默如何限制劳动者经验'],
+  },
+  {
+    id: 'knowledge-access',
+    title: '知识与进入门槛',
+    subtitle: 'Knowledge / access',
+    drivingQuestion: '纸张、手稿、学校、考试、书信和语言如何决定谁能进入知识世界？',
+    claimScope: '比较知识城市或商贸书信场景，说明媒介、制度和身份门槛。',
+    focus: '综合知识传播、保存、学习门槛和来源幸存条件。',
+    tags: ['knowledge', 'access', 'manuscripts', 'education'],
+    paragraphFrame: ['界定知识可及性的历史条件', '用媒介/制度/身份证据解释流动与限制', '连接保存条件与后世意义判断'],
+  },
+  {
+    id: 'crisis-memory-judgment',
+    title: '危机、记忆与判断',
+    subtitle: 'Crisis memory / judgment',
+    drivingQuestion: '危机消息抵达普通生活后，人们如何在不完整信息中判断安全，后世又如何记忆这些判断？',
+    claimScope: '比较战争、征服、起义、价格或劳动危机场景，区分当时知识与后见之明。',
+    focus: '把危机中的判断、风险、记忆和历史意义写成综合论证。',
+    tags: ['crisis', 'memory', 'judgment', 'uncertainty'],
+    paragraphFrame: ['说明危机判断发生在不完整信息中', '用跨场景证据分析风险与选择', '连接公共记忆、争议意义和反当下主义'],
+  },
+  {
+    id: 'archive-silence-significance',
+    title: '档案沉默与历史意义',
+    subtitle: 'Archive silence / significance',
+    drivingQuestion: '当档案只保存部分声音时，历史论证如何既提出意义判断，又保留来源限制？',
+    claimScope: '至少使用三类证据，明确说明谁被记录、谁缺席，以及这如何改变重要性判断。',
+    focus: '把互证、缺席声音、来源边界和历史意义合并为谨慎论证。',
+    tags: ['archive silence', 'significance', 'source limits', 'corroboration'],
+    paragraphFrame: ['提出档案沉默如何改变历史意义', '用互证/来源/工作草稿说明可见与不可见', '写出反驳、来源限制和修订计划'],
   },
 ]
 
@@ -1265,6 +1384,53 @@ function parsePerspectivesDraftState(rawState: string | null) {
   }
 }
 
+
+function parseSynthesisDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as SynthesisDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<SynthesisDraft>
+        const evidenceIds = Array.isArray(draft.evidenceIds)
+          ? draft.evidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in synthesisConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            drivingQuestion: typeof draft.drivingQuestion === 'string' ? draft.drivingQuestion : '',
+            workingThesis: typeof draft.workingThesis === 'string' ? draft.workingThesis : '',
+            claimScope: typeof draft.claimScope === 'string' ? draft.claimScope : '',
+            evidenceIds,
+            reasoningBridge: typeof draft.reasoningBridge === 'string' ? draft.reasoningBridge : '',
+            counterargument: typeof draft.counterargument === 'string' ? draft.counterargument : '',
+            sourceLimits: typeof draft.sourceLimits === 'string' ? draft.sourceLimits : '',
+            paragraphPlan: typeof draft.paragraphPlan === 'string' ? draft.paragraphPlan : '',
+            significanceLink: typeof draft.significanceLink === 'string' ? draft.significanceLink : '',
+            revisionChecklist: typeof draft.revisionChecklist === 'string' ? draft.revisionChecklist : '',
+            confidence,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies SynthesisDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as SynthesisDraftState
+  }
+}
+
 function parseGuidedSessionProgressState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -1562,6 +1728,31 @@ function persistPerspectivesDraftState(state: PerspectivesDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(perspectivesLabStorageKey, serializedState)
+}
+
+
+function loadSynthesisDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseSynthesisDraftState(localStorage?.getItem(synthesisStudioStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseSynthesisDraftState(sessionStorage?.getItem(synthesisStudioStorageKey) ?? null)
+}
+
+function persistSynthesisDraftState(state: SynthesisDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(synthesisStudioStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(synthesisStudioStorageKey, serializedState)
 }
 
 function loadGuidedSessionProgressState() {
@@ -1885,6 +2076,42 @@ function hasSignificanceDraftActivity(draft: SignificanceDraft) {
 
 function getActiveSignificanceDrafts(significanceDraftState: SignificanceDraftState) {
   return Object.entries(significanceDraftState).filter(([, draft]) => hasSignificanceDraftActivity(draft))
+}
+
+function getEmptySynthesisDraft(preset?: SynthesisInquiryPreset): SynthesisDraft {
+  return {
+    drivingQuestion: preset?.drivingQuestion ?? '',
+    workingThesis: '',
+    claimScope: preset?.claimScope ?? '',
+    evidenceIds: [],
+    reasoningBridge: '',
+    counterargument: '',
+    sourceLimits: '',
+    paragraphPlan: preset?.paragraphFrame.map((item, index) => `${index + 1}. ${item}`).join('\n') ?? '',
+    significanceLink: '',
+    revisionChecklist: '□ 主张是否可争辩且范围清楚？\n□ 每段是否至少连接一条证据和一句推理？\n□ 是否纳入反例、反驳或替代解释？\n□ 是否说明来源限制、沉默和信心等级？',
+    confidence: 'uncertain',
+  }
+}
+
+function hasSynthesisDraftActivity(draft: SynthesisDraft) {
+  return Boolean(
+    draft.drivingQuestion.trim()
+      || draft.workingThesis.trim()
+      || draft.claimScope.trim()
+      || draft.evidenceIds.length
+      || draft.reasoningBridge.trim()
+      || draft.counterargument.trim()
+      || draft.sourceLimits.trim()
+      || draft.paragraphPlan.trim()
+      || draft.significanceLink.trim()
+      || draft.revisionChecklist.trim()
+      || draft.confidence !== 'uncertain',
+  )
+}
+
+function getActiveSynthesisDrafts(synthesisDraftState: SynthesisDraftState) {
+  return Object.entries(synthesisDraftState).filter(([, draft]) => hasSynthesisDraftActivity(draft))
 }
 
 function inferSignificanceDailyLifeKeys(inquiry: SignificanceInquiry): DailyLifeKey[] {
@@ -2989,6 +3216,240 @@ function formatSourceCorroborationBrief(entries: SourceAtlasEntry[], draft: Corr
   ].join('\n')
 }
 
+function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
+  return {
+    corroboration: 'Corroboration draft / 互证草稿',
+    causation: 'Causation draft / 因果草稿',
+    periodization: 'Periodization draft / 分期草稿',
+    perspectives: 'Perspectives draft / 多视角草稿',
+    contextualization: 'Context draft / 情境化草稿',
+    significance: 'Significance draft / 意义草稿',
+    'mission-work': 'Mission work / 场景任务草稿',
+    workspace: 'Workspace entry / 跨场景工作区',
+  }[origin]
+}
+
+function getSynthesisEvidenceOriginLabel(entry: SynthesisEvidence) {
+  return entry.originLabel || getSynthesisOriginLabel(entry.origin)
+}
+
+function makeSynthesisEvidenceId(origin: SynthesisEvidenceOrigin, key: string) {
+  return `synthesis:${origin}:${key.replace(/[^a-zA-Z0-9:_|-]+/g, '-')}`
+}
+
+function buildSynthesisEvidencePool({
+  corroborationDraftState,
+  causationDraftState,
+  periodizationDraftState,
+  perspectivesDraftState,
+  contextDraftState,
+  significanceDraftState,
+  missionWorkState,
+  workspaceState,
+}: {
+  corroborationDraftState: CorroborationDraftState
+  causationDraftState: CausationDraftState
+  periodizationDraftState: PeriodizationDraftState
+  perspectivesDraftState: PerspectivesDraftState
+  contextDraftState: ContextDraftState
+  significanceDraftState: SignificanceDraftState
+  missionWorkState: MissionWorkState
+  workspaceState: WorkspaceState
+}): SynthesisEvidence[] {
+  const sourceAtlasEntries = buildSourceAtlasEntries()
+  const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
+  const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
+  const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
+  const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
+  const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
+  const entries: SynthesisEvidence[] = []
+
+  getActiveCorroborationDrafts(corroborationDraftState).forEach(([basketKey, draft]) => {
+    const sourceTitles = draft.sourceIds
+      .map((sourceId) => sourceAtlasEntries.find((entry) => entry.id === sourceId))
+      .filter((entry): entry is SourceAtlasEntry => Boolean(entry))
+      .map((entry) => `${entry.scenario.title}｜${entry.source.title}`)
+    entries.push({
+      id: makeSynthesisEvidenceId('corroboration', basketKey),
+      origin: 'corroboration',
+      originLabel: getSynthesisOriginLabel('corroboration'),
+      title: `互证：${sourceTitles.slice(0, 2).join(' × ') || basketKey}`,
+      text: [`判断：${draft.provisionalClaim}`, `支持证据：${draft.supportingEvidence}`, `张力：${draft.tensions}`, `沉默：${draft.absentVoices}`].filter((line) => !line.endsWith('：')).join('｜'),
+      tags: ['corroboration', 'source limits', draft.confidence],
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveCausationDrafts(causationDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = causationInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+    const evidence = causationEvidenceByInquiry[inquiryId] ?? []
+    const selectedTitles = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is CausationEvidence => Boolean(entry)).map((entry) => `${entry.scenario.title}｜${entry.title}`)
+    entries.push({
+      id: makeSynthesisEvidenceId('causation', inquiryId),
+      origin: 'causation',
+      originLabel: getSynthesisOriginLabel('causation'),
+      title: inquiry?.title ?? inquiryId,
+      text: [`背景：${draft.backgroundConditions}`, `触发：${draft.immediateTriggers}`, `约束：${draft.constraints}`, `选择：${draft.humanChoices}`, `后果/变化：${draft.shortTermConsequences} ${draft.longTermChange}`, `缺失：${draft.missingEvidence}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['causation', ...(inquiry?.tags ?? []), ...selectedTitles.slice(0, 3), draft.confidence],
+      inquiryTitle: inquiry?.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActivePeriodizationDrafts(periodizationDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = periodizationInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+    const evidence = periodizationEvidenceByInquiry[inquiryId] ?? []
+    const selectedTitles = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is PeriodizationEvidence => Boolean(entry)).map((entry) => `${entry.year} ${entry.scenario.title}`)
+    entries.push({
+      id: makeSynthesisEvidenceId('periodization', inquiryId),
+      origin: 'periodization',
+      originLabel: getSynthesisOriginLabel('periodization'),
+      title: inquiry?.title ?? inquiryId,
+      text: [`分期：${draft.periodLabel}`, `起止：${draft.periodStart}-${draft.periodEnd}`, `连续性：${draft.continuities}`, `变化/转折：${draft.changes} ${draft.turningPoint}`, `替代分期：${draft.alternativePeriodization}`].filter((line) => !line.match(/：\s*$|：-$/)).join('｜'),
+      tags: ['periodization', ...(inquiry?.tags ?? []), ...selectedTitles.slice(0, 3), draft.confidence],
+      inquiryTitle: inquiry?.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActivePerspectivesDrafts(perspectivesDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = perspectivesInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+    const evidence = perspectivesEvidenceByInquiry[inquiryId] ?? []
+    const selectedTitles = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is PerspectivesEvidence => Boolean(entry)).map((entry) => `${entry.scenario.title}｜${perspectivesEvidenceLabelText[entry.label]}`)
+    entries.push({
+      id: makeSynthesisEvidenceId('perspectives', inquiryId),
+      origin: 'perspectives',
+      originLabel: getSynthesisOriginLabel('perspectives'),
+      title: inquiry?.title ?? inquiryId,
+      text: [`视角：${draft.actorView}`, `约束：${draft.constraints}`, `可得知识：${draft.availableKnowledge}`, `风险：${draft.stakesAndRisks}`, `能动性：${draft.agencyClaim}`, `缺席：${draft.missingVoices}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['perspectives', ...(inquiry?.tags ?? []), ...selectedTitles.slice(0, 3), draft.confidence],
+      inquiryTitle: inquiry?.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveContextDrafts(contextDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = contextInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+    const evidence = contextEvidenceByInquiry[inquiryId] ?? []
+    const selectedTitles = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is ContextEvidence => Boolean(entry)).map((entry) => `${entry.scenario.title}｜${contextEvidenceLabelText[entry.label]}`)
+    entries.push({
+      id: makeSynthesisEvidenceId('contextualization', inquiryId),
+      origin: 'contextualization',
+      originLabel: getSynthesisOriginLabel('contextualization'),
+      title: inquiry?.title ?? inquiryId,
+      text: [`地方：${draft.localSetting}`, `区域：${draft.regionalConnections}`, `大尺度：${draft.largeScaleForces}`, `来源情境：${draft.sourceContext}`, `风险：${draft.anachronismRisk}`, `判断：${draft.contextClaim}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['contextualization', ...(inquiry?.tags ?? []), ...selectedTitles.slice(0, 3), draft.confidence],
+      inquiryTitle: inquiry?.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveSignificanceDrafts(significanceDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = significanceInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
+    const evidence = significanceEvidenceByInquiry[inquiryId] ?? []
+    const selectedTitles = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is SignificanceEvidence => Boolean(entry)).map((entry) => `${entry.scenario.title}｜${significanceEvidenceLabelText[entry.label]}`)
+    entries.push({
+      id: makeSynthesisEvidenceId('significance', inquiryId),
+      origin: 'significance',
+      originLabel: getSynthesisOriginLabel('significance'),
+      title: inquiry?.title ?? inquiryId,
+      text: [`事件/过程：${draft.eventOrProcess}`, `对谁重要：${draft.whoItMatteredTo}`, `当时/长期意义：${draft.contemporarySignificance} ${draft.longTermSignificance}`, `尺度/争议：${draft.scaleOfImpact} ${draft.contestedMeaning}`, `来源限制：${draft.sourceLimits}`, `主张：${draft.significanceClaim}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['significance', ...(inquiry?.tags ?? []), ...selectedTitles.slice(0, 3), draft.confidence],
+      inquiryTitle: inquiry?.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  Object.entries(missionWorkState).forEach(([key, work]) => {
+    if (!work.notes.trim() && work.checkedEvidence.length === 0) return
+    const [scenarioId, missionId] = key.split(':')
+    const scenario = getScenarioById(scenarioId)
+    const mission = scenario?.missions.find((candidate) => candidate.id === missionId)
+    entries.push({
+      id: makeSynthesisEvidenceId('mission-work', key),
+      origin: 'mission-work',
+      originLabel: getSynthesisOriginLabel('mission-work'),
+      title: mission?.title ?? key,
+      text: [work.notes, ...work.checkedEvidence].filter(Boolean).join('｜'),
+      tags: [mission?.taskType, mission?.difficulty, scenario?.region, scenario?.theme, ...(mission?.linkedSourceTitles ?? [])].filter((tag): tag is string => Boolean(tag)),
+      scenarioTitle: scenario?.title,
+      scenarioId: scenario?.id,
+      updatedAt: work.updatedAt,
+    })
+  })
+
+  getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry)).forEach(({ key, title, category, entry }) => {
+    entries.push({
+      id: makeSynthesisEvidenceId('workspace', key),
+      origin: 'workspace',
+      originLabel: `${getSynthesisOriginLabel('workspace')} · ${category}`,
+      title,
+      text: [entry.notes, ...entry.checkedEvidence].filter(Boolean).join('｜'),
+      tags: ['workspace', category, entry.completed ? 'completed' : 'draft'],
+      updatedAt: entry.updatedAt,
+    })
+  })
+
+  const deduped = new Map<string, SynthesisEvidence>()
+  entries.forEach((entry) => {
+    if (entry.text.trim()) {
+      deduped.set(entry.id, { ...entry, tags: [...new Set(entry.tags.filter(Boolean))] })
+    }
+  })
+
+  return [...deduped.values()].sort((first, second) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '') || first.origin.localeCompare(second.origin))
+}
+
+function formatSynthesisWritingBrief(preset: SynthesisInquiryPreset, evidencePool: SynthesisEvidence[], draft: SynthesisDraft) {
+  const selectedEvidence = draft.evidenceIds
+    .map((id) => evidencePool.find((entry) => entry.id === id))
+    .filter((entry): entry is SynthesisEvidence => Boolean(entry))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : evidencePool.slice(0, 12)
+
+  return [
+    'TimeAtlas Synthesis & Historical Writing Studio / 综合历史论证工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `预设：${preset.title}｜${preset.subtitle}`,
+    `核心问题：${draft.drivingQuestion.trim() || preset.drivingQuestion}`,
+    `论证范围：${draft.claimScope.trim() || preset.claimScope}`,
+    `分析焦点：${preset.focus}`,
+    '',
+    '一、综合证据池 / selected evidence',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${getSynthesisEvidenceOriginLabel(entry)}｜${entry.scenarioTitle ? `${entry.scenarioTitle}｜` : ''}${entry.title}\n   ${entry.text}\n   标签：${entry.tags.join('、') || '无'}`),
+    '',
+    '二、Thesis builder / 论文主张',
+    `Working thesis：${draft.workingThesis.trim() || '尚未填写'}`,
+    `Reasoning bridge：${draft.reasoningBridge.trim() || '尚未填写'}`,
+    `Counterargument：${draft.counterargument.trim() || '尚未填写'}`,
+    `Source limits：${draft.sourceLimits.trim() || '尚未填写'}`,
+    '',
+    '三、Paragraph planner / 段落计划',
+    draft.paragraphPlan.trim() || preset.paragraphFrame.map((item, index) => `${index + 1}. ${item}`).join('\n'),
+    '',
+    '四、Significance & revision / 意义与修订',
+    `Significance link：${draft.significanceLink.trim() || '尚未填写'}`,
+    `Revision checklist：\n${draft.revisionChecklist.trim() || '尚未填写'}`,
+    `Confidence：${synthesisConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatSynthesisTaskSheet(preset: SynthesisInquiryPreset) {
+  return [
+    `TimeAtlas Synthesis Studio Assignment：${preset.title}`,
+    `核心问题：${preset.drivingQuestion}`,
+    `论证范围：${preset.claimScope}`,
+    `分析焦点：${preset.focus}`,
+    '',
+    '任务：从已有互证、因果、分期、多视角、情境化、意义、任务草稿和工作区条目中选择证据，写出一份综合历史论证。',
+    '',
+    '建议段落计划：',
+    ...preset.paragraphFrame.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    '交付物：一份 Synthesis Writing Brief，包含 driving question、working thesis、claim scope、证据、reasoning bridge、counterargument、source limits、paragraph plan、significance link、revision checklist 与 confidence。',
+  ].join('\n')
+}
+
 function formatLearningArchive(
   missionWorkState: MissionWorkState,
   completedMissionIdsByScenario: Record<string, string[]>,
@@ -2999,6 +3460,7 @@ function formatLearningArchive(
   perspectivesDraftState: PerspectivesDraftState,
   contextDraftState: ContextDraftState,
   significanceDraftState: SignificanceDraftState,
+  synthesisDraftState: SynthesisDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
@@ -3007,11 +3469,13 @@ function formatLearningArchive(
   const activePerspectivesDrafts = getActivePerspectivesDrafts(perspectivesDraftState)
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
+  const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -3028,6 +3492,7 @@ function formatLearningArchive(
     `- 多视角与能动性草稿：${activePerspectivesDrafts.length}`,
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
+    `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     '',
   ]
 
@@ -3220,6 +3685,34 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activeSynthesisDrafts.length > 0) {
+    lines.push('综合历史论证工作台：')
+    activeSynthesisDrafts.forEach(([presetId, draft]) => {
+      const preset = synthesisInquiryPresets.find((candidate) => candidate.id === presetId)
+      const selectedEvidenceTitles = draft.evidenceIds
+        .map((evidenceId) => synthesisEvidencePool.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is SynthesisEvidence => Boolean(entry))
+        .map((entry) => `${getSynthesisEvidenceOriginLabel(entry)}｜${entry.title}`)
+
+      lines.push(
+        `  - ${preset?.title ?? presetId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    核心问题：${draft.drivingQuestion.trim() || preset?.drivingQuestion || '尚未填写'}`,
+        `    论证范围：${draft.claimScope.trim() || '尚未填写'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    工作论文：${draft.workingThesis.trim() || '尚未填写'}`,
+        `    推理桥：${draft.reasoningBridge.trim() || '尚未填写'}`,
+        `    反驳：${draft.counterargument.trim() || '尚未填写'}`,
+        `    来源限制：${draft.sourceLimits.trim() || '尚未填写'}`,
+        `    段落计划：${draft.paragraphPlan.trim() || '尚未填写'}`,
+        `    历史意义连接：${draft.significanceLink.trim() || '尚未填写'}`,
+        `    修订清单：${draft.revisionChecklist.trim() || '尚未填写'}`,
+        `    信心等级：${synthesisConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCorroborationDrafts.length > 0) {
     const sourceAtlasEntries = buildSourceAtlasEntries()
 
@@ -3245,7 +3738,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 14) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿或完成记录。')
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿或完成记录。')
   }
 
   return lines.join('\n')
@@ -3492,6 +3985,7 @@ function buildTaskLibraryTasks({
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
+  onLoadSynthesisPreset,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -3501,6 +3995,7 @@ function buildTaskLibraryTasks({
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
+  onLoadSynthesisPreset: (presetId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -3775,6 +4270,33 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  synthesisInquiryPresets.forEach((preset) => {
+    const durationMinutes = 60
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Synthesis Studio', '综合论证', 'historical writing', ...preset.tags]
+    const task: LibraryTask = {
+      id: `synthesis:${preset.id}`,
+      title: preset.title,
+      context: 'Synthesis & Historical Writing Studio · 全站学习证据池',
+      category: '综合历史论证',
+      source: 'synthesis',
+      sourceLabel: 'Synthesis Studio',
+      durationMinutes,
+      durationBand,
+      summary: preset.drivingQuestion,
+      deliverable: 'Synthesis Writing Brief：论文主张、证据组、推理桥、反驳、来源限制、段落计划与修订清单',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Synthesis Studio',
+      onPrimaryAction: () => onLoadSynthesisPreset(preset.id),
+      formatSheet: () => formatSynthesisTaskSheet(preset),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, preset.focus, preset.claimScope, ...tags, ...preset.paragraphFrame].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   compareLenses.forEach((lens) => {
     const durationMinutes = 35
     const durationBand = getDurationBand(durationMinutes)
@@ -3878,6 +4400,8 @@ function App() {
   const [contextDraftState, setContextDraftState] = useState<ContextDraftState>(loadContextDraftState)
   const [significanceDraftState, setSignificanceDraftState] = useState<SignificanceDraftState>(loadSignificanceDraftState)
   const [selectedSignificanceInquiryId, setSelectedSignificanceInquiryId] = useState(significanceInquiryDefinitions[0]?.id ?? '')
+  const [synthesisDraftState, setSynthesisDraftState] = useState<SynthesisDraftState>(loadSynthesisDraftState)
+  const [selectedSynthesisPresetId, setSelectedSynthesisPresetId] = useState(synthesisInquiryPresets[0]?.id ?? '')
   const [selectedContextInquiryId, setSelectedContextInquiryId] = useState(contextInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
@@ -3910,6 +4434,7 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, missionWorkState, workspaceState])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -4033,6 +4558,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [significanceDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistSynthesisDraftState(synthesisDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [synthesisDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -4210,6 +4747,15 @@ function App() {
     scrollToSection(sectionIds.significanceLab, prefersReducedMotion)
   }
 
+  function loadSynthesisPreset(presetId: string) {
+    if (!synthesisInquiryPresets.some((preset) => preset.id === presetId)) {
+      return
+    }
+
+    setSelectedSynthesisPresetId(presetId)
+    scrollToSection(sectionIds.synthesisStudio, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -4281,6 +4827,14 @@ function App() {
         onUpdateDraftState={setSignificanceDraftState}
         onOpenScenario={selectScenario}
       />
+      <SynthesisWritingStudioPanel
+        selectedPresetId={selectedSynthesisPresetId}
+        evidencePool={synthesisEvidencePool}
+        draftState={synthesisDraftState}
+        onSelectPreset={setSelectedSynthesisPresetId}
+        onUpdateDraftState={setSynthesisDraftState}
+        onOpenScenario={selectScenario}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
@@ -4292,6 +4846,7 @@ function App() {
         perspectivesDraftState={perspectivesDraftState}
         contextDraftState={contextDraftState}
         significanceDraftState={significanceDraftState}
+        synthesisDraftState={synthesisDraftState}
       />
       <TaskLibraryPanel
         onOpenScenario={selectScenario}
@@ -4302,6 +4857,7 @@ function App() {
         onLoadPerspectivesInquiry={loadPerspectivesInquiry}
         onLoadContextInquiry={loadContextInquiry}
         onLoadSignificanceInquiry={loadSignificanceInquiry}
+        onLoadSynthesisPreset={loadSynthesisPreset}
       />
       <GuidedSessionPanel
         selectedScenarioId={selectedScenario.id}
@@ -7383,6 +7939,283 @@ function SignificanceMemoryLabPanel({
   )
 }
 
+function SynthesisWritingStudioPanel({
+  selectedPresetId,
+  evidencePool,
+  draftState,
+  onSelectPreset,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedPresetId: string
+  evidencePool: SynthesisEvidence[]
+  draftState: SynthesisDraftState
+  onSelectPreset: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<SynthesisDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [originFilter, setOriginFilter] = useState<'all' | SynthesisEvidenceOrigin>('all')
+  const [tagFilter, setTagFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const selectedPreset = synthesisInquiryPresets.find((preset) => preset.id === selectedPresetId) ?? synthesisInquiryPresets[0]
+
+  if (!selectedPreset) {
+    return null
+  }
+
+  const currentDraft = draftState[selectedPreset.id] ?? getEmptySynthesisDraft(selectedPreset)
+  const selectedEvidence = currentDraft.evidenceIds
+    .map((id) => evidencePool.find((entry) => entry.id === id))
+    .filter((entry): entry is SynthesisEvidence => Boolean(entry))
+  const tagOptions = [...new Set(evidencePool.flatMap((entry) => entry.tags))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')).slice(0, 80)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const visibleEvidence = evidencePool.filter((entry) => {
+    const matchesOrigin = originFilter === 'all' || entry.origin === originFilter
+    const matchesTag = tagFilter === 'all' || entry.tags.includes(tagFilter)
+    const matchesSearch = !normalizedSearchQuery || [entry.title, entry.text, entry.originLabel, entry.scenarioTitle, entry.inquiryTitle, ...entry.tags].filter(Boolean).join(' ').toLowerCase().includes(normalizedSearchQuery)
+
+    return matchesOrigin && matchesTag && matchesSearch
+  })
+
+  function updateDraft(updates: Partial<Omit<SynthesisDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedPreset.id]: {
+        ...(currentState[selectedPreset.id] ?? getEmptySynthesisDraft(selectedPreset)),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function applyPreset(presetId: string) {
+    const preset = synthesisInquiryPresets.find((candidate) => candidate.id === presetId)
+    if (!preset) return
+    onSelectPreset(preset.id)
+    setCopyStatus('idle')
+    onUpdateDraftState((currentState) => {
+      if (currentState[preset.id]) {
+        return currentState
+      }
+
+      return {
+        ...currentState,
+        [preset.id]: {
+          ...getEmptySynthesisDraft(preset),
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextEvidenceIds = currentDraft.evidenceIds.includes(evidenceId)
+      ? currentDraft.evidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.evidenceIds, evidenceId]
+    setCopyStatus('idle')
+    updateDraft({ evidenceIds: nextEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedPreset.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  function buildThesisStarter() {
+    const evidenceOrigins = [...new Set(selectedEvidence.map((entry) => entry.originLabel.split(' / ')[0]))].slice(0, 3).join('、') || '所选证据'
+    const tagHint = [...new Set(selectedEvidence.flatMap((entry) => entry.tags))].slice(0, 4).join('、') || selectedPreset.tags.slice(0, 3).join('、')
+    updateDraft({
+      workingThesis: `虽然证据仍有来源限制，${selectedPreset.title}显示：${tagHint}并不是孤立现象，而是通过普通人的选择、制度约束和长期意义相互连接。`,
+      reasoningBridge: `推理桥：先用${evidenceOrigins}确立可见证据，再比较不同场景中的因果、分期、视角和意义，最后说明哪些沉默会改变论证信心。`,
+    })
+  }
+
+  async function copySynthesisBrief() {
+    try {
+      await copyTextToClipboard(formatSynthesisWritingBrief(selectedPreset, evidencePool, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id={sectionIds.synthesisStudio} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="synthesis-studio-title">
+      <div className="rounded-[2rem] border border-fuchsia-200/15 bg-fuchsia-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-fuchsia-100">
+          <ScrollText size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">synthesis & historical writing studio 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="synthesis-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Synthesis & Historical Writing Studio / 综合历史论证工作台 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              作为 capstone，它把互证、因果、分期、多视角、情境化、历史意义、任务草稿和跨场景工作区条目归一为综合证据池，用于构建 thesis、段落计划、反驳与来源限制。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActiveSynthesisDrafts(draftState).length} 个综合草稿 · 当前已选 {selectedEvidence.length}/{evidencePool.length} 条证据
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+          <aside className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {synthesisInquiryPresets.map((preset) => {
+                const isSelected = preset.id === selectedPreset.id
+                const presetDraft = draftState[preset.id]
+                const status = presetDraft && hasSynthesisDraftActivity(presetDraft) ? 'draft' : 'not-started'
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset.id)}
+                    className={`rounded-3xl border p-4 text-left transition ${isSelected ? 'border-fuchsia-200/45 bg-fuchsia-100/[0.09]' : 'border-white/10 bg-black/20 hover:border-fuchsia-100/25 hover:bg-white/[0.04]'}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span>{preset.subtitle}</span>
+                      <span className={`rounded-full border px-2 py-0.5 ${status === 'draft' ? 'border-amber-200/20 bg-amber-100/[0.08] text-amber-100' : 'border-white/10 bg-white/[0.035] text-stone-500'}`}>{getStatusLabel(status)}</span>
+                    </div>
+                    <h3 className="mt-2 font-semibold text-stone-50">{preset.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{preset.drivingQuestion}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">{preset.tags.slice(0, 3).map((tag) => <Tag key={`${preset.id}-${tag}`}>{tag}</Tag>)}</div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Paragraph frame / 段落框架</h3>
+              <div className="mt-3 space-y-2">
+                {selectedPreset.paragraphFrame.map((step, index) => (
+                  <div key={step} className="rounded-2xl border border-fuchsia-200/10 bg-fuchsia-100/[0.035] p-3 text-sm leading-6 text-stone-400">
+                    <span className="font-semibold text-fuchsia-100">{index + 1}. </span>{step}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-4">
+            <article className="rounded-[1.5rem] border border-fuchsia-200/15 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-fuchsia-100/70">selected capstone inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">{selectedPreset.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedPreset.focus}</p>
+                </div>
+                <button type="button" onClick={() => void copySynthesisBrief()} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200">
+                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'copied' ? '综合简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出 Synthesis Brief'}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
+                <p className="rounded-2xl border border-fuchsia-200/15 bg-fuchsia-100/[0.045] p-4 text-sm leading-6 text-stone-300">{currentDraft.drivingQuestion || selectedPreset.drivingQuestion}</p>
+                <p className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-amber-100">Claim scope：</span>{currentDraft.claimScope || selectedPreset.claimScope}</p>
+              </div>
+            </article>
+
+            <div className="grid gap-4 xl:grid-cols-[0.96fr_1.04fr]">
+              <section className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4" aria-labelledby="synthesis-evidence-title">
+                <h3 id="synthesis-evidence-title" className="font-semibold text-stone-50">Normalized synthesis evidence pool / 综合证据池</h3>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜索证据、标签、场景……" className="rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none placeholder:text-stone-600 focus:border-fuchsia-200/50 sm:col-span-3" />
+                  <select value={originFilter} onChange={(event) => setOriginFilter(event.target.value as 'all' | SynthesisEvidenceOrigin)} className="rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none focus:border-fuchsia-200/50">
+                    <option value="all">全部来源</option>
+                    <option value="corroboration">互证草稿</option>
+                    <option value="causation">因果草稿</option>
+                    <option value="periodization">分期草稿</option>
+                    <option value="perspectives">多视角草稿</option>
+                    <option value="contextualization">情境化草稿</option>
+                    <option value="significance">意义草稿</option>
+                    <option value="mission-work">任务草稿</option>
+                    <option value="workspace">跨场景工作区</option>
+                  </select>
+                  <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none focus:border-fuchsia-200/50 sm:col-span-2">
+                    <option value="all">全部标签</option>
+                    {tagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                </div>
+                <p className="mt-2 text-xs text-stone-500">{visibleEvidence.length}/{evidencePool.length} 条可用证据。证据池只使用学习者已经产生或勾选的本机工作。</p>
+                <div className="mt-4 max-h-[780px] space-y-3 overflow-y-auto pr-1">
+                  {visibleEvidence.length ? visibleEvidence.map((entry) => {
+                    const isSelected = currentDraft.evidenceIds.includes(entry.id)
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 transition ${isSelected ? 'border-amber-200/35 bg-amber-100/[0.07]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start gap-3">
+                          <input type="checkbox" checked={isSelected} onChange={() => toggleEvidence(entry.id)} className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="rounded-full border border-fuchsia-200/20 bg-fuchsia-100/[0.06] px-2 py-0.5 text-fuchsia-100">{getSynthesisEvidenceOriginLabel(entry)}</span>
+                              {entry.scenarioTitle ? <span>{entry.scenarioTitle}</span> : null}
+                            </div>
+                            <h4 className="mt-2 font-semibold text-stone-100">{entry.title}</h4>
+                            <p className="mt-2 text-sm leading-6 text-stone-400">{entry.text}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {entry.tags.slice(0, 6).map((tag) => <Tag key={`${entry.id}-${tag}`}>{tag}</Tag>)}
+                              {entry.scenarioId ? <button type="button" onClick={() => onOpenScenario(entry.scenarioId!, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-fuchsia-200/30 hover:text-fuchsia-100">打开场景</button> : null}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  }) : <p className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-stone-500">还没有可综合的学习者工作。先在互证、因果、分期、多视角、情境化、历史意义、任务板或工作区保存草稿。</p>}
+                </div>
+              </section>
+
+              <section className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4" aria-labelledby="synthesis-draft-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 id="synthesis-draft-title" className="font-semibold text-stone-50">Writing draft / 综合写作草稿</h3>
+                    <p className="mt-1 text-xs text-stone-500">{currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={buildThesisStarter} className="rounded-full border border-amber-200/20 px-3 py-1 text-xs font-semibold text-amber-100 transition hover:bg-amber-100/[0.08]">生成 thesis starter</button>
+                    <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-fuchsia-200/30 hover:text-fuchsia-100">清空</button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['drivingQuestion', 'driving question / 核心问题', selectedPreset.drivingQuestion],
+                    ['workingThesis', 'working thesis / 工作论文', '写出一条可争辩、可被证据支撑、范围明确的历史主张。'],
+                    ['claimScope', 'claim scope / 论证范围', selectedPreset.claimScope],
+                    ['reasoningBridge', 'reasoning bridge / 推理桥', '说明证据如何从“材料”变成“支持主张的理由”。'],
+                    ['counterargument', 'counterargument / 反驳或替代解释', '最强的反例、反驳或替代解释是什么？你如何回应？'],
+                    ['sourceLimits', 'source limits / 来源限制', '哪些声音、场景或材料缺席？这如何影响信心等级？'],
+                    ['paragraphPlan', 'paragraph plan / 段落计划', selectedPreset.paragraphFrame.map((item, index) => `${index + 1}. ${item}`).join('\n')],
+                    ['significanceLink', 'significance link / 历史意义连接', '这份综合论证为什么重要？它改变了我们对哪些人、过程或记忆的理解？'],
+                    ['revisionChecklist', 'revision checklist / 修订清单', '列出下一轮要检查的证据、逻辑、反驳和来源限制。'],
+                  ] as [keyof Omit<SynthesisDraft, 'confidence' | 'evidenceIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea value={currentDraft[field]} onChange={(event) => updateDraft({ [field]: event.target.value })} rows={field === 'paragraphPlan' || field === 'revisionChecklist' ? 4 : field === 'workingThesis' || field === 'reasoningBridge' || field === 'sourceLimits' ? 3 : 2} placeholder={placeholder} className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-fuchsia-200/50" />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">confidence / 信心等级</span>
+                    <select value={currentDraft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as SynthesisConfidence })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-fuchsia-200/50">
+                      {(Object.entries(synthesisConfidenceLabels) as [SynthesisConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : 'Synthesis Brief 会优先导出已选证据；若未勾选，则导出证据池前 12 条。'}</p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -7394,6 +8227,7 @@ function PortfolioPanel({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  synthesisDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -7405,6 +8239,7 @@ function PortfolioPanel({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  synthesisDraftState: SynthesisDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -7415,6 +8250,7 @@ function PortfolioPanel({
   const perspectivesDraftCount = getActivePerspectivesDrafts(perspectivesDraftState).length
   const contextDraftCount = getActiveContextDrafts(contextDraftState).length
   const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
+  const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -7428,7 +8264,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -7473,6 +8309,7 @@ function PortfolioPanel({
               { label: '多视角草稿', value: perspectivesDraftCount },
               { label: '情境化草稿', value: contextDraftCount },
               { label: '意义草稿', value: significanceDraftCount },
+              { label: '综合论证', value: synthesisDraftCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -7524,6 +8361,7 @@ function TaskLibraryPanel({
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
+  onLoadSynthesisPreset,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -7533,6 +8371,7 @@ function TaskLibraryPanel({
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
+  onLoadSynthesisPreset: (presetId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -7542,8 +8381,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -7661,6 +8500,7 @@ function TaskLibraryPanel({
               <option value="perspectives">Perspectives Lab</option>
               <option value="contextualization">Context & Scale Lab</option>
               <option value="significance">Significance Lab</option>
+              <option value="synthesis">Synthesis Studio</option>
             </select>
           </label>
         </div>
@@ -7702,7 +8542,7 @@ function TaskLibraryPanel({
                     onClick={task.onPrimaryAction}
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
                   >
-                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' || task.source === 'contextualization' || task.source === 'significance' ? <Scale size={16} /> : <ArrowRight size={16} />}
+                    {task.source === 'compare' || task.source === 'inquiry' || task.source === 'causation' || task.source === 'periodization' || task.source === 'perspectives' || task.source === 'contextualization' || task.source === 'significance' || task.source === 'synthesis' ? <Scale size={16} /> : <ArrowRight size={16} />}
                     {task.primaryActionLabel}
                   </button>
                 ) : null}
