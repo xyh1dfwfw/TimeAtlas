@@ -247,6 +247,13 @@ type LibraryTask = {
   formatSheet: () => string
 }
 
+type SourceAtlasEntry = {
+  id: string
+  scenario: Scenario
+  source: Scenario['sources'][number]
+  searchText: string
+}
+
 function getEmptyWorkspaceEntry(): WorkspaceEntry {
   return {
     notes: '',
@@ -1406,6 +1413,10 @@ function App() {
         onOpenScenario={selectScenario}
         onLoadCompare={loadCompareFromInquiryPath}
       />
+      <SourceAtlasPanel
+        onOpenScenario={selectScenario}
+        onLoadCompareLens={loadCompareLens}
+      />
       <PortfolioPanel
         completedMissionIdsByScenario={completedMissionIdsByScenario}
         missionWorkState={missionWorkState}
@@ -2371,6 +2382,420 @@ function formatAtlasMapRouteAssignment(route: AtlasMapRoute, entry = getEmptyWor
     '标签：',
     ...route.tags.map((tag) => `- ${tag}`),
   ].join('\n')
+}
+
+function buildSourceAtlasEntries(): SourceAtlasEntry[] {
+  return scenarios.flatMap((scenario) =>
+    scenario.sources.map((source, sourceIndex) => {
+      const searchText = [
+        source.title,
+        source.creator,
+        source.relevance,
+        source.excerpt,
+        source.reliabilityNote,
+        source.perspective,
+        source.sourceQuestion,
+        sourceTypeLabels[source.sourceType],
+        scenario.title,
+        scenario.era,
+        scenario.location,
+        scenario.region,
+        scenario.theme,
+        scenario.identity,
+        ...source.evidenceTags,
+      ].join(' ').toLowerCase()
+
+      return {
+        id: `${scenario.id}:source:${sourceIndex}`,
+        scenario,
+        source,
+        searchText,
+      } satisfies SourceAtlasEntry
+    }),
+  )
+}
+
+function formatSourceJudgmentWorksheet(entries: SourceAtlasEntry[]) {
+  return [
+    'TimeAtlas Archive & Evidence Atlas / 全站史料证据地图 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `所选来源数：${entries.length}`,
+    '',
+    '一、来源清单',
+    ...entries.flatMap((entry, index) => [
+      `${index + 1}. ${entry.scenario.title}｜${entry.source.title}`,
+      `   类型：${sourceTypeLabels[entry.source.sourceType]} / ${entry.source.creator}`,
+      `   摘记：${entry.source.excerpt}`,
+      `   视角：${entry.source.perspective}`,
+      `   可靠边界：${entry.source.reliabilityNote}`,
+      `   史料追问：${entry.source.sourceQuestion}`,
+      `   标签：${entry.source.evidenceTags.join('、')}`,
+      `   URL：${entry.source.url ?? '未提供'}`,
+    ]),
+    '',
+    '二、史料判断',
+    '1. 哪一条来源最接近当时人的声音？为什么？',
+    '2. 哪一条来源更像后来的解释或机构整理？它的优势和限制是什么？',
+    '3. 这些来源共同能支持哪一个历史判断？请区分事实线索与推论。',
+    '4. 这些来源共同看不见谁？还需要补充哪类材料？',
+    '',
+    '三、比较结论模板',
+    '我的判断：',
+    '最可靠的证据：',
+    '最需要谨慎的证据：',
+    '仍然缺失的声音 / 材料：',
+  ].join('\n')
+}
+
+function SourceAtlasPanel({
+  onOpenScenario,
+  onLoadCompareLens,
+}: {
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onLoadCompareLens: (lens: CompareLens) => void
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | Scenario['sources'][number]['sourceType']>('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [evidenceTagFilter, setEvidenceTagFilter] = useState('all')
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const sourceAtlasEntries = useMemo(buildSourceAtlasEntries, [])
+  const sourceTypeCounts = useMemo(
+    () =>
+      sourceAtlasEntries.reduce((counts, entry) => {
+        counts[entry.source.sourceType] = (counts[entry.source.sourceType] ?? 0) + 1
+        return counts
+      }, {} as Record<Scenario['sources'][number]['sourceType'], number>),
+    [sourceAtlasEntries],
+  )
+  const evidenceTagCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+
+    sourceAtlasEntries.forEach((entry) => {
+      entry.source.evidenceTags.forEach((tag) => {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1)
+      })
+    })
+
+    return [...counts.entries()].sort((first, second) => second[1] - first[1] || first[0].localeCompare(second[0], 'zh-Hans-CN'))
+  }, [sourceAtlasEntries])
+  const evidenceTagOptions = evidenceTagCounts.map(([tag]) => tag)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const visibleEntries = useMemo(
+    () => sourceAtlasEntries.filter((entry) => {
+      const matchesSearch = !normalizedSearchQuery || entry.searchText.includes(normalizedSearchQuery)
+      const matchesType = sourceTypeFilter === 'all' || entry.source.sourceType === sourceTypeFilter
+      const matchesScenario = scenarioFilter === 'all' || entry.scenario.id === scenarioFilter
+      const matchesTag = evidenceTagFilter === 'all' || entry.source.evidenceTags.includes(evidenceTagFilter)
+
+      return matchesSearch && matchesType && matchesScenario && matchesTag
+    }),
+    [evidenceTagFilter, normalizedSearchQuery, scenarioFilter, sourceAtlasEntries, sourceTypeFilter],
+  )
+  const selectedEntries = selectedSourceIds
+    .map((id) => sourceAtlasEntries.find((entry) => entry.id === id))
+    .filter((entry): entry is SourceAtlasEntry => Boolean(entry))
+  const sourceCredibilityLens = compareLenses.find((lens) => lens.key === 'source-credibility')
+  const archiveGapCards = [
+    {
+      title: '缺席声音扫描',
+      prompt: '筛选“原始材料”，寻找哪些场景仍主要依赖机构档案或研究著作；写下最需要补充的当事人声音。',
+      metric: `${sourceTypeCounts.primary ?? 0} 条原始材料`,
+    },
+    {
+      title: '机构档案偏向',
+      prompt: '比较机构材料和研究著作：哪些问题会被制度记录放大，哪些日常经验可能被压低？',
+      metric: `${sourceTypeCounts.institution ?? 0} 条机构档案`,
+    },
+    {
+      title: '标签空白追问',
+      prompt: `高频标签之外，选择一个低频证据标签，说明它为什么会改变对某个场景的判断。`,
+      metric: `${evidenceTagOptions.length} 个证据标签`,
+    },
+  ]
+
+  function toggleBasket(entryId: string) {
+    setCopyStatus('idle')
+    setSelectedSourceIds((currentIds) => {
+      if (currentIds.includes(entryId)) {
+        return currentIds.filter((id) => id !== entryId)
+      }
+
+      if (currentIds.length >= 4) {
+        return currentIds
+      }
+
+      return [...currentIds, entryId]
+    })
+  }
+
+  async function copyWorksheet() {
+    if (selectedEntries.length < 2 || selectedEntries.length > 4) {
+      setCopyStatus('failed')
+      return
+    }
+
+    try {
+      await copyTextToClipboard(formatSourceJudgmentWorksheet(selectedEntries))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="source-atlas" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="source-atlas-title">
+      <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-amber-100">
+          <LibraryBig size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">archive & evidence atlas 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="source-atlas-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Archive & Evidence Atlas / 全站史料证据地图 1.0
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              不改变 scenario 结构，直接汇总现有 scenarios[].sources：搜索标题、作者/机构、场景、标签、摘记、可靠边界、视角和史料追问，快速组成 2-4 条来源的史料判断练习。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {visibleEntries.length}/{sourceAtlasEntries.length} 条来源 · {evidenceTagOptions.length} 个证据标签
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1.35fr_0.75fr_0.9fr_0.9fr]">
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">全站来源搜索</span>
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-amber-200/60">
+              <Search size={18} className="text-stone-500" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="标题、creator、场景、tags、excerpt、reliability、perspective、question……"
+                className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600"
+              />
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">来源类型</span>
+            <select
+              value={sourceTypeFilter}
+              onChange={(event) => setSourceTypeFilter(event.target.value as 'all' | Scenario['sources'][number]['sourceType'])}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+            >
+              <option value="all">全部类型</option>
+              <option value="primary">原始材料</option>
+              <option value="institution">机构档案</option>
+              <option value="scholarship">研究著作</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">场景</span>
+            <select
+              value={scenarioFilter}
+              onChange={(event) => setScenarioFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+            >
+              <option value="all">全部场景</option>
+              {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">证据标签</span>
+            <select
+              value={evidenceTagFilter}
+              onChange={(event) => setEvidenceTagFilter(event.target.value)}
+              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+            >
+              <option value="all">全部标签</option>
+              {evidenceTagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <aside className="space-y-4">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">来源类型快照</h3>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {(Object.entries(sourceTypeLabels) as [Scenario['sources'][number]['sourceType'], string][]).map(([type, label]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setSourceTypeFilter(type)}
+                    className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:border-amber-100/25 hover:bg-white/[0.06]"
+                  >
+                    <div className="text-2xl font-semibold text-amber-100">{sourceTypeCounts[type] ?? 0}</div>
+                    <div className="mt-1 text-xs text-stone-500">{label}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">高频证据标签</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {evidenceTagCounts.slice(0, 14).map(([tag, count]) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setEvidenceTagFilter(tag)}
+                    className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-xs text-amber-100 transition hover:bg-amber-100/[0.12]"
+                  >
+                    {tag} · {count}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-orange-200/15 bg-orange-100/[0.045] p-4">
+              <h3 className="font-semibold text-orange-100">Archive gap prompts</h3>
+              <div className="mt-3 space-y-3">
+                {archiveGapCards.map((card) => (
+                  <article key={card.title} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{card.metric}</div>
+                    <h4 className="mt-1 font-semibold text-stone-50">{card.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{card.prompt}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-teal-200/15 bg-teal-100/[0.045] p-4">
+              <div className="flex items-center gap-2 text-teal-100">
+                <ClipboardList size={18} />
+                <h3 className="font-semibold">Evidence Basket</h3>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-stone-400">选择 2-4 条来源后复制“史料判断”工作纸。</p>
+              <div className="mt-3 space-y-2">
+                {selectedEntries.length > 0 ? selectedEntries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => toggleBasket(entry.id)}
+                    className="block w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-left text-sm transition hover:border-teal-100/25"
+                  >
+                    <span className="block font-medium text-stone-100">{entry.source.title}</span>
+                    <span className="mt-1 block text-xs text-stone-500">{entry.scenario.title} · 点击移除</span>
+                  </button>
+                )) : <p className="rounded-2xl border border-dashed border-white/10 p-3 text-sm text-stone-500">还没有选择来源。</p>}
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyWorksheet()}
+                  disabled={selectedEntries.length < 2 || selectedEntries.length > 4}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-stone-700 disabled:text-stone-400"
+                >
+                  {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'copied' ? '工作纸已复制' : '复制史料判断工作纸'}
+                </button>
+                {sourceCredibilityLens ? (
+                  <button
+                    type="button"
+                    onClick={() => onLoadCompareLens(sourceCredibilityLens)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                  >
+                    <Scale size={16} />
+                    载入来源可信度比较镜头
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查剪贴板权限；工作纸需要选择 2-4 条来源。' : `已选择 ${selectedEntries.length}/4 条来源。`}
+              </p>
+            </div>
+          </aside>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {visibleEntries.slice(0, 60).map((entry) => {
+              const isSelected = selectedSourceIds.includes(entry.id)
+              const basketFull = selectedSourceIds.length >= 4 && !isSelected
+
+              return (
+                <article key={entry.id} className="flex min-h-full flex-col rounded-[1.5rem] border border-white/10 bg-black/20 p-4 transition hover:border-amber-100/25 hover:bg-black/30">
+                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                    <span className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-amber-100">{entry.scenario.title}</span>
+                    <span>{sourceTypeLabels[entry.source.sourceType]}</span>
+                    <span>{entry.source.creator}</span>
+                  </div>
+                  <h3 className="mt-3 text-xl font-semibold tracking-tight text-stone-50">{entry.source.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-500">{entry.scenario.era} · {entry.scenario.location} · {entry.scenario.identity}</p>
+                  <div className="mt-4 rounded-2xl border border-amber-200/15 bg-amber-100/[0.055] p-4">
+                    <div className="text-xs uppercase tracking-[0.22em] text-amber-100/70">excerpt / 转述摘记</div>
+                    <p className="mt-2 text-sm leading-6 text-stone-300">{entry.source.excerpt}</p>
+                  </div>
+                  <dl className="mt-4 grid gap-3 text-sm leading-6 text-stone-400">
+                    <div>
+                      <dt className="font-semibold text-teal-100">Perspective / 视角</dt>
+                      <dd>{entry.source.perspective}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold text-teal-100">Reliability / 可靠边界</dt>
+                      <dd>{entry.source.reliabilityNote}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold text-teal-100">Source question / 史料追问</dt>
+                      <dd>{entry.source.sourceQuestion}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {entry.source.evidenceTags.map((tag) => (
+                      <button
+                        key={`${entry.id}-${tag}`}
+                        type="button"
+                        onClick={() => setEvidenceTagFilter(tag)}
+                        className="rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400 transition hover:border-amber-100/25 hover:text-amber-100"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {entry.source.url ? (
+                    <a href={entry.source.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-medium text-amber-100 underline-offset-4 hover:underline">
+                      {entry.source.url}
+                    </a>
+                  ) : null}
+                  <div className="mt-auto flex flex-col gap-2 pt-5 sm:flex-row sm:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => onOpenScenario(entry.scenario.id, sectionIds.sourceReader)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                    >
+                      <ScrollText size={16} />
+                      打开该场景 Source Reader
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleBasket(entry.id)}
+                      disabled={basketFull}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-stone-600"
+                    >
+                      {isSelected ? <Check size={16} /> : <Circle size={16} />}
+                      {isSelected ? '从 Basket 移除' : basketFull ? 'Basket 已满' : '加入 Evidence Basket'}
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </div>
+
+        {visibleEntries.length > 60 ? (
+          <p className="mt-4 text-sm text-stone-500">已显示前 60 条来源；可使用搜索、类型、场景或标签筛选继续缩小范围。</p>
+        ) : null}
+        {visibleEntries.length === 0 ? (
+          <p className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">没有匹配的来源。请放宽关键词、来源类型、场景或证据标签筛选。</p>
+        ) : null}
+      </div>
+    </section>
+  )
 }
 
 function PortfolioPanel({
