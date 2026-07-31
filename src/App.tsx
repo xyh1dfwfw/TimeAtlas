@@ -61,6 +61,7 @@ const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
+  dailyLife: 'daily-life',
   sceneReader: 'scene-reader',
   lessonPack: 'lesson-pack',
   activityPacks: 'activity-packs',
@@ -545,13 +546,38 @@ const scenarioExperienceTabs: {
 }[] = [
   { id: 'overview', label: '概览', eyebrow: 'Overview', description: '身份卡、时间线与情境开场', hash: sectionIds.experience },
   { id: 'scenes', label: '现场阅读', eyebrow: 'Scene', description: '4 个历史现场 beat 与观察任务', hash: sectionIds.sceneReader },
-  { id: 'daily', label: '日常生活', eyebrow: 'Daily', description: '食物、居所、工作、教育、风险与自由', hash: sectionIds.experience },
+  { id: 'daily', label: '日常生活', eyebrow: 'Daily', description: '食物、居所、工作、教育、风险与自由', hash: sectionIds.dailyLife },
   { id: 'lesson', label: '课堂包', eyebrow: 'Lesson', description: 'Quick / source / debate 课堂流程', hash: sectionIds.lessonPack },
   { id: 'activities', label: '活动包', eyebrow: 'Activity', description: 'Warmup、source lab、roleplay、writing 等任务', hash: sectionIds.activityPacks },
   { id: 'missions', label: '任务板', eyebrow: 'Missions', description: '证据任务、草稿、勾选与学习输出', hash: sectionIds.missionBoard },
   { id: 'decision', label: '历史岔路', eyebrow: 'Decision', description: '选择、后果与真实历史对照', hash: sectionIds.decisionPanel },
   { id: 'sources', label: '来源层', eyebrow: 'Sources', description: '来源类型、摘记、视角与可靠边界', hash: sectionIds.sourceReader },
   { id: 'argument', label: '论证', eyebrow: 'Argument', description: '把证据转成完整历史论证', hash: sectionIds.argumentStudio },
+]
+
+
+type SubpageNavItem<T extends string> = {
+  id: T
+  label: string
+  eyebrow: string
+  description: string
+  hash: string
+}
+
+type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
+type TasksSubpage = 'library' | 'sessions' | 'portfolio'
+
+const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
+  { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
+  { id: 'missions', label: '跨场景挑战', eyebrow: 'Missions', description: 'Atlas Workspace 任务草稿与勾选', hash: 'atlas-missions' },
+  { id: 'pathways', label: '探究路径', eyebrow: 'Pathways', description: '策展 inquiry paths 与 Compare 入口', hash: 'atlas-inquiry-paths' },
+  { id: 'compare', label: '比较实验室', eyebrow: 'Compare', description: '双场景比较镜头与作业生成', hash: sectionIds.compareLab },
+]
+
+const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
+  { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
+  { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
+  { id: 'portfolio', label: '作品档案', eyebrow: 'Portfolio', description: '学习草稿、完成记录与导出', hash: 'portfolio' },
 ]
 
 type GuidedSessionRoute = {
@@ -3823,7 +3849,7 @@ function getDurationBandLabel(band: DurationBand) {
   }[band]
 }
 
-function scrollToSection(hash: ScenarioSectionId, prefersReducedMotion: boolean | null) {
+function scrollToSection(hash: string, prefersReducedMotion: boolean | null) {
   if (typeof window === 'undefined') {
     return
   }
@@ -3867,6 +3893,7 @@ function inferPageFromHash(hash: string): PageId {
     sectionIds.decisionPanel,
     sectionIds.argumentStudio,
     sectionIds.sourceReader,
+    sectionIds.dailyLife,
     sectionIds.experience,
   ] as string[]
 
@@ -3892,6 +3919,7 @@ function getScenarioTabFromHash(hash: string | null): ScenarioExperienceTab {
   const normalizedHash = (hash ?? '').replace(/^#/, '')
 
   if (normalizedHash === sectionIds.sceneReader) return 'scenes'
+  if (normalizedHash === sectionIds.dailyLife) return 'daily'
   if (normalizedHash === sectionIds.lessonPack) return 'lesson'
   if (normalizedHash === sectionIds.activityPacks) return 'activities'
   if (normalizedHash === sectionIds.missionBoard) return 'missions'
@@ -3904,6 +3932,34 @@ function getScenarioTabFromHash(hash: string | null): ScenarioExperienceTab {
 
 function getHashForScenarioTab(tab: ScenarioExperienceTab): ScenarioSectionId {
   return scenarioExperienceTabs.find((item) => item.id === tab)?.hash ?? sectionIds.experience
+}
+
+
+function getAtlasSubpageFromHash(hash: string | null): AtlasSubpage {
+  const normalizedHash = (hash ?? '').replace(/^#/, '')
+
+  if (normalizedHash === 'atlas-missions') return 'missions'
+  if (normalizedHash === 'atlas-inquiry-paths') return 'pathways'
+  if (normalizedHash === sectionIds.compareLab) return 'compare'
+
+  return 'routes'
+}
+
+function getHashForAtlasSubpage(subpage: AtlasSubpage) {
+  return atlasSubpages.find((item) => item.id === subpage)?.hash ?? 'time-space-atlas'
+}
+
+function getTasksSubpageFromHash(hash: string | null): TasksSubpage {
+  const normalizedHash = (hash ?? '').replace(/^#/, '')
+
+  if (normalizedHash === 'guided-session-builder') return 'sessions'
+  if (normalizedHash === 'portfolio') return 'portfolio'
+
+  return 'library'
+}
+
+function getHashForTasksSubpage(subpage: TasksSubpage) {
+  return tasksSubpages.find((item) => item.id === subpage)?.hash ?? 'task-library'
 }
 
 function getInitialPage() {
@@ -4510,6 +4566,8 @@ function App() {
   const initialSelection = useMemo(getInitialSelection, [])
   const initialCompareSelection = useMemo(getInitialCompareSelection, [])
   const [activePage, setActivePage] = useState<PageId>(getInitialPage)
+  const [activeAtlasSubpage, setActiveAtlasSubpage] = useState<AtlasSubpage>(() => (typeof window === 'undefined' ? 'routes' : getAtlasSubpageFromHash(window.location.hash)))
+  const [activeTasksSubpage, setActiveTasksSubpage] = useState<TasksSubpage>(() => (typeof window === 'undefined' ? 'library' : getTasksSubpageFromHash(window.location.hash)))
   const [selectedScenarioTab, setSelectedScenarioTab] = useState<ScenarioExperienceTab>(() => (typeof window === 'undefined' ? 'overview' : getScenarioTabFromHash(window.location.hash)))
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
@@ -4763,15 +4821,47 @@ function App() {
   function navigateToPage(page: PageId, hash?: string) {
     setActivePage(page)
 
+    if (page === 'atlas') {
+      setActiveAtlasSubpage(hash ? getAtlasSubpageFromHash(hash) : 'routes')
+    }
+
+    if (page === 'tasks') {
+      setActiveTasksSubpage(hash ? getTasksSubpageFromHash(hash) : 'library')
+    }
+
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl(page, hash))
     }
 
     if (hash) {
-      scrollToSection(hash as ScenarioSectionId, prefersReducedMotion)
+      scrollToSection(hash, prefersReducedMotion)
     } else if (typeof window !== 'undefined') {
       window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' }))
     }
+  }
+
+  function selectAtlasSubpage(subpage: AtlasSubpage) {
+    const hash = getHashForAtlasSubpage(subpage)
+
+    setActiveAtlasSubpage(subpage)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('atlas', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function selectTasksSubpage(subpage: TasksSubpage) {
+    const hash = getHashForTasksSubpage(subpage)
+
+    setActiveTasksSubpage(subpage)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
   }
 
   function selectScenario(id: string, hash: ScenarioSectionId = defaultScenarioSectionId) {
@@ -4831,6 +4921,11 @@ function App() {
     setCompareScenarioBId(secondScenarioId)
     setSelectedLensKey(path.lensKey)
     setActivePage('atlas')
+    setActiveAtlasSubpage('compare')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('atlas', sectionIds.compareLab))
+    }
 
     window.requestAnimationFrame(() => {
       document.getElementById(sectionIds.compareLab)?.scrollIntoView({
@@ -4843,6 +4938,11 @@ function App() {
   function loadCompareLens(lens: CompareLens) {
     setSelectedLensKey(lens.key)
     setActivePage('atlas')
+    setActiveAtlasSubpage('compare')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('atlas', sectionIds.compareLab))
+    }
 
     window.requestAnimationFrame(() => {
       document.getElementById(sectionIds.compareLab)?.scrollIntoView({
@@ -4973,31 +5073,45 @@ function App() {
 
         {activePage === 'atlas' ? (
           <>
-            <TimeSpaceAtlasPanel
-              selectedScenarioId={selectedScenarioId}
-              workspaceState={workspaceState}
-              onUpdateWorkspaceState={setWorkspaceState}
-              onOpenScenario={selectScenario}
-              onLoadCompare={loadCompareFromInquiryPath}
+            <SubpageNav
+              ariaLabel="Atlas 子页面"
+              items={atlasSubpages}
+              activeId={activeAtlasSubpage}
+              onSelect={selectAtlasSubpage}
             />
-            <AtlasMissionsPanel
-              workspaceState={workspaceState}
-              onUpdateWorkspaceState={setWorkspaceState}
-            />
-            <AtlasInquiryPathsPanel
-              workspaceState={workspaceState}
-              onUpdateWorkspaceState={setWorkspaceState}
-              onOpenScenario={selectScenario}
-              onLoadCompare={loadCompareFromInquiryPath}
-            />
-            <CompareLabPanel
-              scenarioA={compareScenarioA}
-              scenarioB={compareScenarioB}
-              selectedLens={selectedLens}
-              onSelectScenarioA={selectCompareScenarioA}
-              onSelectScenarioB={selectCompareScenarioB}
-              onSelectLens={setSelectedLensKey}
-            />
+            {activeAtlasSubpage === 'routes' ? (
+              <TimeSpaceAtlasPanel
+                selectedScenarioId={selectedScenarioId}
+                workspaceState={workspaceState}
+                onUpdateWorkspaceState={setWorkspaceState}
+                onOpenScenario={selectScenario}
+                onLoadCompare={loadCompareFromInquiryPath}
+              />
+            ) : null}
+            {activeAtlasSubpage === 'missions' ? (
+              <AtlasMissionsPanel
+                workspaceState={workspaceState}
+                onUpdateWorkspaceState={setWorkspaceState}
+              />
+            ) : null}
+            {activeAtlasSubpage === 'pathways' ? (
+              <AtlasInquiryPathsPanel
+                workspaceState={workspaceState}
+                onUpdateWorkspaceState={setWorkspaceState}
+                onOpenScenario={selectScenario}
+                onLoadCompare={loadCompareFromInquiryPath}
+              />
+            ) : null}
+            {activeAtlasSubpage === 'compare' ? (
+              <CompareLabPanel
+                scenarioA={compareScenarioA}
+                scenarioB={compareScenarioB}
+                selectedLens={selectedLens}
+                onSelectScenarioA={selectCompareScenarioA}
+                onSelectScenarioB={selectCompareScenarioB}
+                onSelectLens={setSelectedLensKey}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -5078,36 +5192,48 @@ function App() {
 
         {activePage === 'tasks' ? (
           <>
-            <TaskLibraryPanel
-              onOpenScenario={selectScenario}
-              onLoadCompare={loadCompareFromInquiryPath}
-              onLoadCompareLens={loadCompareLens}
-              onLoadCausationInquiry={loadCausationInquiry}
-              onLoadPeriodizationInquiry={loadPeriodizationInquiry}
-              onLoadPerspectivesInquiry={loadPerspectivesInquiry}
-              onLoadContextInquiry={loadContextInquiry}
-              onLoadSignificanceInquiry={loadSignificanceInquiry}
-              onLoadSynthesisPreset={loadSynthesisPreset}
+            <SubpageNav
+              ariaLabel="Tasks 子页面"
+              items={tasksSubpages}
+              activeId={activeTasksSubpage}
+              onSelect={selectTasksSubpage}
             />
-            <GuidedSessionPanel
-              selectedScenarioId={selectedScenario.id}
-              progressState={guidedSessionProgressState}
-              onUpdateProgressState={setGuidedSessionProgressState}
-              onOpenScenario={selectScenario}
-            />
-            <PortfolioPanel
-              completedMissionIdsByScenario={completedMissionIdsByScenario}
-              missionWorkState={missionWorkState}
-              workspaceState={workspaceState}
-              workspaceStats={workspaceStats}
-              corroborationDraftState={corroborationDraftState}
-              causationDraftState={causationDraftState}
-              periodizationDraftState={periodizationDraftState}
-              perspectivesDraftState={perspectivesDraftState}
-              contextDraftState={contextDraftState}
-              significanceDraftState={significanceDraftState}
-              synthesisDraftState={synthesisDraftState}
-            />
+            {activeTasksSubpage === 'library' ? (
+              <TaskLibraryPanel
+                onOpenScenario={selectScenario}
+                onLoadCompare={loadCompareFromInquiryPath}
+                onLoadCompareLens={loadCompareLens}
+                onLoadCausationInquiry={loadCausationInquiry}
+                onLoadPeriodizationInquiry={loadPeriodizationInquiry}
+                onLoadPerspectivesInquiry={loadPerspectivesInquiry}
+                onLoadContextInquiry={loadContextInquiry}
+                onLoadSignificanceInquiry={loadSignificanceInquiry}
+                onLoadSynthesisPreset={loadSynthesisPreset}
+              />
+            ) : null}
+            {activeTasksSubpage === 'sessions' ? (
+              <GuidedSessionPanel
+                selectedScenarioId={selectedScenario.id}
+                progressState={guidedSessionProgressState}
+                onUpdateProgressState={setGuidedSessionProgressState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+            {activeTasksSubpage === 'portfolio' ? (
+              <PortfolioPanel
+                completedMissionIdsByScenario={completedMissionIdsByScenario}
+                missionWorkState={missionWorkState}
+                workspaceState={workspaceState}
+                workspaceStats={workspaceStats}
+                corroborationDraftState={corroborationDraftState}
+                causationDraftState={causationDraftState}
+                periodizationDraftState={periodizationDraftState}
+                perspectivesDraftState={perspectivesDraftState}
+                contextDraftState={contextDraftState}
+                significanceDraftState={significanceDraftState}
+                synthesisDraftState={synthesisDraftState}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -5215,6 +5341,47 @@ function AppShell({
         </motion.div>
       </AnimatePresence>
     </>
+  )
+}
+
+function SubpageNav<T extends string>({
+  ariaLabel,
+  items,
+  activeId,
+  onSelect,
+}: {
+  ariaLabel: string
+  items: SubpageNavItem<T>[]
+  activeId: T
+  onSelect: (id: T) => void
+}) {
+  return (
+    <nav className="mx-auto w-full max-w-7xl px-5 pt-6 sm:px-8 lg:px-10" aria-label={ariaLabel}>
+      <div className="grid gap-3 rounded-[2rem] border border-white/10 bg-white/[0.035] p-3 backdrop-blur sm:grid-cols-2 lg:grid-cols-4" role="tablist">
+        {items.map((item) => {
+          const isActive = activeId === item.id
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onSelect(item.id)}
+              className={`rounded-[1.35rem] border p-4 text-left transition ${
+                isActive
+                  ? 'border-amber-200/50 bg-amber-200/12 text-stone-50'
+                  : 'border-white/10 bg-black/20 text-stone-400 hover:border-amber-100/25 hover:bg-white/[0.05] hover:text-stone-100'
+              }`}
+            >
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{item.eyebrow}</div>
+              <div className="mt-1 font-semibold">{item.label}</div>
+              <div className="mt-1 text-xs leading-5 text-stone-500">{item.description}</div>
+            </button>
+          )
+        })}
+      </div>
+    </nav>
   )
 }
 
@@ -8602,7 +8769,7 @@ function PortfolioPanel({
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="portfolio-title">
+    <section id="portfolio" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="portfolio-title">
       <div className="grid gap-4 rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5 lg:grid-cols-[0.78fr_1.22fr]">
         <div>
           <div className="mb-4 flex items-center gap-3 text-teal-100">
@@ -9184,7 +9351,7 @@ function AtlasMissionsPanel({
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="atlas-missions-title">
+    <section id="atlas-missions" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="atlas-missions-title">
       <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
         <div className="mb-4 flex items-center gap-3 text-amber-100">
           <Compass size={20} />
@@ -10198,7 +10365,7 @@ function SceneReaderPanel({ scenario }: { scenario: Scenario }) {
 
 function DailyLifeGrid({ scenario }: { scenario: Scenario }) {
   return (
-    <section className="grid gap-4 md:grid-cols-2">
+    <section id={sectionIds.dailyLife} className="grid gap-4 md:grid-cols-2">
       {scenario.dailyLife.map((section) => (
         <article key={section.key} className="rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-5">
           <div className="mb-4 inline-flex rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400">
