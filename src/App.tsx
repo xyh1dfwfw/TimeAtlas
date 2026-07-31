@@ -61,6 +61,7 @@ const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
 const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
+const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -582,7 +583,7 @@ type SubpageNavItem<T extends string> = {
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'assessment' | 'debate' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
 
@@ -606,6 +607,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
+  { id: 'workbench', label: '任务执行台', eyebrow: 'Workbench', description: '按单个任务记录清单、证据、主张与反思', hash: 'task-workbench' },
   { id: 'assessment', label: '评价反馈', eyebrow: 'Assessment', description: '按任务、组合或模块生成 rubric、评分指南与反馈句式', hash: 'assessment-studio' },
   { id: 'debate', label: '辩论工作台', eyebrow: 'Debate', description: '角色卡、证据卡、回合计划与可复制指南', hash: 'debate-studio' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
@@ -681,9 +683,34 @@ type LibraryTask = {
   secondaryActionLabel?: string
   onPrimaryAction?: () => void
   onSecondaryAction?: () => void
+  onStartTask?: () => void
+  workbenchPrompts?: string[]
+  checklist?: string[]
+  evidencePrompts?: string[]
   formatSheet: () => string
 }
 
+
+type TaskWorkbenchDraft = {
+  taskId: string
+  checkedPromptIds: string[]
+  evidenceNotes: string
+  claimExplanation: string
+  sourceLimits: string
+  reflection: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type TaskWorkbenchState = Record<string, TaskWorkbenchDraft>
+
+type TaskWorkbenchStats = {
+  activeDrafts: [string, TaskWorkbenchDraft][]
+  activeCount: number
+  completedCount: number
+  checkedPromptCount: number
+  recentDrafts: [string, TaskWorkbenchDraft][]
+}
 
 type AssignmentBuilderDraft = {
   selectedTaskIds: string[]
@@ -2225,6 +2252,170 @@ function persistTaskModuleProgressState(state: TaskModuleProgressState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(taskModuleProgressStorageKey, serializedState)
+}
+
+
+function getEmptyTaskWorkbenchDraft(taskId: string): TaskWorkbenchDraft {
+  return {
+    taskId,
+    checkedPromptIds: [],
+    evidenceNotes: '',
+    claimExplanation: '',
+    sourceLimits: '',
+    reflection: '',
+    completed: false,
+  }
+}
+
+function parseTaskWorkbenchDraftState(rawState: string | null): TaskWorkbenchState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as TaskWorkbenchState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<TaskWorkbenchDraft>
+        const taskId = typeof draft.taskId === 'string' && draft.taskId ? draft.taskId : key
+        const checkedPromptIds = Array.isArray(draft.checkedPromptIds)
+          ? draft.checkedPromptIds.filter((item): item is string => typeof item === 'string')
+          : []
+
+        return [[
+          taskId,
+          {
+            taskId,
+            checkedPromptIds,
+            evidenceNotes: typeof draft.evidenceNotes === 'string' ? draft.evidenceNotes : '',
+            claimExplanation: typeof draft.claimExplanation === 'string' ? draft.claimExplanation : '',
+            sourceLimits: typeof draft.sourceLimits === 'string' ? draft.sourceLimits : '',
+            reflection: typeof draft.reflection === 'string' ? draft.reflection : '',
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies TaskWorkbenchDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as TaskWorkbenchState
+  }
+}
+
+function hasTaskWorkbenchDraftActivity(draft: TaskWorkbenchDraft) {
+  return Boolean(
+    draft.checkedPromptIds.length
+      || draft.evidenceNotes.trim()
+      || draft.claimExplanation.trim()
+      || draft.sourceLimits.trim()
+      || draft.reflection.trim()
+      || draft.completed,
+  )
+}
+
+function loadTaskWorkbenchDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseTaskWorkbenchDraftState(localStorage?.getItem(taskWorkbenchStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasTaskWorkbenchDraftActivity)) {
+    return localState
+  }
+
+  return parseTaskWorkbenchDraftState(sessionStorage?.getItem(taskWorkbenchStorageKey) ?? null)
+}
+
+function persistTaskWorkbenchDraftState(state: TaskWorkbenchState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(taskWorkbenchStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(taskWorkbenchStorageKey, serializedState)
+}
+
+function getTaskWorkbenchChecklist(task: LibraryTask) {
+  return task.checklist?.length
+    ? task.checklist
+    : [
+      `理解任务：${task.summary}`,
+      `收集并标注至少一条${task.sourceBased ? '来源证据' : '任务证据'}`,
+      `产出交付物：${task.deliverable}`,
+      '指出来源限制、缺席声音或仍不确定的问题。',
+    ]
+}
+
+function getTaskWorkbenchEvidencePrompts(task: LibraryTask) {
+  return task.evidencePrompts?.length
+    ? task.evidencePrompts
+    : [
+      '哪一条证据最能支持你的判断？它来自哪里？',
+      '这条证据不能证明什么？哪些声音或材料缺席？',
+      '你如何把证据连接到历史情境、尺度或因果/比较/意义判断？',
+    ]
+}
+
+function getTaskWorkbenchPrompts(task: LibraryTask) {
+  return task.workbenchPrompts?.length
+    ? task.workbenchPrompts
+    : [
+      `用一句话复述任务目标：${task.summary}`,
+      `完成形式：${task.deliverable}`,
+      `历史思维焦点：${task.category} / ${task.sourceLabel}`,
+    ]
+}
+
+function getTaskWorkbenchStats(state: TaskWorkbenchState): TaskWorkbenchStats {
+  const activeDrafts = Object.entries(state).filter((entry): entry is [string, TaskWorkbenchDraft] => hasTaskWorkbenchDraftActivity(entry[1]))
+  const sortedDrafts = [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+
+  return {
+    activeDrafts,
+    activeCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    checkedPromptCount: activeDrafts.reduce((count, [, draft]) => count + draft.checkedPromptIds.length, 0),
+    recentDrafts: sortedDrafts.slice(0, 4),
+  }
+}
+
+function formatTaskWorkbenchDraft(task: LibraryTask, draft: TaskWorkbenchDraft) {
+  const checklist = getTaskWorkbenchChecklist(task)
+  const evidencePrompts = getTaskWorkbenchEvidencePrompts(task)
+  const promptSections = getTaskWorkbenchPrompts(task)
+
+  return [
+    `TimeAtlas Tasks Workbench / 任务执行台：${task.title}`,
+    `来源：${task.sourceLabel}｜${task.category}`,
+    `情境：${task.context}`,
+    `时长：${task.durationMinutes} 分钟（${getDurationBandLabel(task.durationBand)}）`,
+    `状态：${draft.completed ? '已完成' : hasTaskWorkbenchDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+    '',
+    '任务提示：',
+    ...promptSections.map((prompt, index) => `${index + 1}. ${prompt}`),
+    '',
+    '执行清单：',
+    ...checklist.map((item, index) => `- [${draft.checkedPromptIds.includes(`checklist:${index}`) ? 'x' : ' '}] ${item}`),
+    '',
+    '证据提示：',
+    ...evidencePrompts.map((prompt, index) => `- ${index + 1}. ${prompt}`),
+    '',
+    `证据 notes：${draft.evidenceNotes.trim() || '尚未填写'}`,
+    `Claim / explanation：${draft.claimExplanation.trim() || '尚未填写'}`,
+    `Source limits：${draft.sourceLimits.trim() || '尚未填写'}`,
+    `Reflection：${draft.reflection.trim() || '尚未填写'}`,
+    '',
+    '原始任务单：',
+    task.formatSheet(),
+  ].join('\n')
 }
 
 function getEmptyAssignmentBuilderDraft(): AssignmentBuilderDraft {
@@ -4058,6 +4249,7 @@ function formatLearningArchive(
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
+  taskWorkbenchDraftState: TaskWorkbenchState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
@@ -4070,6 +4262,8 @@ function formatLearningArchive(
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
+  const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
@@ -4095,6 +4289,7 @@ function formatLearningArchive(
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
+    `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
     '',
   ]
@@ -4145,6 +4340,28 @@ function formatLearningArchive(
       `  评分关注：${assignmentBuilderDraft.rubricFocus.trim() || '未填写'}`,
       '',
     )
+  }
+
+  if (taskWorkbenchStats.activeDrafts.length > 0) {
+    lines.push('Tasks Workbench / 任务执行台：')
+    taskWorkbenchStats.activeDrafts.forEach(([taskId, draft]) => {
+      const task = libraryTasksById.get(taskId)
+      const checklist = task ? getTaskWorkbenchChecklist(task) : []
+      const completedChecklist = checklist.filter((_, index) => draft.checkedPromptIds.includes(`checklist:${index}`))
+
+      lines.push(
+        `  - ${task?.title ?? taskId}（${draft.completed ? '已完成' : '草稿'}｜${task?.sourceLabel ?? '未知来源'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    情境：${task?.context ?? '任务库条目已变化'}`,
+        `    清单进度：${completedChecklist.length}/${checklist.length}`,
+        `    已完成清单：${completedChecklist.join('；') || '尚未勾选'}`,
+        `    证据 notes：${draft.evidenceNotes.trim() || '尚未填写'}`,
+        `    Claim / explanation：${draft.claimExplanation.trim() || '尚未填写'}`,
+        `    Source limits：${draft.sourceLimits.trim() || '尚未填写'}`,
+        `    Reflection：${draft.reflection.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
   }
 
   if (taskModuleStats.details.length > 0) {
@@ -4403,7 +4620,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、任务执行台草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -4788,6 +5005,9 @@ function formatTaskModuleSheet(module: TaskModule, checkedStepIds: string[] = []
 }
 
 function formatGenericLibraryTaskSheet(task: LibraryTask) {
+  const checklist = getTaskWorkbenchChecklist(task)
+  const evidencePrompts = getTaskWorkbenchEvidencePrompts(task)
+
   return [
     `TimeAtlas Task Library / Assignment Launcher 11.0：${task.title}`,
     `来源：${task.sourceLabel}`,
@@ -4798,6 +5018,12 @@ function formatGenericLibraryTaskSheet(task: LibraryTask) {
     '',
     `任务摘要：${task.summary}`,
     `交付物：${task.deliverable}`,
+    '',
+    '执行清单：',
+    ...checklist.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    '证据提示：',
+    ...evidencePrompts.map((item, index) => `${index + 1}. ${item}`),
     '',
     '标签：',
     ...(task.tags.length ? task.tags.map((tag) => `- ${tag}`) : ['- 无']),
@@ -5216,6 +5442,7 @@ function buildTaskLibraryTasks({
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
   onOpenDebateStudio,
+  onStartTask,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -5227,6 +5454,7 @@ function buildTaskLibraryTasks({
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenDebateStudio?: (scenarioId: string) => void
+  onStartTask?: (taskId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -5252,6 +5480,10 @@ function buildTaskLibraryTasks({
         searchText: '',
         primaryActionLabel: '打开场景',
         onPrimaryAction: () => onOpenScenario(scenario.id, getOpenScenarioHash(task.source)),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [mission.instruction, `交付物：${mission.deliverable}`, `难度：${mission.difficulty}｜任务类型：${mission.taskType}`],
+        checklist: mission.steps.length ? mission.steps : [`完成 ${mission.title}`, mission.deliverable],
+        evidencePrompts: mission.evidenceChecklist.length ? mission.evidenceChecklist : mission.linkedSourceTitles.map((title) => `引用并解释来源：${title}`),
         formatSheet: () => formatGenericLibraryTaskSheet(task),
       }
 
@@ -5279,6 +5511,10 @@ function buildTaskLibraryTasks({
         searchText: '',
         primaryActionLabel: '打开场景',
         onPrimaryAction: () => onOpenScenario(scenario.id, getOpenScenarioHash(task.source)),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [activity.prompt, `对象：${activity.audience}`, `交付物：${activity.deliverable}`],
+        checklist: activity.steps,
+        evidencePrompts: activity.linkedSourceTitles.length ? activity.linkedSourceTitles.map((title) => `活动中如何使用或质询来源：${title}`) : activity.successCriteria,
         formatSheet: () => formatActivitySheet(scenario, activity),
       }
 
@@ -5307,6 +5543,10 @@ function buildTaskLibraryTasks({
         searchText: '',
         primaryActionLabel: '打开场景',
         onPrimaryAction: () => onOpenScenario(scenario.id, getOpenScenarioHash(task.source)),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [scenario.lessonPack.inquiryQuestion, flow.title, `流程：${lessonPackModeLabels[mode]}`],
+        checklist: [...scenario.lessonPack.quickStart.slice(0, 2), ...flow.steps],
+        evidencePrompts: scenario.lessonPack.checkQuestions.map((item) => item.question),
         formatSheet: () => formatLessonFlowSheet(scenario, mode),
       }
 
@@ -5340,6 +5580,10 @@ function buildTaskLibraryTasks({
         secondaryActionLabel: '打开场景课堂包',
         onPrimaryAction: () => onOpenDebateStudio ? onOpenDebateStudio(scenario.id) : onOpenScenario(scenario.id, sectionIds.lessonPack),
         onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.lessonPack),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [scenario.decision.prompt, debateModeDescriptions[mode], `模式：${debateModeLabels[mode]}`],
+        checklist: ['选择或分配角色立场', '为角色准备至少两条证据', '记录一次交叉质询', '写出出口判断与来源限制'],
+        evidencePrompts: evidenceCards.slice(0, 5).map((card) => `${card.title}：${card.reliabilityNote}`),
         formatSheet: () => formatDebateLibraryTaskSheet(scenario, mode, durationMinutes),
       }
 
@@ -5372,6 +5616,10 @@ function buildTaskLibraryTasks({
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadCompare(path),
       onSecondaryAction: () => pathScenarios[0] ? onOpenScenario(pathScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [path.drivingQuestion, path.whyTheseScenarios, path.subtitle],
+      checklist: path.tasks,
+      evidencePrompts: lens.evidenceChecklist,
       formatSheet: () => formatAtlasInquiryPack(path),
     }
 
@@ -5403,6 +5651,10 @@ function buildTaskLibraryTasks({
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadCausationInquiry(inquiry.id),
       onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.focus, `建议分类：${inquiry.suggestedCategories.map((category) => causeCategoryLabels[category]).join('、')}`],
+      checklist: ['界定背景条件', '区分直接触发与深层原因', '解释约束与人的选择', '写出短期后果与长期变化', '标出偶然性或缺失证据'],
+      evidencePrompts: inquiryScenarios.flatMap((scenario) => scenario.sources.slice(0, 2).map((source) => `${source.title}：${source.sourceQuestion}`)),
       formatSheet: () => formatCausationTaskSheet(inquiry),
     }
 
@@ -5434,6 +5686,10 @@ function buildTaskLibraryTasks({
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadPeriodizationInquiry(inquiry.id),
       onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.focus, `建议转折点：${inquiry.suggestedTurningPoint}`],
+      checklist: ['确定时期起点与终点', '列出连续性证据', '列出变化或转折证据', '命名分期标签', '提出替代分期或缺失证据'],
+      evidencePrompts: inquiryScenarios.flatMap((scenario) => scenario.timeline.slice(0, 2).map((event) => `${event.year}：${event.title}｜${event.text}`)),
       formatSheet: () => formatPeriodizationTaskSheet(inquiry),
     }
 
@@ -5465,6 +5721,10 @@ function buildTaskLibraryTasks({
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadPerspectivesInquiry(inquiry.id),
       onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.focus, inquiry.agencyFrame],
+      checklist: ['界定行动者视角', '记录约束与可得知识', '说明利害与风险', '写出能动性判断', '警惕反当下主义并标出缺席声音'],
+      evidencePrompts: inquiryScenarios.flatMap((scenario) => scenario.sources.slice(0, 2).map((source) => `${source.title}：${source.perspective}`)),
       formatSheet: () => formatPerspectivesTaskSheet(inquiry),
     }
 
@@ -5496,6 +5756,10 @@ function buildTaskLibraryTasks({
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadContextInquiry(inquiry.id),
       onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.focus, inquiry.scaleFrame],
+      checklist: ['描述地方现场', '连接区域网络', '解释大尺度力量', '检查来源情境', '写出情境化判断与时代错置风险'],
+      evidencePrompts: inquiryScenarios.flatMap((scenario) => [`地方：${scenario.location}`, `大尺度：${scenario.region}｜${scenario.theme}`, `来源情境：${scenario.sourceEvidenceUse}`]).slice(0, 6),
       formatSheet: () => formatContextTaskSheet(inquiry),
     }
 
@@ -5527,6 +5791,10 @@ function buildTaskLibraryTasks({
       secondaryActionLabel: '打开首个场景',
       onPrimaryAction: () => onLoadSignificanceInquiry(inquiry.id),
       onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.focus, inquiry.memoryFrame],
+      checklist: ['界定事件或过程', '说明对谁重要', '区分当时与长期意义', '判断影响尺度与争议意义', '指出来源限制并写出意义主张'],
+      evidencePrompts: inquiryScenarios.flatMap((scenario) => [`当时意义：${scenario.summary}`, `长期意义：${scenario.realHistory}`, `记忆/档案：${scenario.interpretationNote}`]).slice(0, 6),
       formatSheet: () => formatSignificanceTaskSheet(inquiry),
     }
 
@@ -5554,6 +5822,10 @@ function buildTaskLibraryTasks({
       searchText: '',
       primaryActionLabel: '打开 Synthesis Studio',
       onPrimaryAction: () => onLoadSynthesisPreset(preset.id),
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [preset.drivingQuestion, preset.claimScope, preset.focus],
+      checklist: ['选择证据池材料', '写出 working thesis', '解释 reasoning bridge', '加入 counterargument 与 source limits', '完成 paragraph plan 与 revision checklist'],
+      evidencePrompts: preset.paragraphFrame,
       formatSheet: () => formatSynthesisTaskSheet(preset),
     }
 
@@ -5581,6 +5853,10 @@ function buildTaskLibraryTasks({
       searchText: '',
       primaryActionLabel: '载入 Compare Lab',
       onPrimaryAction: () => onLoadCompareLens(lens),
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [lens.prompt, lens.description, `比较镜头：${lens.shortLabel}`],
+      checklist: lens.outputTemplate,
+      evidencePrompts: lens.evidenceChecklist,
       formatSheet: () => formatCompareLensTemplate(lens),
     }
 
@@ -6141,6 +6417,8 @@ function App() {
     loadTaskModuleProgressState,
   )
   const [assignmentBuilderDraft, setAssignmentBuilderDraft] = useState<AssignmentBuilderDraft>(loadAssignmentBuilderDraft)
+  const [taskWorkbenchDraftState, setTaskWorkbenchDraftState] = useState<TaskWorkbenchState>(loadTaskWorkbenchDraftState)
+  const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
   const selectedScenario = useMemo(
@@ -6170,7 +6448,7 @@ function App() {
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenDebateStudio: openDebateStudio })
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -6370,6 +6648,18 @@ function App() {
   }, [assignmentBuilderDraft])
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistTaskWorkbenchDraftState(taskWorkbenchDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [taskWorkbenchDraftState])
+
+  useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
       return
     }
@@ -6470,6 +6760,26 @@ function App() {
     setActiveTasksSubpage('library')
 
     const hash = getHashForTasksSubpage('library')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function startTaskWorkbench(taskId: string) {
+    setActivePage('tasks')
+    setActiveTasksSubpage('workbench')
+    setActiveWorkbenchTaskId(taskId)
+    setTaskWorkbenchDraftState((currentState) => currentState[taskId]
+      ? currentState
+      : {
+        ...currentState,
+        [taskId]: getEmptyTaskWorkbenchDraft(taskId),
+      })
+
+    const hash = getHashForTasksSubpage('workbench')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -6981,6 +7291,7 @@ function App() {
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenDebateStudio={openDebateStudio}
+                onStartTask={startTaskWorkbench}
               />
             ) : null}
             {activeTasksSubpage === 'library' ? (
@@ -6997,6 +7308,7 @@ function App() {
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenDebateStudio={openDebateStudio}
+                onStartTask={startTaskWorkbench}
               />
             ) : null}
             {activeTasksSubpage === 'builder' ? (
@@ -7005,6 +7317,16 @@ function App() {
                 onUpdateDraft={setAssignmentBuilderDraft}
                 libraryTasks={assignmentLibraryTasks}
                 onOpenAssessmentStudio={openAssessmentStudioFromBuilder}
+                onStartTask={startTaskWorkbench}
+              />
+            ) : null}
+            {activeTasksSubpage === 'workbench' ? (
+              <TaskWorkbenchPanel
+                libraryTasks={assignmentLibraryTasks}
+                draftState={taskWorkbenchDraftState}
+                activeTaskId={activeWorkbenchTaskId}
+                onSelectTask={setActiveWorkbenchTaskId}
+                onUpdateDraftState={setTaskWorkbenchDraftState}
               />
             ) : null}
             {activeTasksSubpage === 'assessment' ? (
@@ -7049,6 +7371,7 @@ function App() {
                 significanceDraftState={significanceDraftState}
                 synthesisDraftState={synthesisDraftState}
                 compareDraftState={compareDraftState}
+                taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
             ) : null}
           </>
@@ -10872,6 +11195,7 @@ function PortfolioPanel({
   significanceDraftState,
   synthesisDraftState,
   compareDraftState,
+  taskWorkbenchDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -10889,6 +11213,7 @@ function PortfolioPanel({
   significanceDraftState: SignificanceDraftState
   synthesisDraftState: SynthesisDraftState
   compareDraftState: CompareDraftState
+  taskWorkbenchDraftState: TaskWorkbenchState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -10902,6 +11227,8 @@ function PortfolioPanel({
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
+  const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -10915,10 +11242,11 @@ function PortfolioPanel({
   const recentCompareDrafts = getActiveCompareDrafts(compareDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentWorkbenchDrafts = taskWorkbenchStats.recentDrafts.slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, compareDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, compareDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -10967,6 +11295,8 @@ function PortfolioPanel({
               { label: '比较草稿', value: compareDraftCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
+              { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
+              { label: '执行台完成', value: taskWorkbenchStats.completedCount },
               { label: '模块开始', value: taskModuleStats.startedCount },
               { label: '模块完成', value: taskModuleStats.completedCount },
               { label: '模块步骤', value: taskModuleStats.checkedStepCount },
@@ -10981,7 +11311,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -10990,6 +11320,19 @@ function PortfolioPanel({
                     <div className="mt-1 text-stone-500">{assignmentSummary.selectedTasks.map((task) => task.title).join(' → ')}</div>
                   </div>
                 ) : null}
+                {recentWorkbenchDrafts.map(([taskId, draft]) => {
+                  const task = libraryTasksById.get(taskId)
+                  const checklist = task ? getTaskWorkbenchChecklist(task) : []
+                  const checkedCount = checklist.filter((_, index) => draft.checkedPromptIds.includes(`checklist:${index}`)).length
+
+                  return (
+                    <div key={taskId} className="rounded-2xl border border-emerald-200/15 bg-emerald-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{task?.title ?? taskId}</div>
+                      <div>Tasks Workbench · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {checkedCount}/{checklist.length} checklist</div>
+                      <div className="mt-1 text-stone-500">{draft.claimExplanation.trim() || draft.evidenceNotes.trim() || '尚未填写 claim 或 evidence notes'}</div>
+                    </div>
+                  )
+                })}
                 {workspaceStats.recentEntries.map(({ key, title, category, entry }) => (
                   <div key={key} className="rounded-2xl border border-orange-200/15 bg-orange-100/[0.045] p-3 text-sm leading-6 text-stone-400">
                     <div className="font-medium text-stone-100">{title}</div>
@@ -11049,6 +11392,7 @@ function TaskDiscoveryPanel({
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
   onOpenDebateStudio,
+  onStartTask,
 }: {
   onOpenLibraryPreset: (preset: TaskLibraryPreset) => void
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
@@ -11061,11 +11405,12 @@ function TaskDiscoveryPanel({
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
+  onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -11149,6 +11494,16 @@ function TaskDiscoveryPanel({
                     >
                       <ArrowRight size={16} />
                       打开第一个匹配任务
+                    </button>
+                  ) : null}
+                  {firstTask ? (
+                    <button
+                      type="button"
+                      onClick={() => onStartTask(firstTask.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"
+                    >
+                      <ClipboardList size={16} />
+                      开始首个任务
                     </button>
                   ) : null}
                   {collection.secondaryAction === 'copy-first' ? (
@@ -11416,11 +11771,13 @@ function AssignmentBuilderPanel({
   onUpdateDraft,
   libraryTasks,
   onOpenAssessmentStudio,
+  onStartTask,
 }: {
   draft: AssignmentBuilderDraft
   onUpdateDraft: Dispatch<SetStateAction<AssignmentBuilderDraft>>
   libraryTasks: LibraryTask[]
   onOpenAssessmentStudio: () => void
+  onStartTask: (taskId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | TaskLibrarySource>('all')
@@ -11607,15 +11964,25 @@ function AssignmentBuilderPanel({
                         <p className="mt-1 text-xs leading-5 text-stone-500">{task.context}</p>
                         <p className="mt-2 text-sm leading-6 text-stone-300">{task.summary}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => toggleTask(task.id)}
-                        disabled={isDisabled}
-                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {isSelected ? <Check size={16} /> : <Circle size={16} />}
-                        {isSelected ? '已选择' : isDisabled ? '最多 6 个' : '加入组合'}
-                      </button>
+                      <div className="flex shrink-0 flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleTask(task.id)}
+                          disabled={isDisabled}
+                          className="inline-flex justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {isSelected ? <Check size={16} /> : <Circle size={16} />}
+                          {isSelected ? '已选择' : isDisabled ? '最多 6 个' : '加入组合'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onStartTask(task.id)}
+                          className="inline-flex justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"
+                        >
+                          <ClipboardList size={16} />
+                          开始任务
+                        </button>
+                      </div>
                     </div>
                   </article>
                 )
@@ -11639,6 +12006,7 @@ function AssignmentBuilderPanel({
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <button type="button" onClick={() => moveTask(task.id, -1)} disabled={index === 0} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-stone-200 transition hover:bg-white/[0.08] disabled:opacity-35">上移</button>
                         <button type="button" onClick={() => moveTask(task.id, 1)} disabled={index === selectedTasks.length - 1} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-stone-200 transition hover:bg-white/[0.08] disabled:opacity-35">下移</button>
+                        <button type="button" onClick={() => onStartTask(task.id)} className="rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]">开始任务</button>
                         <button type="button" onClick={() => toggleTask(task.id)} className="rounded-full border border-rose-200/25 bg-rose-100/[0.08] px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-100/[0.14]">移除</button>
                       </div>
                     </div>
@@ -11947,6 +12315,255 @@ function AssessmentStudioPanel({
   )
 }
 
+
+function TaskWorkbenchPanel({
+  libraryTasks,
+  draftState,
+  activeTaskId,
+  onSelectTask,
+  onUpdateDraftState,
+}: {
+  libraryTasks: LibraryTask[]
+  draftState: TaskWorkbenchState
+  activeTaskId: string
+  onSelectTask: (taskId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<TaskWorkbenchState>>
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'draft' | 'sheet' | 'failed'>('idle')
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const visibleTasks = useMemo(
+    () => libraryTasks.filter((task) => !normalizedSearchQuery || task.searchText.includes(normalizedSearchQuery)).slice(0, 80),
+    [libraryTasks, normalizedSearchQuery],
+  )
+  const selectedTask = libraryTasks.find((task) => task.id === activeTaskId) ?? visibleTasks[0] ?? libraryTasks[0]
+  const selectedTaskId = selectedTask?.id ?? ''
+  const draft = selectedTask ? draftState[selectedTask.id] ?? getEmptyTaskWorkbenchDraft(selectedTask.id) : getEmptyTaskWorkbenchDraft('')
+  const checklist = selectedTask ? getTaskWorkbenchChecklist(selectedTask) : []
+  const evidencePrompts = selectedTask ? getTaskWorkbenchEvidencePrompts(selectedTask) : []
+  const workbenchPrompts = selectedTask ? getTaskWorkbenchPrompts(selectedTask) : []
+  const completedChecklistCount = checklist.filter((_, index) => draft.checkedPromptIds.includes(`checklist:${index}`)).length
+
+  useEffect(() => {
+    if (!selectedTaskId || activeTaskId === selectedTaskId) {
+      return
+    }
+
+    onSelectTask(selectedTaskId)
+  }, [activeTaskId, onSelectTask, selectedTaskId])
+
+  function updateDraft(patch: Partial<TaskWorkbenchDraft>) {
+    if (!selectedTask) {
+      return
+    }
+
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[selectedTask.id] ?? getEmptyTaskWorkbenchDraft(selectedTask.id)
+
+      return {
+        ...currentState,
+        [selectedTask.id]: {
+          ...currentDraft,
+          ...patch,
+          taskId: selectedTask.id,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleChecklist(index: number) {
+    const promptId = `checklist:${index}`
+    const nextCheckedPromptIds = draft.checkedPromptIds.includes(promptId)
+      ? draft.checkedPromptIds.filter((id) => id !== promptId)
+      : [...draft.checkedPromptIds, promptId]
+
+    updateDraft({ checkedPromptIds: nextCheckedPromptIds })
+  }
+
+  async function copyWorkbench(kind: 'draft' | 'sheet') {
+    if (!selectedTask) {
+      return
+    }
+
+    try {
+      await copyTextToClipboard(kind === 'draft' ? formatTaskWorkbenchDraft(selectedTask, draft) : selectedTask.formatSheet())
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  if (!selectedTask) {
+    return (
+      <section id="task-workbench" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="task-workbench-title">
+        <div className="rounded-[2rem] border border-emerald-200/15 bg-emerald-100/[0.045] p-5">
+          <h2 id="task-workbench-title" className="text-3xl font-semibold tracking-tight text-stone-50">Tasks Workbench / 任务执行台</h2>
+          <p className="mt-3 text-stone-400">暂无可执行任务。</p>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section id="task-workbench" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="task-workbench-title">
+      <div className="rounded-[2rem] border border-emerald-200/15 bg-emerald-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-emerald-100">
+          <ClipboardList size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">tasks workbench / 任务执行台</span>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr] xl:items-start">
+          <div>
+            <h2 id="task-workbench-title" className="text-3xl font-semibold tracking-tight text-stone-50">单任务执行台</h2>
+            <p className="mt-3 leading-7 text-stone-400">选择一个 Task Library 任务，记录执行清单、证据 notes、claim/explanation、source limits 和最终反思。每个任务草稿独立保存。</p>
+            <label className="mt-5 block">
+              <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">搜索 / 选择任务</span>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-emerald-200/60">
+                <Search size={18} className="text-stone-500" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="标题、交付物、标签、来源或场景……"
+                  className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600"
+                />
+              </div>
+            </label>
+            <select
+              value={selectedTask.id}
+              onChange={(event) => onSelectTask(event.target.value)}
+              className="mt-3 w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-emerald-200/60"
+            >
+              {visibleTasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+            </select>
+            <div className="mt-5 max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+              {visibleTasks.slice(0, 24).map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() => onSelectTask(task.id)}
+                  className={`block w-full rounded-2xl border p-3 text-left text-sm transition ${task.id === selectedTask.id ? 'border-emerald-200/40 bg-emerald-100/[0.08]' : 'border-white/10 bg-black/20 hover:bg-white/[0.04]'}`}
+                >
+                  <div className="font-semibold text-stone-100">{task.title}</div>
+                  <div className="mt-1 text-xs text-stone-500">{task.sourceLabel} · {task.durationMinutes}m · {draftState[task.id]?.updatedAt ? '有草稿' : '未开始'}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <article className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                    <span className="rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-3 py-1 text-emerald-100">{selectedTask.sourceLabel}</span>
+                    <span>{selectedTask.category}</span>
+                    <span>{selectedTask.durationMinutes}m</span>
+                    {selectedTask.sourceBased ? <span>source-based</span> : null}
+                  </div>
+                  <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">{selectedTask.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-500">{selectedTask.context}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs text-stone-500">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"><span className="block text-lg font-semibold text-emerald-100">{completedChecklistCount}/{checklist.length}</span>清单</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"><span className="block text-lg font-semibold text-emerald-100">{draft.completed ? 'Done' : 'Draft'}</span>状态</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"><span className="block text-lg font-semibold text-emerald-100">{draft.updatedAt ? new Date(draft.updatedAt).toLocaleDateString() : '—'}</span>更新</div>
+                </div>
+              </div>
+              <p className="mt-4 rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3 text-sm leading-6 text-stone-300"><span className="font-semibold text-teal-100">交付物：</span>{selectedTask.deliverable}</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {workbenchPrompts.map((prompt, index) => (
+                  <div key={`${selectedTask.id}:prompt:${index}`} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400">{prompt}</div>
+                ))}
+              </div>
+            </article>
+
+            <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+              <article className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <h3 className="text-xl font-semibold text-stone-50">Checklist progress</h3>
+                <div className="mt-4 space-y-2">
+                  {checklist.map((item, index) => {
+                    const isChecked = draft.checkedPromptIds.includes(`checklist:${index}`)
+
+                    return (
+                      <label key={`${selectedTask.id}:checklist:${index}`} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400 transition hover:border-emerald-100/25">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleChecklist(index)}
+                          className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-emerald-300 focus:ring-emerald-200"
+                        />
+                        <span>{item}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-emerald-200/20 bg-emerald-100/[0.06] p-3 text-sm font-semibold text-emerald-100">
+                  <input
+                    type="checkbox"
+                    checked={draft.completed}
+                    onChange={(event) => updateDraft({ completed: event.target.checked })}
+                    className="h-4 w-4 rounded border-white/20 bg-black text-emerald-300 focus:ring-emerald-200"
+                  />
+                  标记任务完成
+                </label>
+              </article>
+
+              <article className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <h3 className="text-xl font-semibold text-stone-50">Evidence prompts</h3>
+                <div className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {evidencePrompts.map((prompt, index) => <p key={`${selectedTask.id}:evidence:${index}`} className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-3">{index + 1}. {prompt}</p>)}
+                </div>
+              </article>
+            </div>
+
+            <article className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">Draft notes / evidence → claim → reflection</h3>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {([
+                  ['evidenceNotes', 'Evidence notes / 证据 notes', 5],
+                  ['claimExplanation', 'Claim / explanation', 4],
+                  ['sourceLimits', 'Source limits / 来源边界', 3],
+                  ['reflection', 'Reflection / 反思与下一步', 3],
+                ] as [keyof TaskWorkbenchDraft, string, number][]).map(([field, label, rows]) => (
+                  <label key={field} className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">{label}</span>
+                    <textarea
+                      value={String(draft[field] ?? '')}
+                      onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<TaskWorkbenchDraft>)}
+                      rows={rows}
+                      className="w-full rounded-3xl border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-emerald-200/60"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <button type="button" onClick={() => void copyWorkbench('draft')} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+                  {copyStatus === 'draft' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'draft' ? '执行台草稿已复制' : '复制 / 导出执行台草稿'}
+                </button>
+                <button type="button" onClick={() => void copyWorkbench('sheet')} className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]">
+                  {copyStatus === 'sheet' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'sheet' ? '原始任务单已复制' : '复制原始任务单'}
+                </button>
+                {selectedTask.onPrimaryAction ? (
+                  <button type="button" onClick={selectedTask.onPrimaryAction} className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]">
+                    <ArrowRight size={16} />
+                    {selectedTask.primaryActionLabel ?? '打开来源目标'}
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '尚未开始；任意勾选或填写后会自动保存。'}
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function TaskLibraryPanel({
   preset,
   onClearPreset,
@@ -11960,6 +12577,7 @@ function TaskLibraryPanel({
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
   onOpenDebateStudio,
+  onStartTask,
 }: {
   preset: TaskLibraryPreset | null
   onClearPreset: () => void
@@ -11973,6 +12591,7 @@ function TaskLibraryPanel({
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
+  onStartTask: (taskId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -11982,8 +12601,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -12176,6 +12795,14 @@ function TaskLibraryPanel({
                     {task.secondaryActionLabel}
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => onStartTask(task.id)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"
+                >
+                  <ClipboardList size={16} />
+                  开始任务
+                </button>
                 <button
                   type="button"
                   onClick={() => void copyTaskSheet(task)}
