@@ -83,15 +83,12 @@ const pageIds = [
   'scenario',
   'atlas',
   'evidence',
-  'causation',
-  'periodization',
-  'perspectives',
-  'context',
-  'significance',
-  'synthesis',
+  'labs',
   'tasks',
   'about',
 ] as const
+
+const legacyLabPageIds = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'synthesis'] as const
 
 type PageId = typeof pageIds[number]
 
@@ -100,18 +97,12 @@ const pageLabels: Record<PageId, { label: string; eyebrow: string; description: 
   scenario: { label: '场景体验', eyebrow: 'Scenario', description: '进入一个历史身份的一天、任务与来源层' },
   atlas: { label: '时空路线', eyebrow: 'Atlas', description: '地图路线、跨场景挑战、探究路径与比较实验室' },
   evidence: { label: '史料证据', eyebrow: 'Evidence', description: '全站史料地图、证据篮与互证工作台' },
-  causation: { label: '因果变化', eyebrow: 'Causation', description: '因果链、触发、约束、后果与不确定性' },
-  periodization: { label: '连续分期', eyebrow: 'Periodization', description: '时间证据轨、转折点与历史分期' },
-  perspectives: { label: '多视角', eyebrow: 'Agency', description: '选择边界、能动性与反当下主义' },
-  context: { label: '情境尺度', eyebrow: 'Context', description: '地方、区域、全球尺度与来源情境' },
-  significance: { label: '历史意义', eyebrow: 'Memory', description: '重要性、记忆、争议与档案沉默' },
-  synthesis: { label: '综合写作', eyebrow: 'Writing', description: '把所有草稿汇总成综合历史论证' },
+  labs: { label: '历史思维', eyebrow: 'Labs', description: '因果、分期、多视角、情境化、历史意义与综合写作' },
   tasks: { label: '任务档案', eyebrow: 'Tasks', description: '任务库、学习路径、作品集与导出' },
   about: { label: '项目理念', eyebrow: 'About', description: 'TimeAtlas 的设计思路与学习目标' },
 }
 
-const primaryPages: PageId[] = ['home', 'scenario', 'atlas', 'evidence', 'tasks']
-const labPages: PageId[] = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'synthesis']
+const primaryPages: PageId[] = ['home', 'scenario', 'atlas', 'evidence', 'labs', 'tasks']
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
@@ -565,6 +556,7 @@ type SubpageNavItem<T extends string> = {
 }
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
+type LabsSubpage = typeof legacyLabPageIds[number]
 type TasksSubpage = 'library' | 'sessions' | 'portfolio'
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
@@ -572,6 +564,15 @@ const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'missions', label: '跨场景挑战', eyebrow: 'Missions', description: 'Atlas Workspace 任务草稿与勾选', hash: 'atlas-missions' },
   { id: 'pathways', label: '探究路径', eyebrow: 'Pathways', description: '策展 inquiry paths 与 Compare 入口', hash: 'atlas-inquiry-paths' },
   { id: 'compare', label: '比较实验室', eyebrow: 'Compare', description: '双场景比较镜头与作业生成', hash: sectionIds.compareLab },
+]
+
+const labsSubpages: SubpageNavItem<LabsSubpage>[] = [
+  { id: 'causation', label: '因果变化', eyebrow: 'Causation', description: '因果链、触发、约束、后果与不确定性', hash: sectionIds.causationLab },
+  { id: 'periodization', label: '连续分期', eyebrow: 'Periodization', description: '时间证据轨、转折点与历史分期', hash: sectionIds.periodizationLab },
+  { id: 'perspectives', label: '多视角', eyebrow: 'Agency', description: '选择边界、能动性与反当下主义', hash: sectionIds.perspectivesLab },
+  { id: 'context', label: '情境尺度', eyebrow: 'Context', description: '地方、区域、全球尺度与来源情境', hash: sectionIds.contextLab },
+  { id: 'significance', label: '历史意义', eyebrow: 'Memory', description: '重要性、记忆、争议与档案沉默', hash: sectionIds.significanceLab },
+  { id: 'synthesis', label: '综合写作', eyebrow: 'Writing', description: '把所有草稿汇总成综合历史论证', hash: sectionIds.synthesisStudio },
 ]
 
 const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
@@ -3879,7 +3880,15 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
 }
 
 function getPageFromValue(value: string | null): PageId | null {
+  if (legacyLabPageIds.includes(value as LabsSubpage)) {
+    return 'labs'
+  }
+
   return pageIds.includes(value as PageId) ? value as PageId : null
+}
+
+function getLabsSubpageFromValue(value: string | null): LabsSubpage | null {
+  return legacyLabPageIds.includes(value as LabsSubpage) ? value as LabsSubpage : null
 }
 
 function inferPageFromHash(hash: string): PageId {
@@ -3902,12 +3911,7 @@ function inferPageFromHash(hash: string): PageId {
   }
 
   if (normalizedHash === 'source-atlas') return 'evidence'
-  if (normalizedHash === sectionIds.causationLab) return 'causation'
-  if (normalizedHash === sectionIds.periodizationLab) return 'periodization'
-  if (normalizedHash === sectionIds.perspectivesLab) return 'perspectives'
-  if (normalizedHash === sectionIds.contextLab) return 'context'
-  if (normalizedHash === sectionIds.significanceLab) return 'significance'
-  if (normalizedHash === sectionIds.synthesisStudio) return 'synthesis'
+  if (labsSubpages.some((item) => item.hash === normalizedHash)) return 'labs'
   if (['time-space-atlas', 'atlas-missions', 'atlas-inquiry-paths', sectionIds.compareLab].includes(normalizedHash)) return 'atlas'
   if (['portfolio', 'task-library', 'guided-session-builder'].includes(normalizedHash)) return 'tasks'
   if (normalizedHash === 'about') return 'about'
@@ -3949,6 +3953,16 @@ function getHashForAtlasSubpage(subpage: AtlasSubpage) {
   return atlasSubpages.find((item) => item.id === subpage)?.hash ?? 'time-space-atlas'
 }
 
+function getLabsSubpageFromHash(hash: string | null): LabsSubpage {
+  const normalizedHash = (hash ?? '').replace(/^#/, '')
+
+  return labsSubpages.find((item) => item.hash === normalizedHash)?.id ?? 'causation'
+}
+
+function getHashForLabsSubpage(subpage: LabsSubpage) {
+  return labsSubpages.find((item) => item.id === subpage)?.hash ?? sectionIds.causationLab
+}
+
 function getTasksSubpageFromHash(hash: string | null): TasksSubpage {
   const normalizedHash = (hash ?? '').replace(/^#/, '')
 
@@ -3967,7 +3981,13 @@ function getInitialPage() {
     return 'home' as PageId
   }
 
-  return getPageFromValue(new URLSearchParams(window.location.search).get('page')) ?? inferPageFromHash(window.location.hash)
+  const pageFromHash = inferPageFromHash(window.location.hash)
+
+  if (pageFromHash === 'labs') {
+    return 'labs'
+  }
+
+  return getPageFromValue(new URLSearchParams(window.location.search).get('page')) ?? pageFromHash
 }
 
 function buildPageUrl(page: PageId, hash?: string) {
@@ -4567,6 +4587,13 @@ function App() {
   const initialCompareSelection = useMemo(getInitialCompareSelection, [])
   const [activePage, setActivePage] = useState<PageId>(getInitialPage)
   const [activeAtlasSubpage, setActiveAtlasSubpage] = useState<AtlasSubpage>(() => (typeof window === 'undefined' ? 'routes' : getAtlasSubpageFromHash(window.location.hash)))
+  const [activeLabsSubpage, setActiveLabsSubpage] = useState<LabsSubpage>(() => {
+    if (typeof window === 'undefined') {
+      return 'causation'
+    }
+
+    return getLabsSubpageFromValue(new URLSearchParams(window.location.search).get('page')) ?? getLabsSubpageFromHash(window.location.hash)
+  })
   const [activeTasksSubpage, setActiveTasksSubpage] = useState<TasksSubpage>(() => (typeof window === 'undefined' ? 'library' : getTasksSubpageFromHash(window.location.hash)))
   const [selectedScenarioTab, setSelectedScenarioTab] = useState<ScenarioExperienceTab>(() => (typeof window === 'undefined' ? 'overview' : getScenarioTabFromHash(window.location.hash)))
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
@@ -4825,6 +4852,10 @@ function App() {
       setActiveAtlasSubpage(hash ? getAtlasSubpageFromHash(hash) : 'routes')
     }
 
+    if (page === 'labs') {
+      setActiveLabsSubpage(hash ? getLabsSubpageFromHash(hash) : 'causation')
+    }
+
     if (page === 'tasks') {
       setActiveTasksSubpage(hash ? getTasksSubpageFromHash(hash) : 'library')
     }
@@ -4847,6 +4878,18 @@ function App() {
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('atlas', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function selectLabsSubpage(subpage: LabsSubpage) {
+    const hash = getHashForLabsSubpage(subpage)
+
+    setActiveLabsSubpage(subpage)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', hash))
     }
 
     scrollToSection(hash, prefersReducedMotion)
@@ -4958,7 +5001,13 @@ function App() {
     }
 
     setSelectedCausationInquiryId(inquiryId)
-    setActivePage('causation')
+    setActivePage('labs')
+    setActiveLabsSubpage('causation')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.causationLab))
+    }
+
     scrollToSection(sectionIds.causationLab, prefersReducedMotion)
   }
 
@@ -4968,7 +5017,13 @@ function App() {
     }
 
     setSelectedPeriodizationInquiryId(inquiryId)
-    setActivePage('periodization')
+    setActivePage('labs')
+    setActiveLabsSubpage('periodization')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.periodizationLab))
+    }
+
     scrollToSection(sectionIds.periodizationLab, prefersReducedMotion)
   }
 
@@ -4978,7 +5033,13 @@ function App() {
     }
 
     setSelectedPerspectivesInquiryId(inquiryId)
-    setActivePage('perspectives')
+    setActivePage('labs')
+    setActiveLabsSubpage('perspectives')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.perspectivesLab))
+    }
+
     scrollToSection(sectionIds.perspectivesLab, prefersReducedMotion)
   }
 
@@ -4988,7 +5049,13 @@ function App() {
     }
 
     setSelectedContextInquiryId(inquiryId)
-    setActivePage('context')
+    setActivePage('labs')
+    setActiveLabsSubpage('context')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.contextLab))
+    }
+
     scrollToSection(sectionIds.contextLab, prefersReducedMotion)
   }
 
@@ -4998,7 +5065,13 @@ function App() {
     }
 
     setSelectedSignificanceInquiryId(inquiryId)
-    setActivePage('significance')
+    setActivePage('labs')
+    setActiveLabsSubpage('significance')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.significanceLab))
+    }
+
     scrollToSection(sectionIds.significanceLab, prefersReducedMotion)
   }
 
@@ -5008,7 +5081,13 @@ function App() {
     }
 
     setSelectedSynthesisPresetId(presetId)
-    setActivePage('synthesis')
+    setActivePage('labs')
+    setActiveLabsSubpage('synthesis')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.synthesisStudio))
+    }
+
     scrollToSection(sectionIds.synthesisStudio, prefersReducedMotion)
   }
 
@@ -5124,70 +5203,75 @@ function App() {
           />
         ) : null}
 
-        {activePage === 'causation' ? (
-          <CausationLabPanel
-            selectedInquiryId={selectedCausationInquiryId}
-            evidenceByInquiry={causationEvidenceByInquiry}
-            draftState={causationDraftState}
-            onSelectInquiry={setSelectedCausationInquiryId}
-            onUpdateDraftState={setCausationDraftState}
-            onOpenScenario={selectScenario}
-          />
-        ) : null}
-
-        {activePage === 'periodization' ? (
-          <PeriodizationLabPanel
-            selectedInquiryId={selectedPeriodizationInquiryId}
-            evidenceByInquiry={periodizationEvidenceByInquiry}
-            draftState={periodizationDraftState}
-            onSelectInquiry={setSelectedPeriodizationInquiryId}
-            onUpdateDraftState={setPeriodizationDraftState}
-            onOpenScenario={selectScenario}
-          />
-        ) : null}
-
-        {activePage === 'perspectives' ? (
-          <PerspectivesAgencyLabPanel
-            selectedInquiryId={selectedPerspectivesInquiryId}
-            evidenceByInquiry={perspectivesEvidenceByInquiry}
-            draftState={perspectivesDraftState}
-            onSelectInquiry={setSelectedPerspectivesInquiryId}
-            onUpdateDraftState={setPerspectivesDraftState}
-            onOpenScenario={selectScenario}
-          />
-        ) : null}
-
-        {activePage === 'context' ? (
-          <ContextScaleLabPanel
-            selectedInquiryId={selectedContextInquiryId}
-            evidenceByInquiry={contextEvidenceByInquiry}
-            draftState={contextDraftState}
-            onSelectInquiry={setSelectedContextInquiryId}
-            onUpdateDraftState={setContextDraftState}
-            onOpenScenario={selectScenario}
-          />
-        ) : null}
-
-        {activePage === 'significance' ? (
-          <SignificanceMemoryLabPanel
-            selectedInquiryId={selectedSignificanceInquiryId}
-            evidenceByInquiry={significanceEvidenceByInquiry}
-            draftState={significanceDraftState}
-            onSelectInquiry={setSelectedSignificanceInquiryId}
-            onUpdateDraftState={setSignificanceDraftState}
-            onOpenScenario={selectScenario}
-          />
-        ) : null}
-
-        {activePage === 'synthesis' ? (
-          <SynthesisWritingStudioPanel
-            selectedPresetId={selectedSynthesisPresetId}
-            evidencePool={synthesisEvidencePool}
-            draftState={synthesisDraftState}
-            onSelectPreset={setSelectedSynthesisPresetId}
-            onUpdateDraftState={setSynthesisDraftState}
-            onOpenScenario={selectScenario}
-          />
+        {activePage === 'labs' ? (
+          <>
+            <SubpageNav
+              ariaLabel="历史思维子页面"
+              items={labsSubpages}
+              activeId={activeLabsSubpage}
+              onSelect={selectLabsSubpage}
+            />
+            {activeLabsSubpage === 'causation' ? (
+              <CausationLabPanel
+                selectedInquiryId={selectedCausationInquiryId}
+                evidenceByInquiry={causationEvidenceByInquiry}
+                draftState={causationDraftState}
+                onSelectInquiry={setSelectedCausationInquiryId}
+                onUpdateDraftState={setCausationDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+            {activeLabsSubpage === 'periodization' ? (
+              <PeriodizationLabPanel
+                selectedInquiryId={selectedPeriodizationInquiryId}
+                evidenceByInquiry={periodizationEvidenceByInquiry}
+                draftState={periodizationDraftState}
+                onSelectInquiry={setSelectedPeriodizationInquiryId}
+                onUpdateDraftState={setPeriodizationDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+            {activeLabsSubpage === 'perspectives' ? (
+              <PerspectivesAgencyLabPanel
+                selectedInquiryId={selectedPerspectivesInquiryId}
+                evidenceByInquiry={perspectivesEvidenceByInquiry}
+                draftState={perspectivesDraftState}
+                onSelectInquiry={setSelectedPerspectivesInquiryId}
+                onUpdateDraftState={setPerspectivesDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+            {activeLabsSubpage === 'context' ? (
+              <ContextScaleLabPanel
+                selectedInquiryId={selectedContextInquiryId}
+                evidenceByInquiry={contextEvidenceByInquiry}
+                draftState={contextDraftState}
+                onSelectInquiry={setSelectedContextInquiryId}
+                onUpdateDraftState={setContextDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+            {activeLabsSubpage === 'significance' ? (
+              <SignificanceMemoryLabPanel
+                selectedInquiryId={selectedSignificanceInquiryId}
+                evidenceByInquiry={significanceEvidenceByInquiry}
+                draftState={significanceDraftState}
+                onSelectInquiry={setSelectedSignificanceInquiryId}
+                onUpdateDraftState={setSignificanceDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+            {activeLabsSubpage === 'synthesis' ? (
+              <SynthesisWritingStudioPanel
+                selectedPresetId={selectedSynthesisPresetId}
+                evidencePool={synthesisEvidencePool}
+                draftState={synthesisDraftState}
+                onSelectPreset={setSelectedSynthesisPresetId}
+                onUpdateDraftState={setSynthesisDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+          </>
         ) : null}
 
         {activePage === 'tasks' ? (
@@ -5303,28 +5387,9 @@ function AppShell({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 rounded-[1.25rem] border border-white/10 bg-black/20 p-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="px-2">
-              <div className="text-xs uppercase tracking-[0.22em] text-stone-500">{pageLabels[activePage].eyebrow}</div>
-              <div className="text-sm text-stone-300">{pageLabels[activePage].description}</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {labPages.map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => onNavigate(page)}
-                  aria-current={activePage === page ? 'page' : undefined}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                    activePage === page
-                      ? 'border-teal-200/45 bg-teal-100/[0.12] text-teal-100'
-                      : 'border-white/10 bg-white/[0.025] text-stone-400 hover:border-teal-100/25 hover:text-teal-100'
-                  }`}
-                >
-                  {pageLabels[page].label}
-                </button>
-              ))}
-            </div>
+          <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-3">
+            <div className="text-xs uppercase tracking-[0.22em] text-stone-500">{pageLabels[activePage].eyebrow}</div>
+            <div className="text-sm text-stone-300">{pageLabels[activePage].description}</div>
           </div>
         </nav>
       </header>

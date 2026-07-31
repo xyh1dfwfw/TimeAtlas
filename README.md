@@ -21,7 +21,7 @@ Scenario Deep Dive / Scene Reader 9.0 当前包含 14 个历史身份：
 - 约 1331 年基尔瓦黄金季风港商人/经纪（斯瓦希里海岸、西印度洋黄金贸易、港口信用与来源边界案例）
 - 1138 年 Fustat / Cairo Geniza 商人书信学徒（红海—印度洋商人信件、合约、信用和来源幸存案例）
 
-整体信息架构已从单页纵向堆叠调整为页面式导航：顶部导航把内容拆成首页、场景体验、时空路线、史料证据、六个历史思维工作台、任务档案和项目理念；场景体验页内部拆成概览、现场阅读、日常生活、课堂包、活动包、任务板、历史岔路、来源层、论证 9 个子页面，其中日常生活使用稳定 deep link `#daily-life`；Atlas 页内部拆成 routes（Time-Space Atlas）、missions（Atlas Missions）、pathways（Inquiry Pathways）、compare（Compare Lab）4 个子页面；Tasks 页内部拆成 library（Task Library）、sessions（Guided Session Builder）、portfolio（Learning Portfolio）3 个子页面，不再把长页面模块堆在同一屏中。URL 使用 `?page=`、`scenario`、`compareA/compareB/lens` 与 section hash 保留可分享状态，任务卡和路线卡会跳到对应页面与模块。
+整体信息架构已从单页纵向堆叠调整为页面式导航：顶部导航把内容拆成首页、场景体验、时空路线、史料证据、历史思维（Labs）、任务档案和项目理念；场景体验页内部拆成概览、现场阅读、日常生活、课堂包、活动包、任务板、历史岔路、来源层、论证 9 个子页面，其中日常生活使用稳定 deep link `#daily-life`；Atlas 页内部拆成 routes（Time-Space Atlas）、missions（Atlas Missions）、pathways（Inquiry Pathways）、compare（Compare Lab）4 个子页面；Labs / 历史思维页内部拆成 causation（Causation & Change Lab）、periodization（Continuity & Turning Points Lab）、perspectives（Perspectives & Agency Lab）、context（Context & Scale Lab）、significance（Significance & Memory Lab）、synthesis（Synthesis & Historical Writing Studio）6 个子页面，并保留旧 deep link（例如 `?page=causation` 与各 lab section hash）自动进入 Labs；Tasks 页内部拆成 library（Task Library）、sessions（Guided Session Builder）、portfolio（Learning Portfolio）3 个子页面，不再把长页面模块堆在同一屏中。URL 使用 `?page=`、`scenario`、`compareA/compareB/lens` 与 section hash 保留可分享状态，任务卡和路线卡会跳到对应页面与模块。
 
 每个身份包含：
 
