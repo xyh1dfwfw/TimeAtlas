@@ -557,7 +557,7 @@ type SubpageNavItem<T extends string> = {
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'library' | 'sessions' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'sessions' | 'portfolio'
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
@@ -576,6 +576,7 @@ const labsSubpages: SubpageNavItem<LabsSubpage>[] = [
 ]
 
 const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
+  { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
   { id: 'portfolio', label: '作品档案', eyebrow: 'Portfolio', description: '学习草稿、完成记录与导出', hash: 'portfolio' },
@@ -620,6 +621,24 @@ type LibraryTask = {
   onPrimaryAction?: () => void
   onSecondaryAction?: () => void
   formatSheet: () => string
+}
+
+type TaskLibraryPreset = {
+  id: string
+  label: string
+  searchQuery?: string
+  category?: string
+  durationBand?: DurationBand
+  source?: TaskLibrarySource
+  sourceBasedOnly?: boolean
+  matcher: (task: LibraryTask) => boolean
+}
+
+type TaskDiscoveryCollection = TaskLibraryPreset & {
+  reason: string
+  audience: string
+  duration: string
+  secondaryAction?: 'open-first' | 'copy-first'
 }
 
 type SourceAtlasEntry = {
@@ -3850,6 +3869,103 @@ function getDurationBandLabel(band: DurationBand) {
   }[band]
 }
 
+function taskMatchesAny(task: LibraryTask, terms: string[]) {
+  return terms.some((term) => task.searchText.includes(term.toLowerCase()))
+}
+
+function getTaskDiscoveryCollections(): TaskDiscoveryCollection[] {
+  return [
+    {
+      id: 'first-visit-15',
+      label: 'First visit · 15 分钟进入 TimeAtlas',
+      reason: '给第一次打开 TimeAtlas 的学习者一个低门槛入口：身份定位、一个现场片段、一个出口判断。',
+      audience: '首次体验、自主学习、课堂 warm-up',
+      duration: '15 分钟以内',
+      durationBand: 'short',
+      matcher: (task) => task.durationMinutes <= 20 || taskMatchesAny(task, ['quick', '15', 'exit ticket', '快速', 'warmup', '现场']),
+      secondaryAction: 'open-first',
+    },
+    {
+      id: 'source-detective',
+      label: 'Source Detective · 来源侦探',
+      reason: '优先展示需要读来源、判断可靠边界、互证或标注不确定性的任务。',
+      audience: '史料阅读训练、证据小课、研究型作业起步',
+      duration: '30-45 分钟',
+      durationBand: 'medium',
+      sourceBasedOnly: true,
+      matcher: (task) => task.sourceBased && taskMatchesAny(task, ['source', 'evidence', 'credibility', 'corroboration', '来源', '证据', '互证', '可靠', 'silence', '沉默']),
+      secondaryAction: 'copy-first',
+    },
+    {
+      id: 'compare-two-lives',
+      label: 'Compare Two Lives · 比较两个普通人的一天',
+      reason: '把两个身份放进同一比较镜头，训练相同/不同、尺度与证据边界。',
+      audience: '比较史入门、小组讨论、跨场景写作',
+      duration: '35-75 分钟',
+      source: 'compare',
+      matcher: (task) => task.source === 'compare' || task.source === 'inquiry' || taskMatchesAny(task, ['compare', '比较', 'two', '两个', 'daily life', 'ordinary']),
+      secondaryAction: 'open-first',
+    },
+    {
+      id: 'write-argument',
+      label: 'Write an Argument · 写出历史论证',
+      reason: '聚焦主张、证据、推理桥、反驳和来源限制，帮助学习者从摘记走向段落。',
+      audience: '写作课、capstone、论文前置练习',
+      duration: '45-75 分钟',
+      matcher: (task) => task.source === 'synthesis' || taskMatchesAny(task, ['argument', 'thesis', 'claim', 'reasoning', 'synthesis', '论证', '主张', '写作', '段落']),
+      secondaryAction: 'copy-first',
+    },
+    {
+      id: 'classroom-ready',
+      label: 'Classroom-ready · 可直接上课',
+      reason: '筛出 Lesson Pack 与 Activity Pack 中结构清晰、材料和交付物明确的课堂任务。',
+      audience: '教师备课、代课包、45 分钟课堂 chunk',
+      duration: '15-45 分钟',
+      matcher: (task) => task.source === 'lesson' || task.source === 'activity' || taskMatchesAny(task, ['classroom', 'lesson', 'activity', 'flow', 'pack', '课堂', '活动']),
+      secondaryAction: 'copy-first',
+    },
+    {
+      id: 'labor-and-risk',
+      label: 'Labor & Risk · 劳动、身体与风险',
+      reason: '围绕工作节奏、纪律、安全、身体风险与协商空间组织任务。',
+      audience: '劳动史、工业革命、风险/安全主题课',
+      duration: '30-75 分钟',
+      matcher: (task) => taskMatchesAny(task, ['labor', 'labour', 'risk', 'safety', 'discipline', 'factory', 'work', '劳动', '风险', '安全', '纪律', '工厂']),
+      secondaryAction: 'open-first',
+    },
+    {
+      id: 'markets-and-power',
+      label: 'Markets & Power · 市场与权力',
+      reason: '把交换、监管、税赋、信用、帝国压力和普通人的策略放在同一问题下。',
+      audience: '经济史、全球史、市场不是自由真空讨论',
+      duration: '35-75 分钟',
+      matcher: (task) => taskMatchesAny(task, ['market', 'exchange', 'power', 'regulation', 'empire', 'trade', 'credit', '市场', '交换', '权力', '监管', '帝国', '贸易', '信用']),
+      secondaryAction: 'open-first',
+    },
+    {
+      id: 'archive-silence',
+      label: 'Archive Silence · 档案沉默与缺席声音',
+      reason: '训练学生把来源沉默写成分析对象，而不是用想象填补档案空白。',
+      audience: '高阶史料课、奴隶制/殖民/边缘声音讨论',
+      duration: '45-75 分钟',
+      sourceBasedOnly: true,
+      matcher: (task) => task.sourceBased && taskMatchesAny(task, ['silence', 'archive', 'absent', 'voices', 'limits', 'source limits', '沉默', '档案', '缺席', '来源限制']),
+      secondaryAction: 'copy-first',
+    },
+  ]
+}
+
+function getMatchingTasksForPreset(tasks: LibraryTask[], preset: TaskLibraryPreset) {
+  return tasks.filter((task) => {
+    const matchesPreset = preset.matcher(task)
+    const matchesDuration = !preset.durationBand || task.durationBand === preset.durationBand
+    const matchesSource = !preset.source || task.source === preset.source
+    const matchesSourceBased = !preset.sourceBasedOnly || task.sourceBased
+
+    return matchesPreset && matchesDuration && matchesSource && matchesSourceBased
+  })
+}
+
 function scrollToSection(hash: string, prefersReducedMotion: boolean | null) {
   if (typeof window === 'undefined') {
     return
@@ -3913,7 +4029,7 @@ function inferPageFromHash(hash: string): PageId {
   if (normalizedHash === 'source-atlas') return 'evidence'
   if (labsSubpages.some((item) => item.hash === normalizedHash)) return 'labs'
   if (['time-space-atlas', 'atlas-missions', 'atlas-inquiry-paths', sectionIds.compareLab].includes(normalizedHash)) return 'atlas'
-  if (['portfolio', 'task-library', 'guided-session-builder'].includes(normalizedHash)) return 'tasks'
+  if (tasksSubpages.some((item) => item.hash === normalizedHash)) return 'tasks'
   if (normalizedHash === 'about') return 'about'
 
   return 'home'
@@ -3966,14 +4082,11 @@ function getHashForLabsSubpage(subpage: LabsSubpage) {
 function getTasksSubpageFromHash(hash: string | null): TasksSubpage {
   const normalizedHash = (hash ?? '').replace(/^#/, '')
 
-  if (normalizedHash === 'guided-session-builder') return 'sessions'
-  if (normalizedHash === 'portfolio') return 'portfolio'
-
-  return 'library'
+  return tasksSubpages.find((item) => item.hash === normalizedHash)?.id ?? 'discover'
 }
 
 function getHashForTasksSubpage(subpage: TasksSubpage) {
-  return tasksSubpages.find((item) => item.id === subpage)?.hash ?? 'task-library'
+  return tasksSubpages.find((item) => item.id === subpage)?.hash ?? 'task-discovery'
 }
 
 function getInitialPage() {
@@ -4594,7 +4707,7 @@ function App() {
 
     return getLabsSubpageFromValue(new URLSearchParams(window.location.search).get('page')) ?? getLabsSubpageFromHash(window.location.hash)
   })
-  const [activeTasksSubpage, setActiveTasksSubpage] = useState<TasksSubpage>(() => (typeof window === 'undefined' ? 'library' : getTasksSubpageFromHash(window.location.hash)))
+  const [activeTasksSubpage, setActiveTasksSubpage] = useState<TasksSubpage>(() => (typeof window === 'undefined' ? 'discover' : getTasksSubpageFromHash(window.location.hash)))
   const [selectedScenarioTab, setSelectedScenarioTab] = useState<ScenarioExperienceTab>(() => (typeof window === 'undefined' ? 'overview' : getScenarioTabFromHash(window.location.hash)))
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
@@ -4623,6 +4736,7 @@ function App() {
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
   )
+  const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -4857,7 +4971,7 @@ function App() {
     }
 
     if (page === 'tasks') {
-      setActiveTasksSubpage(hash ? getTasksSubpageFromHash(hash) : 'library')
+      setActiveTasksSubpage(hash ? getTasksSubpageFromHash(hash) : 'discover')
     }
 
     if (typeof window !== 'undefined') {
@@ -4899,6 +5013,19 @@ function App() {
     const hash = getHashForTasksSubpage(subpage)
 
     setActiveTasksSubpage(subpage)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openTaskLibraryPreset(preset: TaskLibraryPreset) {
+    setTaskLibraryPreset(preset)
+    setActiveTasksSubpage('library')
+
+    const hash = getHashForTasksSubpage('library')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -5293,8 +5420,24 @@ function App() {
               activeId={activeTasksSubpage}
               onSelect={selectTasksSubpage}
             />
+            {activeTasksSubpage === 'discover' ? (
+              <TaskDiscoveryPanel
+                onOpenLibraryPreset={openTaskLibraryPreset}
+                onOpenScenario={selectScenario}
+                onLoadCompare={loadCompareFromInquiryPath}
+                onLoadCompareLens={loadCompareLens}
+                onLoadCausationInquiry={loadCausationInquiry}
+                onLoadPeriodizationInquiry={loadPeriodizationInquiry}
+                onLoadPerspectivesInquiry={loadPerspectivesInquiry}
+                onLoadContextInquiry={loadContextInquiry}
+                onLoadSignificanceInquiry={loadSignificanceInquiry}
+                onLoadSynthesisPreset={loadSynthesisPreset}
+              />
+            ) : null}
             {activeTasksSubpage === 'library' ? (
               <TaskLibraryPanel
+                preset={taskLibraryPreset}
+                onClearPreset={() => setTaskLibraryPreset(null)}
                 onOpenScenario={selectScenario}
                 onLoadCompare={loadCompareFromInquiryPath}
                 onLoadCompareLens={loadCompareLens}
@@ -9103,7 +9246,8 @@ function PortfolioPanel({
   )
 }
 
-function TaskLibraryPanel({
+function TaskDiscoveryPanel({
+  onOpenLibraryPreset,
   onOpenScenario,
   onLoadCompare,
   onLoadCompareLens,
@@ -9114,6 +9258,195 @@ function TaskLibraryPanel({
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
 }: {
+  onOpenLibraryPreset: (preset: TaskLibraryPreset) => void
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onLoadCompare: (path: AtlasInquiryPath | AtlasMapRoute) => void
+  onLoadCompareLens: (lens: CompareLens) => void
+  onLoadCausationInquiry: (inquiryId: string) => void
+  onLoadPeriodizationInquiry: (inquiryId: string) => void
+  onLoadPerspectivesInquiry: (inquiryId: string) => void
+  onLoadContextInquiry: (inquiryId: string) => void
+  onLoadSignificanceInquiry: (inquiryId: string) => void
+  onLoadSynthesisPreset: (presetId: string) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const libraryTasks = useMemo(
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset],
+  )
+  const collections = useMemo(getTaskDiscoveryCollections, [])
+  const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
+  const featuredRouteTasks = featuredRoute
+    ? libraryTasks.filter((task) => featuredRoute.tags.some((tag) => task.searchText.includes(tag.toLowerCase())) || taskMatchesAny(task, ['commodity', 'labor', 'labour', 'archive silence', 'source silence', '商品链', '劳动', '来源沉默', '档案沉默']))
+    : []
+
+  async function copyFirstTask(collection: TaskDiscoveryCollection, matchingTasks: LibraryTask[]) {
+    const firstTask = matchingTasks[0]
+
+    if (!firstTask) {
+      return
+    }
+
+    try {
+      await copyTextToClipboard(firstTask.formatSheet())
+      setCopyStatus(collection.id)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="task-discovery" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="task-discovery-title">
+      <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-amber-100">
+          <Sparkles size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">tasks discovery launcher</span>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+          <div>
+            <h2 id="task-discovery-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Tasks Discovery Launcher / 先按学习目标找任务
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              不必先知道模块名。这里把 Task Library 的现有任务重新策展成学习目标、时间盒和历史思维集合；点击集合会带着 preset 进入任务库并自动套用筛选。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">
+            <div className="font-semibold text-amber-100">Discovery index</div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+              <span className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">{collections.length}<br />collections</span>
+              <span className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">{libraryTasks.length}<br />tasks</span>
+              <span className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">{libraryTasks.filter((task) => task.sourceBased).length}<br />source-based</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+          {collections.map((collection) => {
+            const matchingTasks = getMatchingTasksForPreset(libraryTasks, collection)
+            const firstTask = matchingTasks[0]
+
+            return (
+              <article key={collection.id} className="flex min-h-full flex-col rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  <span className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-amber-100">{collection.id}</span>
+                  <span>{collection.duration}</span>
+                </div>
+                <h3 className="mt-3 text-xl font-semibold tracking-tight text-stone-50">{collection.label}</h3>
+                <p className="mt-3 text-sm leading-6 text-stone-300">{collection.reason}</p>
+                <div className="mt-4 space-y-2 text-sm leading-6 text-stone-400">
+                  <p><span className="font-semibold text-stone-200">Audience：</span>{collection.audience}</p>
+                  <p><span className="font-semibold text-stone-200">Duration：</span>{collection.duration}</p>
+                  <p><span className="font-semibold text-stone-200">Matching tasks：</span>{matchingTasks.length}</p>
+                </div>
+                <div className="mt-auto flex flex-col gap-2 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => onOpenLibraryPreset(collection)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+                  >
+                    <LibraryBig size={16} />
+                    在任务库查看匹配任务
+                  </button>
+                  {collection.secondaryAction === 'open-first' && firstTask?.onPrimaryAction ? (
+                    <button
+                      type="button"
+                      onClick={firstTask.onPrimaryAction}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                    >
+                      <ArrowRight size={16} />
+                      打开第一个匹配任务
+                    </button>
+                  ) : null}
+                  {collection.secondaryAction === 'copy-first' ? (
+                    <button
+                      type="button"
+                      onClick={() => void copyFirstTask(collection, matchingTasks)}
+                      disabled={!firstTask}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {copyStatus === collection.id ? <Check size={16} /> : <Copy size={16} />}
+                      {copyStatus === collection.id ? '已复制首个任务单' : '复制首个任务单'}
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+
+        {featuredRoute ? (
+          <article className="mt-6 overflow-hidden rounded-[1.75rem] border border-emerald-200/15 bg-emerald-100/[0.045]">
+            <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="p-5">
+                <div className="mb-3 flex items-center gap-2 text-sm uppercase tracking-[0.25em] text-emerald-100">
+                  <Route size={18} /> featured route module
+                </div>
+                <h3 className="text-2xl font-semibold tracking-tight text-stone-50">商品链、劳动与档案沉默</h3>
+                <p className="mt-3 text-sm leading-6 text-stone-400">
+                  连接现有 Atlas route「{featuredRoute.title}」、Task Library 中的劳动/商品链任务，以及 Synthesis Studio 的「商品链与劳动」「档案沉默与历史意义」综合写作预设。
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {featuredRoute.tags.map((tag) => <span key={tag} className="rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-3 py-1 text-xs text-emerald-100">{tag}</span>)}
+                </div>
+              </div>
+              <div className="border-t border-white/10 p-5 lg:border-l lg:border-t-0">
+                <p className="text-sm leading-6 text-stone-300"><span className="font-semibold text-emerald-100">Route question：</span>{featuredRoute.routeQuestion}</p>
+                <p className="mt-3 text-sm leading-6 text-stone-500">Discovery match：{featuredRouteTasks.length} 个相关任务 · {featuredRoute.scenarioIds.length} 个 Atlas stops · 可延伸到 Labs/Synthesis。</p>
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => onLoadCompare(featuredRoute)}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"
+                  >
+                    <Scale size={16} />
+                    载入 Atlas Compare
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onLoadSynthesisPreset('commodity-chains-labor')}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                  >
+                    <ScrollText size={16} />
+                    商品链综合写作
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onLoadSynthesisPreset('archive-silence-significance')}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                  >
+                    <ShieldAlert size={16} />
+                    档案沉默综合写作
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+        ) : null}
+
+        <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+          {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '集合不会创建新 scenario schema；它只复用现有任务库、Atlas route 与 Labs/Synthesis 入口。'}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function TaskLibraryPanel({
+  preset,
+  onClearPreset,
+  onOpenScenario,
+  onLoadCompare,
+  onLoadCompareLens,
+  onLoadCausationInquiry,
+  onLoadPeriodizationInquiry,
+  onLoadPerspectivesInquiry,
+  onLoadContextInquiry,
+  onLoadSignificanceInquiry,
+  onLoadSynthesisPreset,
+}: {
+  preset: TaskLibraryPreset | null
+  onClearPreset: () => void
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
@@ -9137,6 +9470,20 @@ function TaskLibraryPanel({
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
+
+  useEffect(() => {
+    if (!preset) {
+      return
+    }
+
+    setSearchQuery(preset.searchQuery ?? '')
+    setCategoryFilter(preset.category ?? 'all')
+    setScenarioFilter('all')
+    setDurationFilter(preset.durationBand ?? 'all')
+    setSourceFilter(preset.source ?? 'all')
+    setSourceBasedOnly(Boolean(preset.sourceBasedOnly))
+  }, [preset])
+
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const visibleTasks = useMemo(
     () => libraryTasks.filter((task) => {
@@ -9146,10 +9493,11 @@ function TaskLibraryPanel({
       const matchesDuration = durationFilter === 'all' || task.durationBand === durationFilter
       const matchesSource = sourceFilter === 'all' || task.source === sourceFilter
       const matchesSourceBased = !sourceBasedOnly || task.sourceBased
+      const matchesPreset = !preset || preset.matcher(task)
 
-      return matchesSearch && matchesCategory && matchesScenario && matchesDuration && matchesSource && matchesSourceBased
+      return matchesSearch && matchesCategory && matchesScenario && matchesDuration && matchesSource && matchesSourceBased && matchesPreset
     }),
-    [categoryFilter, durationFilter, libraryTasks, normalizedSearchQuery, scenarioFilter, sourceBasedOnly, sourceFilter],
+    [categoryFilter, durationFilter, libraryTasks, normalizedSearchQuery, preset, scenarioFilter, sourceBasedOnly, sourceFilter],
   )
 
   async function copyTaskSheet(task: LibraryTask) {
@@ -9181,6 +9529,21 @@ function TaskLibraryPanel({
             {visibleTasks.length}/{libraryTasks.length} 个任务 · {libraryTasks.filter((task) => task.sourceBased).length} 个来源型
           </div>
         </div>
+
+        {preset ? (
+          <div className="mt-5 flex flex-col gap-3 rounded-3xl border border-amber-200/20 bg-amber-100/[0.06] p-4 text-sm leading-6 text-stone-300 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <span className="font-semibold text-amber-100">Discovery preset active：</span>{preset.label}
+            </div>
+            <button
+              type="button"
+              onClick={onClearPreset}
+              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+            >
+              清除 Discovery preset
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1.25fr_0.8fr_0.8fr] xl:grid-cols-[1.4fr_0.85fr_0.85fr_0.7fr_0.75fr]">
           <label className="block">
