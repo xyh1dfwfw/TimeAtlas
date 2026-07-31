@@ -5205,6 +5205,17 @@ function App() {
 
         {activePage === 'labs' ? (
           <>
+            <LabsMethodChooser
+              activeSubpage={activeLabsSubpage}
+              causationDraftState={causationDraftState}
+              periodizationDraftState={periodizationDraftState}
+              perspectivesDraftState={perspectivesDraftState}
+              contextDraftState={contextDraftState}
+              significanceDraftState={significanceDraftState}
+              synthesisDraftState={synthesisDraftState}
+              onOpenEvidence={() => navigateToPage('evidence', 'source-atlas')}
+              onSelectSubpage={selectLabsSubpage}
+            />
             <SubpageNav
               ariaLabel="历史思维子页面"
               items={labsSubpages}
@@ -5447,6 +5458,184 @@ function SubpageNav<T extends string>({
         })}
       </div>
     </nav>
+  )
+}
+
+type LabsMethodChooserItem = {
+  id: LabsSubpage
+  title: string
+  eyebrow: string
+  question: string
+  useCase: string
+  availableLabel: string
+  draftCount: number
+}
+
+function LabsMethodChooser({
+  activeSubpage,
+  causationDraftState,
+  periodizationDraftState,
+  perspectivesDraftState,
+  contextDraftState,
+  significanceDraftState,
+  synthesisDraftState,
+  onOpenEvidence,
+  onSelectSubpage,
+}: {
+  activeSubpage: LabsSubpage
+  causationDraftState: CausationDraftState
+  periodizationDraftState: PeriodizationDraftState
+  perspectivesDraftState: PerspectivesDraftState
+  contextDraftState: ContextDraftState
+  significanceDraftState: SignificanceDraftState
+  synthesisDraftState: SynthesisDraftState
+  onOpenEvidence: () => void
+  onSelectSubpage: (subpage: LabsSubpage) => void
+}) {
+  const methodItems: LabsMethodChooserItem[] = [
+    {
+      id: 'causation',
+      title: '因果与变化',
+      eyebrow: 'Causation',
+      question: '这个变化为什么发生？哪些条件、触发和选择共同起作用？',
+      useCase: '适合把市场、制度、劳动、环境和来源限制拆成因果链。',
+      availableLabel: `${causationInquiryDefinitions.length} 个探究`,
+      draftCount: getActiveCausationDrafts(causationDraftState).length,
+    },
+    {
+      id: 'periodization',
+      title: '连续与分期',
+      eyebrow: 'Periodization',
+      question: '什么时候算转折？哪些变化背后仍有连续性？',
+      useCase: '适合用时间证据轨划分阶段、命名时期并比较替代分期。',
+      availableLabel: `${periodizationInquiryDefinitions.length} 个探究`,
+      draftCount: getActivePeriodizationDrafts(periodizationDraftState).length,
+    },
+    {
+      id: 'perspectives',
+      title: '多视角与能动性',
+      eyebrow: 'Perspectives',
+      question: '当时的人能看到什么、选择什么，又被哪些力量限制？',
+      useCase: '适合避免后见之明，把行动者、缺席声音和来源视角分开。',
+      availableLabel: `${perspectivesInquiryDefinitions.length} 个探究`,
+      draftCount: getActivePerspectivesDrafts(perspectivesDraftState).length,
+    },
+    {
+      id: 'context',
+      title: '情境与尺度',
+      eyebrow: 'Context',
+      question: '地方现场如何连接到区域网络、帝国制度或全球商品链？',
+      useCase: '适合从 local 到 regional / imperial-global 建立解释尺度。',
+      availableLabel: `${contextInquiryDefinitions.length} 个探究`,
+      draftCount: getActiveContextDrafts(contextDraftState).length,
+    },
+    {
+      id: 'significance',
+      title: '历史意义与记忆',
+      eyebrow: 'Significance',
+      question: '这件事为什么重要？对谁重要，后来又如何被记忆或争议？',
+      useCase: '适合把当时影响、长期遗产、公共记忆和档案沉默连起来。',
+      availableLabel: `${significanceInquiryDefinitions.length} 个探究`,
+      draftCount: getActiveSignificanceDrafts(significanceDraftState).length,
+    },
+    {
+      id: 'synthesis',
+      title: '综合写作',
+      eyebrow: 'Synthesis',
+      question: '如何把互证、因果、分期、视角、情境和意义写成论证？',
+      useCase: '适合把各 Lab 草稿和证据池合成为段落计划与历史论证。',
+      availableLabel: `${synthesisInquiryPresets.length} 个预设`,
+      draftCount: getActiveSynthesisDrafts(synthesisDraftState).length,
+    },
+  ]
+
+  return (
+    <section className="mx-auto w-full max-w-7xl px-5 pt-8 sm:px-8 lg:px-10" aria-labelledby="labs-method-chooser-title">
+      <div className="overflow-hidden rounded-[2.5rem] border border-amber-200/15 bg-[linear-gradient(135deg,rgba(251,191,36,0.13),rgba(20,184,166,0.06)_46%,rgba(15,23,42,0.22))] p-5 shadow-2xl shadow-black/20 backdrop-blur md:p-7">
+        <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+          <div className="space-y-5">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-amber-100/70">Labs orientation</p>
+              <h2 id="labs-method-chooser-title" className="mt-2 text-3xl font-semibold tracking-tight text-stone-50 sm:text-4xl">
+                从问题选择历史思维工具
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-stone-300">
+                先判断你要回答的问题类型，再进入对应 Lab：每个工具都带有策展探究、证据轨、可保存草稿和可复制输出。
+              </p>
+            </div>
+
+            <div className="rounded-[1.75rem] border border-white/10 bg-black/25 p-4" aria-label="推荐 Labs 学习顺序">
+              <div className="text-xs uppercase tracking-[0.22em] text-stone-500">Recommended sequence</div>
+              <div className="mt-3 flex flex-col gap-2 text-sm font-semibold text-stone-200 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={onOpenEvidence}
+                  className="rounded-full border border-teal-200/25 bg-teal-100/10 px-4 py-2 text-teal-100 transition hover:border-teal-100/45 hover:bg-teal-100/15"
+                >
+                  证据互证
+                </button>
+                <span className="hidden text-stone-500 sm:inline">→</span>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-stone-300">
+                  因果 / 分期 / 多视角 / 情境 / 意义
+                </span>
+                <span className="hidden text-stone-500 sm:inline">→</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectSubpage('synthesis')}
+                  className="rounded-full border border-fuchsia-200/25 bg-fuchsia-100/10 px-4 py-2 text-fuchsia-100 transition hover:border-fuchsia-100/45 hover:bg-fuchsia-100/15"
+                >
+                  综合写作
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {methodItems.map((item) => {
+              const isActive = activeSubpage === item.id
+
+              return (
+                <article
+                  key={item.id}
+                  className={`flex min-h-[15rem] flex-col rounded-[1.6rem] border p-4 transition ${
+                    isActive
+                      ? 'border-amber-200/55 bg-amber-100/[0.12] shadow-lg shadow-amber-950/20'
+                      : 'border-white/10 bg-black/25 hover:border-amber-100/30 hover:bg-white/[0.055]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{item.eyebrow}</div>
+                      <h3 className="mt-1 text-lg font-semibold text-stone-50">{item.title}</h3>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isActive ? 'bg-amber-200 text-stone-950' : 'bg-white/10 text-stone-300'}`}>
+                      {isActive ? '当前' : '可选'}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 text-sm leading-6 text-amber-50/90">{item.question}</p>
+                  <p className="mt-2 text-xs leading-5 text-stone-400">{item.useCase}</p>
+
+                  <div className="mt-auto flex flex-wrap gap-2 pt-4 text-xs font-semibold text-stone-300">
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">{item.availableLabel}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">{item.draftCount} 个草稿</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onSelectSubpage(item.id)}
+                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-stone-100 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+                  >
+                    进入{item.title}
+                    <ArrowRight size={16} />
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 
