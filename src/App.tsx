@@ -26,10 +26,12 @@ import {
 import {
   atlasInquiryPaths,
   atlasMapRoutes,
+  chronologyChallenges,
   compareLenses,
   scenarios,
   type AtlasInquiryPath,
   type AtlasMapRoute,
+  type ChronologyChallenge,
   type CompareLens,
   type DailyLifeKey,
   type ActivityPack,
@@ -61,6 +63,7 @@ const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
 const evidenceCaseFileStorageKey = 'timeatlas:evidence-case-file-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
+const chronologyDeskStorageKey = 'timeatlas:chronology-desk-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
@@ -429,6 +432,35 @@ type EvidenceCaseFileDraft = {
 
 type EvidenceCaseFileDraftState = Record<string, EvidenceCaseFileDraft>
 
+type ChronologyConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type ChronologyEvidenceEvent = {
+  id: string
+  challengeId: string
+  scenario: Scenario
+  year: number
+  label: string
+  sourceType: 'scenario-year' | 'timeline' | 'scene' | 'decision' | 'source' | 'real-history'
+  title: string
+  text: string
+  tags: string[]
+}
+
+type ChronologyDraft = {
+  selectedEventIds: string[]
+  sequenceNotes: string
+  beforeAfterClaim: string
+  turningPointClaim: string
+  paceOrRhythmNotes: string
+  sourceLimitNotes: string
+  finalChronologyBrief: string
+  confidence: ChronologyConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type ChronologyDraftState = Record<string, ChronologyDraft>
+
 type EvidenceCasePacketItem = {
   id: string
   scenario: Scenario
@@ -479,6 +511,7 @@ type SynthesisEvidenceOrigin =
   | 'contextualization'
   | 'significance'
   | 'compare'
+  | 'chronology'
   | 'actor-network'
   | 'material-culture'
   | 'mission-work'
@@ -605,7 +638,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -639,7 +672,7 @@ type SubpageNavItem<T extends string> = {
   hash: string
 }
 
-type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
+type AtlasSubpage = 'routes' | 'chronology' | 'missions' | 'pathways' | 'compare'
 type EvidenceSubpage = 'source-atlas' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
 type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'sessions' | 'modules' | 'portfolio'
@@ -653,6 +686,7 @@ const evidenceSubpages: SubpageNavItem<EvidenceSubpage>[] = [
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
+  { id: 'chronology', label: '时间证据', eyebrow: 'Chronology', description: 'Chronology Desk 时间证据排序、节奏与 brief', hash: 'chronology-desk' },
   { id: 'missions', label: '跨场景挑战', eyebrow: 'Missions', description: 'Atlas Workspace 任务草稿与勾选', hash: 'atlas-missions' },
   { id: 'pathways', label: '探究路径', eyebrow: 'Pathways', description: '策展 inquiry paths 与 Compare 入口', hash: 'atlas-inquiry-paths' },
   { id: 'compare', label: '比较实验室', eyebrow: 'Compare', description: '双场景比较镜头与作业生成', hash: sectionIds.compareLab },
@@ -1158,6 +1192,7 @@ const contextConfidenceLabels: Record<ContextConfidence, string> = corroboration
 const significanceConfidenceLabels: Record<SignificanceConfidence, string> = corroborationConfidenceLabels
 const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
+const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
 const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
@@ -1697,6 +1732,50 @@ function parseWorkspaceState(rawState: string | null) {
     } satisfies WorkspaceState
   } catch {
     return getEmptyWorkspaceState()
+  }
+}
+
+function parseChronologyDraftState(rawState: string | null): ChronologyDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as ChronologyDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<ChronologyDraft>
+        const selectedEventIds = Array.isArray(draft.selectedEventIds)
+          ? draft.selectedEventIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in chronologyConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            selectedEventIds,
+            sequenceNotes: typeof draft.sequenceNotes === 'string' ? draft.sequenceNotes : '',
+            beforeAfterClaim: typeof draft.beforeAfterClaim === 'string' ? draft.beforeAfterClaim : '',
+            turningPointClaim: typeof draft.turningPointClaim === 'string' ? draft.turningPointClaim : '',
+            paceOrRhythmNotes: typeof draft.paceOrRhythmNotes === 'string' ? draft.paceOrRhythmNotes : '',
+            sourceLimitNotes: typeof draft.sourceLimitNotes === 'string' ? draft.sourceLimitNotes : '',
+            finalChronologyBrief: typeof draft.finalChronologyBrief === 'string' ? draft.finalChronologyBrief : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies ChronologyDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as ChronologyDraftState
   }
 }
 
@@ -2400,6 +2479,30 @@ function persistCompareDraftState(state: CompareDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(compareLabStorageKey, serializedState)
+}
+
+function loadChronologyDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseChronologyDraftState(localStorage?.getItem(chronologyDeskStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasChronologyDraftActivity)) {
+    return localState
+  }
+
+  return parseChronologyDraftState(sessionStorage?.getItem(chronologyDeskStorageKey) ?? null)
+}
+
+function persistChronologyDraftState(state: ChronologyDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(chronologyDeskStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(chronologyDeskStorageKey, serializedState)
 }
 
 function loadSynthesisDraftState() {
@@ -3204,6 +3307,38 @@ function hasCompareDraftActivity(draft: CompareDraft) {
 
 function getActiveCompareDrafts(compareDraftState: CompareDraftState) {
   return Object.entries(compareDraftState).filter(([, draft]) => hasCompareDraftActivity(draft))
+}
+
+function getEmptyChronologyDraft(challenge?: ChronologyChallenge): ChronologyDraft {
+  return {
+    selectedEventIds: challenge ? buildChronologyEvidenceEvents(challenge).slice(0, 4).map((event) => event.id) : [],
+    sequenceNotes: '',
+    beforeAfterClaim: '',
+    turningPointClaim: '',
+    paceOrRhythmNotes: '',
+    sourceLimitNotes: '',
+    finalChronologyBrief: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function hasChronologyDraftActivity(draft: ChronologyDraft) {
+  return Boolean(
+    draft.selectedEventIds.length
+      || draft.sequenceNotes.trim()
+      || draft.beforeAfterClaim.trim()
+      || draft.turningPointClaim.trim()
+      || draft.paceOrRhythmNotes.trim()
+      || draft.sourceLimitNotes.trim()
+      || draft.finalChronologyBrief.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveChronologyDrafts(chronologyDraftState: ChronologyDraftState) {
+  return Object.entries(chronologyDraftState).filter(([, draft]) => hasChronologyDraftActivity(draft))
 }
 
 function getActiveActorNetworkDrafts(actorNetworkDraftState: ActorNetworkDraftState) {
@@ -4714,6 +4849,7 @@ function formatSourceCorroborationBrief(entries: SourceAtlasEntry[], draft: Corr
 
 function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
   return {
+    chronology: 'Chronology Desk draft / 时间证据草稿',
     corroboration: 'Corroboration draft / 互证草稿',
     causation: 'Causation draft / 因果草稿',
     periodization: 'Periodization draft / 分期草稿',
@@ -4738,6 +4874,7 @@ function makeSynthesisEvidenceId(origin: SynthesisEvidenceOrigin, key: string) {
 }
 
 function buildSynthesisEvidencePool({
+  chronologyDraftState,
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
@@ -4751,6 +4888,7 @@ function buildSynthesisEvidencePool({
   missionWorkState,
   workspaceState,
 }: {
+  chronologyDraftState: ChronologyDraftState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
@@ -4771,6 +4909,25 @@ function buildSynthesisEvidencePool({
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
   const entries: SynthesisEvidence[] = []
+
+  getActiveChronologyDrafts(chronologyDraftState).forEach(([challengeId, draft]) => {
+    const challenge = chronologyChallenges.find((candidate) => candidate.id === challengeId)
+    if (!challenge) return
+    const evidence = buildChronologyEvidenceEvents(challenge)
+    const selectedEvents = draft.selectedEventIds
+      .map((eventId) => evidence.find((event) => event.id === eventId))
+      .filter((event): event is ChronologyEvidenceEvent => Boolean(event))
+    entries.push({
+      id: makeSynthesisEvidenceId('chronology', challengeId),
+      origin: 'chronology',
+      originLabel: getSynthesisOriginLabel('chronology'),
+      title: challenge.title,
+      text: [`顺序：${draft.sequenceNotes}`, `前后关系：${draft.beforeAfterClaim}`, `转折点：${draft.turningPointClaim}`, `节奏：${draft.paceOrRhythmNotes}`, `来源限制：${draft.sourceLimitNotes}`, `最终简报：${draft.finalChronologyBrief}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['chronology', 'time evidence', ...challenge.tags, ...selectedEvents.slice(0, 3).map((event) => `${event.year} ${event.scenario.title}`), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      inquiryTitle: challenge.drivingQuestion,
+      updatedAt: draft.updatedAt,
+    })
+  })
 
   getActiveEvidenceCaseFileDrafts(caseFileDraftState).forEach(([caseFileId, draft]) => {
     const caseFile = evidenceCaseFiles.find((candidate) => candidate.id === caseFileId)
@@ -5015,6 +5172,132 @@ function formatSynthesisWritingBrief(preset: SynthesisInquiryPreset, evidencePoo
   ].join('\n')
 }
 
+function buildChronologyEvidenceEvents(challenge: ChronologyChallenge): ChronologyEvidenceEvent[] {
+  const challengeScenarios = challenge.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  return challengeScenarios.flatMap((scenario) => {
+    const baseTags = [scenario.era, scenario.location, scenario.region, scenario.theme]
+    const events: ChronologyEvidenceEvent[] = [
+      {
+        id: `${challenge.id}:${scenario.id}:scenario-year`,
+        challengeId: challenge.id,
+        scenario,
+        year: scenario.year,
+        label: 'Scenario year',
+        sourceType: 'scenario-year',
+        title: `${scenario.year} · ${scenario.title}`,
+        text: `${scenario.identity}｜${scenario.summary}`,
+        tags: baseTags,
+      },
+      ...scenario.timeline.slice(0, 3).map((event, index) => ({
+        id: `${challenge.id}:${scenario.id}:timeline:${index}`,
+        challengeId: challenge.id,
+        scenario,
+        year: Number.parseInt(event.year, 10) || scenario.year,
+        label: 'Timeline',
+        sourceType: 'timeline' as const,
+        title: event.title,
+        text: `${event.year}｜${event.text}`,
+        tags: [...baseTags, 'timeline', event.year],
+      })),
+      ...scenario.sceneBeats.slice(0, 2).map((beat, index) => ({
+        id: `${challenge.id}:${scenario.id}:scene:${index}`,
+        challengeId: challenge.id,
+        scenario,
+        year: scenario.year,
+        label: 'Scene beat',
+        sourceType: 'scene' as const,
+        title: `${beat.timeLabel} · ${beat.title}`,
+        text: `${beat.historicalTension}｜${beat.evidenceHook}`,
+        tags: [...baseTags, ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+      })),
+      {
+        id: `${challenge.id}:${scenario.id}:decision`,
+        challengeId: challenge.id,
+        scenario,
+        year: scenario.year,
+        label: 'Decision',
+        sourceType: 'decision',
+        title: scenario.decision.prompt,
+        text: scenario.decision.context,
+        tags: [...baseTags, 'decision'],
+      },
+      ...scenario.sources.slice(0, 2).map((source, index) => ({
+        id: `${challenge.id}:${scenario.id}:source:${index}`,
+        challengeId: challenge.id,
+        scenario,
+        year: scenario.year,
+        label: sourceTypeLabels[source.sourceType],
+        sourceType: 'source' as const,
+        title: source.title,
+        text: `${source.excerpt}｜可靠边界：${source.reliabilityNote}`,
+        tags: [...baseTags, source.creator, ...source.evidenceTags],
+      })),
+      {
+        id: `${challenge.id}:${scenario.id}:real-history`,
+        challengeId: challenge.id,
+        scenario,
+        year: scenario.year,
+        label: 'Real history',
+        sourceType: 'real-history',
+        title: '真实历史对照',
+        text: scenario.realHistory,
+        tags: [...baseTags, 'real history'],
+      },
+    ]
+
+    return events
+  }).sort((first, second) => first.year - second.year || first.scenario.title.localeCompare(second.scenario.title) || first.id.localeCompare(second.id))
+}
+
+function formatChronologyBrief(challenge: ChronologyChallenge, draft: ChronologyDraft, selectedEvents: ChronologyEvidenceEvent[]) {
+  const evidenceForExport = selectedEvents.length ? selectedEvents : buildChronologyEvidenceEvents(challenge).slice(0, 10)
+
+  return [
+    'TimeAtlas Chronology Desk / 时间证据工作台',
+    `生成时间：${new Date().toLocaleString()}`,
+    `挑战：${challenge.title}｜${challenge.subtitle}`,
+    `核心问题：${challenge.drivingQuestion}`,
+    `时间焦点：${challenge.timeFocus}`,
+    `状态：${draft.completed ? '已完成' : hasChronologyDraftActivity(draft) ? '草稿' : '未开始'}`,
+    '',
+    '一、Selected timeline evidence / 已选时间证据',
+    ...evidenceForExport.map((event, index) => `${index + 1}. ${event.year}｜${event.scenario.title}｜${event.label}｜${event.title}\n   ${event.text}\n   标签：${event.tags.slice(0, 8).join('、') || '无'}`),
+    '',
+    '二、Chronology workspace / 时间证据草稿',
+    `Sequence notes：${draft.sequenceNotes.trim() || '尚未填写'}`,
+    `Before / after claim：${draft.beforeAfterClaim.trim() || '尚未填写'}`,
+    `Turning point claim：${draft.turningPointClaim.trim() || '尚未填写'}`,
+    `Pace / rhythm notes：${draft.paceOrRhythmNotes.trim() || '尚未填写'}`,
+    `Source limits：${draft.sourceLimitNotes.trim() || '尚未填写'}`,
+    `Final Chronology Brief：${draft.finalChronologyBrief.trim() || '尚未填写'}`,
+    `Confidence：${chronologyConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatChronologyTaskSheet(challenge: ChronologyChallenge) {
+  const events = buildChronologyEvidenceEvents(challenge)
+
+  return [
+    `TimeAtlas Chronology Desk Assignment：${challenge.title}`,
+    challenge.subtitle,
+    '',
+    `核心问题：${challenge.drivingQuestion}`,
+    `时间焦点：${challenge.timeFocus}`,
+    '',
+    `任务：${challenge.taskPrompt}`,
+    '',
+    '证据提示：',
+    ...challenge.evidencePrompts.map((prompt) => `- ${prompt}`),
+    '',
+    '建议时间证据起点：',
+    ...events.slice(0, 8).map((event) => `- ${event.year}｜${event.scenario.title}｜${event.label}｜${event.title}：${event.text}`),
+    '',
+    `交付物：${challenge.deliverable}`,
+  ].join('\n')
+}
+
 function formatSynthesisTaskSheet(preset: SynthesisInquiryPreset) {
   return [
     `TimeAtlas Synthesis Studio Assignment：${preset.title}`,
@@ -5035,6 +5318,7 @@ function formatLearningArchive(
   missionWorkState: MissionWorkState,
   completedMissionIdsByScenario: Record<string, string[]>,
   workspaceState: WorkspaceState,
+  chronologyDraftState: ChronologyDraftState,
   corroborationDraftState: CorroborationDraftState,
   causationDraftState: CausationDraftState,
   periodizationDraftState: PeriodizationDraftState,
@@ -5052,6 +5336,7 @@ function formatLearningArchive(
   taskWorkbenchDraftState: TaskWorkbenchState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
+  const activeChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
   const activePeriodizationDrafts = getActivePeriodizationDrafts(periodizationDraftState)
@@ -5072,7 +5357,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -5083,6 +5368,7 @@ function formatLearningArchive(
     `- 跨场景已完成：${workspaceStats.completedEntries}`,
     `- 跨场景草稿：${workspaceStats.draftEntries}`,
     `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
+    `- Chronology Desk 时间证据草稿：${activeChronologyDrafts.length}`,
     `- 史料互证草稿：${activeCorroborationDrafts.length}`,
     `- 因果变化草稿：${activeCausationDrafts.length}`,
     `- 历史分期草稿：${activePeriodizationDrafts.length}`,
@@ -5166,6 +5452,32 @@ function formatLearningArchive(
   })
 
   const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
+
+  if (activeChronologyDrafts.length > 0) {
+    lines.push('Chronology Desk / 时间证据工作台：')
+    activeChronologyDrafts.forEach(([challengeId, draft]) => {
+      const challenge = chronologyChallenges.find((candidate) => candidate.id === challengeId)
+      const events = challenge ? buildChronologyEvidenceEvents(challenge) : []
+      const selectedEventTitles = draft.selectedEventIds
+        .map((eventId) => events.find((event) => event.id === eventId))
+        .filter((event): event is ChronologyEvidenceEvent => Boolean(event))
+        .map((event) => `${event.year}｜${event.scenario.title}｜${event.label}｜${event.title}`)
+
+      lines.push(
+        `  - ${challenge?.title ?? challengeId}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选时间证据：${selectedEventTitles.join('；') || '尚未勾选证据'}`,
+        `    Sequence notes：${draft.sequenceNotes.trim() || '尚未填写'}`,
+        `    Before / after claim：${draft.beforeAfterClaim.trim() || '尚未填写'}`,
+        `    Turning point：${draft.turningPointClaim.trim() || '尚未填写'}`,
+        `    Pace / rhythm：${draft.paceOrRhythmNotes.trim() || '尚未填写'}`,
+        `    Source limits：${draft.sourceLimitNotes.trim() || '尚未填写'}`,
+        `    Final brief：${draft.finalChronologyBrief.trim() || '尚未填写'}`,
+        `    Confidence：${chronologyConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
 
   if (assignmentSummary.selectedTasks.length > 0 || hasAssignmentBuilderActivity(assignmentBuilderDraft)) {
     lines.push(
@@ -5485,7 +5797,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、任务执行台草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -6140,6 +6452,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.materialCulture
   }
 
+  if (source === 'chronology') {
+    return sectionIds.sceneReader
+  }
+
   return defaultScenarioSectionId
 }
 
@@ -6178,7 +6494,7 @@ function inferPageFromHash(hash: string): PageId {
 
   if (evidenceSubpages.some((item) => item.hash === normalizedHash)) return 'evidence'
   if (labsSubpages.some((item) => item.hash === normalizedHash)) return 'labs'
-  if (['time-space-atlas', 'atlas-missions', 'atlas-inquiry-paths', sectionIds.compareLab].includes(normalizedHash)) return 'atlas'
+  if (['time-space-atlas', 'chronology-desk', 'atlas-missions', 'atlas-inquiry-paths', sectionIds.compareLab].includes(normalizedHash)) return 'atlas'
   if (tasksSubpages.some((item) => item.hash === normalizedHash)) return 'tasks'
   if (normalizedHash === 'about') return 'about'
 
@@ -6220,6 +6536,7 @@ function getHashForEvidenceSubpage(subpage: EvidenceSubpage) {
 function getAtlasSubpageFromHash(hash: string | null): AtlasSubpage {
   const normalizedHash = (hash ?? '').replace(/^#/, '')
 
+  if (normalizedHash === 'chronology-desk') return 'chronology'
   if (normalizedHash === 'atlas-missions') return 'missions'
   if (normalizedHash === 'atlas-inquiry-paths') return 'pathways'
   if (normalizedHash === sectionIds.compareLab) return 'compare'
@@ -6796,6 +7113,7 @@ function buildTaskLibraryTasks({
   onOpenScenario,
   onLoadCompare,
   onLoadCompareLens,
+  onOpenChronologyChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
@@ -6809,6 +7127,7 @@ function buildTaskLibraryTasks({
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
+  onOpenChronologyChallenge?: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
@@ -7019,6 +7338,41 @@ function buildTaskLibraryTasks({
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, encounter.setting, encounter.tension, ...tags, ...encounter.taskChecklist, ...encounterActors.flatMap((actor) => [actor.name, actor.relationship, actor.goals, actor.constraints, actor.knowledgeLimits, actor.risksOrStakes, actor.likelyViewOfDecision])].join(' ').toLowerCase()
       tasks.push(task)
     })
+  })
+
+  chronologyChallenges.forEach((challenge) => {
+    const challengeScenarios = challenge.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Chronology Desk', '时间证据', 'chronology', ...challenge.tags]
+    const task: LibraryTask = {
+      id: `chronology:${challenge.id}`,
+      title: challenge.title,
+      context: challengeScenarios.map((scenario) => scenario.title).join(' × ') || 'Chronology Desk',
+      scenarioId: challengeScenarios[0]?.id,
+      category: '时间证据与顺序判断',
+      source: 'chronology',
+      sourceLabel: 'Chronology Desk',
+      durationMinutes,
+      durationBand,
+      summary: challenge.drivingQuestion,
+      deliverable: challenge.deliverable,
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Chronology Desk',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onOpenChronologyChallenge?.(challenge.id),
+      onSecondaryAction: () => challengeScenarios[0] ? onOpenScenario(challengeScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [challenge.drivingQuestion, challenge.timeFocus, challenge.taskPrompt],
+      checklist: ['选择 4-7 条时间证据', '写出 sequence notes', '提出 before/after claim', '判断 turning point', '说明 pace/rhythm 与 source limits', '完成 Chronology Brief'],
+      evidencePrompts: challenge.evidencePrompts,
+      formatSheet: () => formatChronologyTaskSheet(challenge),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, challenge.subtitle, challenge.timeFocus, challenge.taskPrompt, ...tags, ...challenge.evidencePrompts].join(' ').toLowerCase()
+    tasks.push(task)
   })
 
   atlasInquiryPaths.forEach((path) => {
@@ -7865,6 +8219,8 @@ function App() {
   const [causationDraftState, setCausationDraftState] = useState<CausationDraftState>(loadCausationDraftState)
   const [selectedCausationInquiryId, setSelectedCausationInquiryId] = useState(causationInquiryDefinitions[0]?.id ?? '')
   const [periodizationDraftState, setPeriodizationDraftState] = useState<PeriodizationDraftState>(loadPeriodizationDraftState)
+  const [chronologyDraftState, setChronologyDraftState] = useState<ChronologyDraftState>(loadChronologyDraftState)
+  const [selectedChronologyChallengeId, setSelectedChronologyChallengeId] = useState(chronologyChallenges[0]?.id ?? '')
   const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
   const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
   const [selectedPerspectivesInquiryId, setSelectedPerspectivesInquiryId] = useState(perspectivesInquiryDefinitions[0]?.id ?? '')
@@ -7916,8 +8272,8 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -8046,6 +8402,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [periodizationDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistChronologyDraftState(chronologyDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [chronologyDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -8483,6 +8851,22 @@ function App() {
     })
   }
 
+  function openChronologyChallenge(challengeId: string) {
+    if (!chronologyChallenges.some((challenge) => challenge.id === challengeId)) {
+      return
+    }
+
+    setSelectedChronologyChallengeId(challengeId)
+    setActivePage('atlas')
+    setActiveAtlasSubpage('chronology')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('atlas', 'chronology-desk'))
+    }
+
+    scrollToSection('chronology-desk', prefersReducedMotion)
+  }
+
   function loadCausationInquiry(inquiryId: string) {
     if (!causationInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
       return
@@ -8731,6 +9115,15 @@ function App() {
                 onLoadCompare={loadCompareFromInquiryPath}
               />
             ) : null}
+            {activeAtlasSubpage === 'chronology' ? (
+              <ChronologyDeskPanel
+                selectedChallengeId={selectedChronologyChallengeId}
+                draftState={chronologyDraftState}
+                onSelectChallenge={setSelectedChronologyChallengeId}
+                onUpdateDraftState={setChronologyDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
             {activeAtlasSubpage === 'missions' ? (
               <AtlasMissionsPanel
                 workspaceState={workspaceState}
@@ -8887,6 +9280,7 @@ function App() {
                 onOpenScenario={selectScenario}
                 onLoadCompare={loadCompareFromInquiryPath}
                 onLoadCompareLens={loadCompareLens}
+                onOpenChronologyChallenge={openChronologyChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
                 onLoadPeriodizationInquiry={loadPeriodizationInquiry}
                 onLoadPerspectivesInquiry={loadPerspectivesInquiry}
@@ -8905,6 +9299,7 @@ function App() {
                 onOpenScenario={selectScenario}
                 onLoadCompare={loadCompareFromInquiryPath}
                 onLoadCompareLens={loadCompareLens}
+                onOpenChronologyChallenge={openChronologyChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
                 onLoadPeriodizationInquiry={loadPeriodizationInquiry}
                 onLoadPerspectivesInquiry={loadPerspectivesInquiry}
@@ -8968,6 +9363,7 @@ function App() {
                 taskModuleProgressState={taskModuleProgressState}
                 assignmentBuilderDraft={assignmentBuilderDraft}
                 assignmentLibraryTasks={assignmentLibraryTasks}
+                chronologyDraftState={chronologyDraftState}
                 corroborationDraftState={corroborationDraftState}
                 causationDraftState={causationDraftState}
                 periodizationDraftState={periodizationDraftState}
@@ -13014,6 +13410,7 @@ function PortfolioPanel({
   taskModuleProgressState,
   assignmentBuilderDraft,
   assignmentLibraryTasks,
+  chronologyDraftState,
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
@@ -13035,6 +13432,7 @@ function PortfolioPanel({
   taskModuleProgressState: TaskModuleProgressState
   assignmentBuilderDraft: AssignmentBuilderDraft
   assignmentLibraryTasks: LibraryTask[]
+  chronologyDraftState: ChronologyDraftState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
@@ -13051,6 +13449,7 @@ function PortfolioPanel({
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
+  const chronologyDraftCount = getActiveChronologyDrafts(chronologyDraftState).length
   const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
   const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
   const periodizationDraftCount = getActivePeriodizationDrafts(periodizationDraftState).length
@@ -13085,10 +13484,13 @@ function PortfolioPanel({
   const recentMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -13127,6 +13529,7 @@ function PortfolioPanel({
               { label: '已触达身份', value: activeScenarioCount },
               { label: '跨场景条目', value: workspaceStats.totalEntries },
               { label: '跨场景完成', value: workspaceStats.completedEntries },
+              { label: '时间证据', value: chronologyDraftCount },
               { label: '互证草稿', value: corroborationDraftCount },
               { label: '因果草稿', value: causationDraftCount },
               { label: '分期草稿', value: periodizationDraftCount },
@@ -13156,7 +13559,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -13188,6 +13591,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{encounter?.title ?? key}</div>
                       <div>Actor Network · {scenario?.title ?? scenarioId} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
                       <div className="mt-1 text-stone-500">{draft.negotiationPlan.trim() || draft.perspectiveComparison.trim() || '尚未填写协商方案'}</div>
+                    </div>
+                  )
+                })}
+                {recentChronologyDrafts.map(([challengeId, draft]) => {
+                  const challenge = chronologyChallenges.find((candidate) => candidate.id === challengeId)
+
+                  return (
+                    <div key={challengeId} className="rounded-2xl border border-cyan-200/15 bg-cyan-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{challenge?.title ?? challengeId}</div>
+                      <div>Chronology Desk · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEventIds.length} 条时间证据</div>
+                      <div className="mt-1 text-stone-500">{draft.finalChronologyBrief.trim() || draft.turningPointClaim.trim() || draft.sequenceNotes.trim() || '尚未填写 chronology brief'}</div>
                     </div>
                   )
                 })}
@@ -13330,6 +13744,7 @@ function TaskDiscoveryPanel({
   onOpenScenario,
   onLoadCompare,
   onLoadCompareLens,
+  onOpenChronologyChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
@@ -13346,6 +13761,7 @@ function TaskDiscoveryPanel({
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath | AtlasMapRoute) => void
   onLoadCompareLens: (lens: CompareLens) => void
+  onOpenChronologyChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
@@ -13358,8 +13774,8 @@ function TaskDiscoveryPanel({
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -14600,6 +15016,7 @@ function TaskLibraryPanel({
   onOpenScenario,
   onLoadCompare,
   onLoadCompareLens,
+  onOpenChronologyChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
@@ -14615,6 +15032,7 @@ function TaskLibraryPanel({
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
   onLoadCompareLens: (lens: CompareLens) => void
+  onOpenChronologyChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
@@ -14633,8 +15051,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -15075,6 +15493,267 @@ function GuidedSessionPanel({
     </section>
   )
 }
+
+
+function ChronologyDeskPanel({
+  selectedChallengeId,
+  draftState,
+  onSelectChallenge,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedChallengeId: string
+  draftState: ChronologyDraftState
+  onSelectChallenge: (challengeId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<ChronologyDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const selectedChallenge = chronologyChallenges.find((challenge) => challenge.id === selectedChallengeId) ?? chronologyChallenges[0]
+  const evidenceEvents = useMemo(() => selectedChallenge ? buildChronologyEvidenceEvents(selectedChallenge) : [], [selectedChallenge])
+  const currentDraft = selectedChallenge ? draftState[selectedChallenge.id] ?? getEmptyChronologyDraft(selectedChallenge) : getEmptyChronologyDraft()
+  const selectedEvents = currentDraft.selectedEventIds.map((eventId) => evidenceEvents.find((event) => event.id === eventId)).filter((event): event is ChronologyEvidenceEvent => Boolean(event))
+  const activeDraftCount = getActiveChronologyDrafts(draftState).length
+  const completedCount = chronologyChallenges.filter((challenge) => draftState[challenge.id]?.completed).length
+  const visibleEvents = evidenceEvents.slice(0, 18)
+
+  function updateDraft(patch: Partial<ChronologyDraft>) {
+    if (!selectedChallenge) return
+
+    onUpdateDraftState((currentState) => {
+      const baseDraft = currentState[selectedChallenge.id] ?? getEmptyChronologyDraft(selectedChallenge)
+
+      return {
+        ...currentState,
+        [selectedChallenge.id]: {
+          ...baseDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleEvent(eventId: string) {
+    const selectedEventIds = currentDraft.selectedEventIds.includes(eventId)
+      ? currentDraft.selectedEventIds.filter((id) => id !== eventId)
+      : [...currentDraft.selectedEventIds, eventId]
+
+    updateDraft({ selectedEventIds })
+  }
+
+  function clearDraft() {
+    if (!selectedChallenge) return
+    onUpdateDraftState((currentState) => ({ ...currentState, [selectedChallenge.id]: getEmptyChronologyDraft(selectedChallenge) }))
+  }
+
+  async function copyBrief() {
+    if (!selectedChallenge) return
+
+    try {
+      await copyTextToClipboard(formatChronologyBrief(selectedChallenge, currentDraft, selectedEvents))
+      setCopyStatus('brief')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    if (!selectedChallenge) return
+    const safeTitle = selectedChallenge.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'chronology'
+    downloadTextFile(`timeatlas-${safeTitle}-chronology-brief.txt`, formatChronologyBrief(selectedChallenge, currentDraft, selectedEvents))
+  }
+
+  if (!selectedChallenge) {
+    return null
+  }
+
+  return (
+    <section id="chronology-desk" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="chronology-desk-title">
+      <div className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-cyan-100">
+          <Clock3 size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">chronology desk</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="chronology-desk-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Chronology Desk / 时间证据工作台
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              在 Atlas 内部把 scenario 年份、timeline、scene、decision、source 与 real-history 证据按时间排序，训练 before/after、转折点、节奏和来源限制判断。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-cyan-200/20 bg-cyan-100/[0.08] px-4 py-3 text-sm text-cyan-100">
+            {chronologyChallenges.length} challenges · {activeDraftCount} drafts · {completedCount} completed
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.35fr]">
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              {chronologyChallenges.map((challenge) => {
+                const draft = draftState[challenge.id]
+                const isActive = challenge.id === selectedChallenge.id
+                const status = draft?.completed ? '已完成' : draft && hasChronologyDraftActivity(draft) ? '草稿' : '未开始'
+
+                return (
+                  <button
+                    key={challenge.id}
+                    type="button"
+                    onClick={() => onSelectChallenge(challenge.id)}
+                    className={`rounded-3xl border p-4 text-left transition ${isActive ? 'border-cyan-200/50 bg-cyan-100/[0.1]' : 'border-white/10 bg-black/20 hover:border-cyan-100/25'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-cyan-100">{status}</p>
+                        <h3 className="mt-2 font-semibold text-stone-50">{challenge.title}</h3>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-stone-400">{challenge.scenarioIds.length} scenes</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{challenge.subtitle}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {challenge.tags.slice(0, 3).map((tag) => <Tag key={tag}>{tag}</Tag>)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[0.95fr_1fr]">
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-cyan-200/15 bg-black/20 p-4">
+                <h3 className="text-xl font-semibold text-stone-50">{selectedChallenge.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{selectedChallenge.drivingQuestion}</p>
+                <p className="mt-3 rounded-2xl border border-cyan-200/15 bg-cyan-100/[0.06] p-3 text-sm leading-6 text-cyan-50">
+                  <span className="font-semibold">Time focus：</span>{selectedChallenge.timeFocus}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedChallenge.scenarioIds.map((scenarioId) => {
+                    const scenario = getScenarioById(scenarioId)
+                    return scenario ? (
+                      <button key={scenario.id} type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30">
+                        {scenario.year} · {scenario.title}
+                      </button>
+                    ) : null
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="font-semibold text-stone-50">Timeline evidence rail</h4>
+                  <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{selectedEvents.length}/{evidenceEvents.length}</span>
+                </div>
+                <div className="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+                  {visibleEvents.map((event) => {
+                    const isSelected = currentDraft.selectedEventIds.includes(event.id)
+                    return (
+                      <label key={event.id} className={`block cursor-pointer rounded-2xl border p-3 transition ${isSelected ? 'border-cyan-200/45 bg-cyan-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-cyan-100/25'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvent(event.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-cyan-300 focus:ring-cyan-200"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="text-cyan-100">{event.year}</span>
+                              <span>{event.label}</span>
+                              <span>{event.scenario.title}</span>
+                            </span>
+                            <span className="mt-1 block font-semibold text-stone-100">{event.title}</span>
+                            <span className="mt-1 block text-sm leading-6 text-stone-400">{event.text}</span>
+                          </span>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+                {evidenceEvents.length > visibleEvents.length ? <p className="mt-3 text-xs text-stone-500">已显示前 {visibleEvents.length} 条按年份排序证据；选择 challenge 或场景按钮继续聚焦。</p> : null}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h4 className="font-semibold text-teal-100">Workspace draft fields</h4>
+                  <button
+                    type="button"
+                    onClick={() => updateDraft({ completed: !currentDraft.completed })}
+                    aria-pressed={currentDraft.completed}
+                    className="inline-flex items-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-3 py-1.5 text-xs font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                  >
+                    {currentDraft.completed ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                    {currentDraft.completed ? '已完成' : '标记完成'}
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['sequenceNotes', 'Sequence notes / 时间顺序', 3],
+                    ['beforeAfterClaim', 'Before / after claim / 前后关系主张', 3],
+                    ['turningPointClaim', 'Turning point claim / 转折点', 3],
+                    ['paceOrRhythmNotes', 'Pace or rhythm / 速度与节奏', 3],
+                    ['sourceLimitNotes', 'Source limits / 来源限制', 3],
+                    ['finalChronologyBrief', 'Final Chronology Brief / 最终简报', 5],
+                  ] as [keyof ChronologyDraft, string, number][]).map(([field, label, rows]) => (
+                    <label key={field} className="block">
+                      <span className="text-sm font-semibold text-stone-100">{label}</span>
+                      <textarea
+                        value={String(currentDraft[field] ?? '')}
+                        onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<ChronologyDraft>)}
+                        rows={rows}
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/60"
+                        placeholder={field === 'finalChronologyBrief' ? selectedChallenge.deliverable : selectedChallenge.taskPrompt}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="mt-3 block">
+                  <span className="text-sm font-semibold text-stone-100">Confidence / 信心等级</span>
+                  <select value={currentDraft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ChronologyConfidence })} className="mt-2 w-full rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none focus:border-teal-200/60">
+                    {(Object.entries(chronologyConfidenceLabels) as [ChronologyConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                <h4 className="font-semibold text-amber-100">Selected events</h4>
+                <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {(selectedEvents.length ? selectedEvents : evidenceEvents.slice(0, 4)).map((event) => (
+                    <li key={`selected-${event.id}`}>
+                      <span className="font-semibold text-stone-100">{event.year} · {event.scenario.title}</span> — {event.label}｜{event.title}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200">
+                  {copyStatus === 'brief' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'brief' ? 'Chronology Brief 已复制' : '复制 Chronology Brief'}
+                </button>
+                <button type="button" onClick={downloadBrief} className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-200/25 bg-cyan-100/[0.08] px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-100/[0.14]">
+                  <ScrollText size={18} />
+                  下载 txt
+                </button>
+                <button type="button" onClick={clearDraft} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]">
+                  清空当前草稿
+                </button>
+              </div>
+              <p className="text-xs text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '草稿优先保存在 localStorage，受限时回退 sessionStorage。'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 
 function AtlasMissionsPanel({
   workspaceState,

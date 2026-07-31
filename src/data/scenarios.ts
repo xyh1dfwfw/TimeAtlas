@@ -156,6 +156,19 @@ export type AtlasMapRoute = {
   tags: string[]
 }
 
+export type ChronologyChallenge = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  drivingQuestion: string
+  timeFocus: string
+  taskPrompt: string
+  evidencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
 export type ActivityPackMode = 'warmup' | 'source-lab' | 'roleplay' | 'debate' | 'writing' | 'compare' | 'extension'
@@ -997,6 +1010,106 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     ],
     deliverables: ['四站记录媒介路线图', '制度劳动可见性比较表', '非文字/文字证据边界卡', '230 字来源可信度论证'],
     tags: ['khipu', 'quipu', 'Inca', 'Qhapaq Ñan', 'mit’a', '非文字证据', '帝国劳动', '档案沉默'],
+  },
+]
+
+
+export const chronologyChallenges: ChronologyChallenge[] = [
+  {
+    id: 'crisis-messages-everyday-life',
+    title: '危机消息如何抵达日常生活',
+    subtitle: '从边境传闻、征服流言、口岸压力到空袭警报，追踪消息转化为安全判断的速度。',
+    scenarioIds: ['tang-changan-merchant', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'wwii-london-civilian'],
+    drivingQuestion: '普通人在消息不完整时，如何把远方危机排序成今天必须行动的风险？',
+    timeFocus: '消息抵达、判断延迟、短期安全行动与事后记忆之间的时间差。',
+    taskPrompt: '选择 4-6 条时间证据，写出“消息—判断—行动—后果”的 Chronology Brief，并说明哪些结论只是事后回看才清楚。',
+    evidencePrompts: [
+      '哪条证据显示危机已经进入日常生活，而不只是远方事件？',
+      '当事人当时能知道什么？哪些信息要到后来才变得清楚？',
+      '危机节奏是突然爆发、缓慢累积，还是由制度警报/传闻反复推动？',
+    ],
+    deliverable: '一份 Crisis Chronology Brief：时间顺序、前后关系、转折点、节奏判断、来源限制与信心等级。',
+    tags: ['crisis news', 'ordinary safety', 'risk', 'timeline', 'public memory'],
+  },
+  {
+    id: 'commodity-chain-time-discipline',
+    title: '商品链中的时间纪律',
+    subtitle: '把糖、棉、工厂钟声、口岸账簿和殖民港口放进同一条劳动时间链。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    drivingQuestion: '商品链如何把普通人的身体、工资、强制劳动或文书责任压进可计算的时间？',
+    timeFocus: '从种植园强制节奏到工业钟点、港口账期与殖民工厂规训的长时段变化。',
+    taskPrompt: '按年份和工作节奏排列证据，判断商品链中的“时间纪律”如何变化，又保留哪些连续性。',
+    evidencePrompts: [
+      '谁控制开始/结束工作、等待、计件、账期或迁移时间？',
+      '商品链把风险转移给哪些劳动者或中介？',
+      '哪些来源能记录时间纪律，哪些只能留下管理者的视角？',
+    ],
+    deliverable: '一份 Commodity Time Brief：事件序列、连续/变化、关键转折、节奏 notes 与来源限制。',
+    tags: ['commodity chains', 'labor discipline', 'factory time', 'coercion', 'cotton', 'sugar'],
+  },
+  {
+    id: 'monsoon-port-credit-rhythms',
+    title: '季风、港口与信用节奏',
+    subtitle: '从 Fustat 信件、基尔瓦黄金港、马六甲通译到广州口岸和孟买港口工业，观察等待、信用与航期。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    drivingQuestion: '季风时间、港口中介和信用文书如何共同决定远距离交易的节奏？',
+    timeFocus: '季风等待、带信/合约周期、港口税册、信用兑现与海上风险的循环节奏。',
+    taskPrompt: '用 5-7 条证据构建一条“等待—担保—通行—风险—结算”的港口信用时间线。',
+    evidencePrompts: [
+      '哪条证据显示交易必须等待自然节律或港口制度？',
+      '信用如何把未来承诺变成当下行动？',
+      '来源幸存如何影响我们看见的港口节奏？',
+    ],
+    deliverable: '一份 Monsoon Credit Chronology：时间证据、节奏判断、信用转折点和来源幸存说明。',
+    tags: ['monsoon', 'port credit', 'Indian Ocean', 'letters', 'contracts', 'archival survival'],
+  },
+  {
+    id: 'knowledge-city-access-thresholds',
+    title: '知识城市的进入门槛',
+    subtitle: '比较巴格达纸坊、长安市场、廷巴克图手稿、江南书房与 Geniza 文书世界的知识时间。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'tang-changan-merchant', 'fustat-geniza-merchant-apprentice', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar'],
+    drivingQuestion: '知识传播变快或变广时，哪些门槛仍然决定谁能进入知识城市？',
+    timeFocus: '复制、学习、考试、拜师、书信保存和商业知识流动的不同速度。',
+    taskPrompt: '排列知识媒介与学习门槛的时间证据，判断知识城市是扩大进入，还是重新分配进入资格。',
+    evidencePrompts: [
+      '哪条证据显示知识可以被复制、携带、教授或保存？',
+      '进入门槛来自技术、身份、金钱、制度还是档案幸存？',
+      '不同城市的知识节奏是日常训练、考试周期、手稿复制还是商业通信？',
+    ],
+    deliverable: '一份 Knowledge Access Timeline：媒介顺序、进入门槛、节奏 notes 与谨慎结论。',
+    tags: ['knowledge cities', 'access thresholds', 'paper', 'manuscripts', 'exams', 'letters'],
+  },
+  {
+    id: 'conquest-records-archive-survival',
+    title: '征服、记录与档案幸存',
+    subtitle: '把 khipu、Tenochtitlan 市场、Geniza 信件和圣多明各清单放在记录媒介的长时段变化中。',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker'],
+    drivingQuestion: '征服和制度记录如何改变普通劳动的可见性，同时制造新的档案沉默？',
+    timeFocus: '非文字记录、征服后叙述、商人书信、法律清单和种植园档案的保存/过滤时间。',
+    taskPrompt: '按证据媒介与权力转折排序，写出一条“记录如何幸存、如何沉默”的时间证据链。',
+    evidencePrompts: [
+      '哪条证据来自当时记录，哪条来自征服者、殖民者或后世研究？',
+      '记录形式如何决定普通劳动者被看见为人、职责、数量还是风险？',
+      '档案幸存本身是否构成一个转折点？为什么？',
+    ],
+    deliverable: '一份 Archive Survival Chronology：媒介顺序、权力转折、沉默说明与信心等级。',
+    tags: ['conquest', 'records', 'archive silence', 'khipu', 'Geniza', 'source survival'],
+  },
+  {
+    id: 'long-run-market-rules',
+    title: '市场规则的长时段变化',
+    subtitle: '从长安西市、汴京茶铺、特诺奇蒂特兰集市、马六甲港和广州口岸看市场不是规则真空。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    drivingQuestion: '跨时代市场规则如何变化，又怎样持续把交易、信用、税赋与普通人的行动边界绑在一起？',
+    timeFocus: '城市开市/闭市、行规、贡赋、港口税册、口岸规制与信用风险的长期演变。',
+    taskPrompt: '用时间证据比较市场规则的连续性与变化，指出一个真正的转折点和一个被夸大的转折点。',
+    evidencePrompts: [
+      '哪条证据显示市场自由依赖规则、税赋、信用或中介？',
+      '规则变化改变了谁的机会，谁的风险，谁的记录可见性？',
+      '长时段比较中，哪些相似性可能只是表面相似？',
+    ],
+    deliverable: '一份 Market Rules Chronology Brief：时序、前后主张、转折点、节奏与来源限制。',
+    tags: ['market rules', 'long duration', 'credit', 'taxation', 'ports', 'urban markets'],
   },
 ]
 
