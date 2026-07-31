@@ -771,6 +771,31 @@ type TaskDiscoveryCollection = TaskLibraryPreset & {
   secondaryAction?: 'open-first' | 'copy-first'
 }
 
+type CoachRecommendationType = 'resume-workbench' | 'continue-module' | 'synthesis-next' | 'portfolio-next' | 'compare-bridge' | 'starter'
+
+type LearningCoachRecommendation = {
+  id: string
+  type: CoachRecommendationType
+  typeLabel: string
+  title: string
+  reason: string
+  estimatedMinutes: number
+  tags: string[]
+  ctaLabel: string
+  action: () => void
+}
+
+type LearningCoachPlanSnapshot = {
+  totalCompletedMissionCount: number
+  missionDraftCount: number
+  workspaceStats: WorkspaceStats
+  taskModuleStats: ReturnType<typeof getTaskModuleProgressStats>
+  taskWorkbenchStats: TaskWorkbenchStats
+  labDraftCount: number
+  compareDraftCount: number
+  synthesisDraftCount: number
+}
+
 
 const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: string }[] = [
   { value: 'all', label: '全部来源' },
@@ -4655,6 +4680,268 @@ function taskMatchesAny(task: LibraryTask, terms: string[]) {
   return terms.some((term) => task.searchText.includes(term.toLowerCase()))
 }
 
+
+function hasArgumentDraftActivity(draft: ArgumentDraft) {
+  return Boolean(
+    draft.claim.trim()
+      || draft.evidence.length
+      || draft.customEvidence.trim()
+      || draft.reasoning.trim()
+      || draft.counterEvidence.trim(),
+  )
+}
+
+function getLabDraftCount({
+  corroborationDraftState,
+  causationDraftState,
+  periodizationDraftState,
+  perspectivesDraftState,
+  contextDraftState,
+  significanceDraftState,
+}: {
+  corroborationDraftState: CorroborationDraftState
+  causationDraftState: CausationDraftState
+  periodizationDraftState: PeriodizationDraftState
+  perspectivesDraftState: PerspectivesDraftState
+  contextDraftState: ContextDraftState
+  significanceDraftState: SignificanceDraftState
+}) {
+  return getActiveCorroborationDrafts(corroborationDraftState).length
+    + getActiveCausationDrafts(causationDraftState).length
+    + getActivePeriodizationDrafts(periodizationDraftState).length
+    + getActivePerspectivesDrafts(perspectivesDraftState).length
+    + getActiveContextDrafts(contextDraftState).length
+    + getActiveSignificanceDrafts(significanceDraftState).length
+}
+
+function getMissionDraftCount(missionWorkState: MissionWorkState) {
+  return Object.values(missionWorkState).filter((work) => work.notes.trim() || work.checkedEvidence.length).length
+}
+
+function formatLearningCoachPlan(recommendations: LearningCoachRecommendation[], snapshot: LearningCoachPlanSnapshot) {
+  const visibleRecommendations = recommendations.slice(0, 4)
+
+  return [
+    'TimeAtlas Learning Coach / 下一步学习计划',
+    `导出时间：${new Date().toLocaleString()}`,
+    '',
+    '当前本地学习状态：',
+    `- 场景任务完成：${snapshot.totalCompletedMissionCount}/${totalMissionCount}`,
+    `- Scenario mission 草稿：${snapshot.missionDraftCount}`,
+    `- 跨场景工作区：${snapshot.workspaceStats.totalEntries} entries（${snapshot.workspaceStats.draftEntries} drafts / ${snapshot.workspaceStats.completedEntries} completed）`,
+    `- Task Workbench：${snapshot.taskWorkbenchStats.activeCount} drafts（${snapshot.taskWorkbenchStats.completedCount} completed）`,
+    `- Task Modules：${snapshot.taskModuleStats.startedCount}/${taskModules.length} started（${snapshot.taskModuleStats.completedCount} completed）`,
+    `- Labs 草稿：${snapshot.labDraftCount}`,
+    `- Compare Lab 草稿：${snapshot.compareDraftCount}`,
+    `- Synthesis 草稿：${snapshot.synthesisDraftCount}`,
+    '',
+    '推荐下一步：',
+    ...(visibleRecommendations.length
+      ? visibleRecommendations.flatMap((recommendation, index) => [
+        `${index + 1}. [${recommendation.typeLabel}] ${recommendation.title}`,
+        `   理由：${recommendation.reason}`,
+        `   预计时间：${recommendation.estimatedMinutes} 分钟`,
+        `   标签：${recommendation.tags.join('、')}`,
+        `   CTA：${recommendation.ctaLabel}`,
+      ])
+      : ['1. 暂无推荐：先进入一个 scenario 或任务集合生成本地学习痕迹。']),
+  ].join('\n')
+}
+
+function getStarterTask(tasks: LibraryTask[]) {
+  return tasks.find((task) => task.durationMinutes <= 20 && task.source === 'mission')
+    ?? tasks.find((task) => task.durationMinutes <= 20)
+    ?? tasks[0]
+}
+
+function buildLearningCoachRecommendations({
+  libraryTasks,
+  taskWorkbenchDraftState,
+  taskModuleProgressState,
+  workspaceState,
+  argumentDraftState,
+  corroborationDraftState,
+  causationDraftState,
+  periodizationDraftState,
+  perspectivesDraftState,
+  contextDraftState,
+  significanceDraftState,
+  synthesisDraftState,
+  compareDraftState,
+  missionWorkState,
+  completedMissionIdsByScenario,
+  onStartTask,
+  onSelectTasksSubpage,
+  onSelectScenario,
+  onSelectLabsSubpage,
+  onSelectAtlasSubpage,
+}: {
+  libraryTasks: LibraryTask[]
+  taskWorkbenchDraftState: TaskWorkbenchState
+  taskModuleProgressState: TaskModuleProgressState
+  workspaceState: WorkspaceState
+  argumentDraftState: ArgumentDraftState
+  corroborationDraftState: CorroborationDraftState
+  causationDraftState: CausationDraftState
+  periodizationDraftState: PeriodizationDraftState
+  perspectivesDraftState: PerspectivesDraftState
+  contextDraftState: ContextDraftState
+  significanceDraftState: SignificanceDraftState
+  synthesisDraftState: SynthesisDraftState
+  compareDraftState: CompareDraftState
+  missionWorkState: MissionWorkState
+  completedMissionIdsByScenario: Record<string, string[]>
+  onStartTask: (taskId: string) => void
+  onSelectTasksSubpage: (subpage: TasksSubpage) => void
+  onSelectScenario: (id: string, hash?: ScenarioSectionId) => void
+  onSelectLabsSubpage: (subpage: LabsSubpage) => void
+  onSelectAtlasSubpage: (subpage: AtlasSubpage) => void
+}): LearningCoachRecommendation[] {
+  const recommendations: LearningCoachRecommendation[] = []
+  const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const incompleteWorkbenchDraft = taskWorkbenchStats.recentDrafts.find(([, draft]) => !draft.completed)
+  const moduleStats = getTaskModuleProgressStats(taskModuleProgressState)
+  const incompleteModule = moduleStats.details.find((detail) => !detail.isComplete)
+  const workspaceStats = getWorkspaceStats(workspaceState)
+  const labDraftCount = getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState })
+  const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
+  const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
+  const argumentDraftCount = Object.values(argumentDraftState).filter(hasArgumentDraftActivity).length
+  const missionDraftCount = getMissionDraftCount(missionWorkState)
+  const completedMissionCount = getTotalCompletedMissions(completedMissionIdsByScenario)
+  const hasAnyLocalProgress = Boolean(
+    taskWorkbenchStats.activeCount
+      || moduleStats.startedCount
+      || workspaceStats.totalEntries
+      || labDraftCount
+      || compareDraftCount
+      || synthesisDraftCount
+      || argumentDraftCount
+      || missionDraftCount
+      || completedMissionCount,
+  )
+
+  if (incompleteWorkbenchDraft) {
+    const [taskId, draft] = incompleteWorkbenchDraft
+    const task = libraryTasks.find((candidate) => candidate.id === taskId)
+    const checklist = task ? getTaskWorkbenchChecklist(task) : []
+    const checkedCount = checklist.filter((_, index) => draft.checkedPromptIds.includes(`checklist:${index}`)).length
+
+    recommendations.push({
+      id: `resume-workbench:${taskId}`,
+      type: 'resume-workbench',
+      typeLabel: 'Resume draft',
+      title: task ? `继续 Task Workbench：${task.title}` : '继续未完成的 Task Workbench 草稿',
+      reason: `你已有执行台草稿但尚未标记完成；当前清单进度 ${checkedCount}/${checklist.length || '若干'}，最短路径是补齐证据、claim 与 reflection。`,
+      estimatedMinutes: Math.min(30, Math.max(15, task?.durationMinutes ?? 20)),
+      tags: ['Task Workbench', 'draft', task?.category ?? '任务执行'],
+      ctaLabel: '回到执行台草稿',
+      action: () => onStartTask(taskId),
+    })
+  }
+
+  if (incompleteModule) {
+    recommendations.push({
+      id: `continue-module:${incompleteModule.module.id}`,
+      type: 'continue-module',
+      typeLabel: 'Continue module',
+      title: `继续单元模块：${incompleteModule.module.title}`,
+      reason: `该模块已完成 ${incompleteModule.completedSteps}/${incompleteModule.totalSteps} steps，继续下一步能保留跨页学习路线的连贯性。`,
+      estimatedMinutes: incompleteModule.module.steps.find((step) => !(taskModuleProgressState[incompleteModule.module.id] ?? []).includes(step.id))?.minutes ?? 20,
+      tags: ['Modules', 'learning path', ...incompleteModule.module.tags.slice(0, 2)],
+      ctaLabel: '打开单元模块',
+      action: () => onSelectTasksSubpage('modules'),
+    })
+  }
+
+  if ((labDraftCount + compareDraftCount + argumentDraftCount + workspaceStats.totalEntries + missionDraftCount >= 2) && synthesisDraftCount === 0) {
+    const preset = synthesisInquiryPresets.find((candidate) => candidate.id === 'commodity-chains-labor') ?? synthesisInquiryPresets[0]
+
+    recommendations.push({
+      id: `synthesis-next:${preset?.id ?? 'default'}`,
+      type: 'synthesis-next',
+      typeLabel: 'Synthesize',
+      title: '把已有草稿推进到综合写作',
+      reason: `你已有 ${labDraftCount} 个 Labs 草稿、${compareDraftCount} 个 Compare 草稿、${workspaceStats.totalEntries} 个 workspace 条目或 scenario 草稿；适合合并为一个 Synthesis Brief。`,
+      estimatedMinutes: 35,
+      tags: ['Synthesis Studio', 'writing', 'evidence pool'],
+      ctaLabel: '打开综合写作',
+      action: () => onSelectLabsSubpage('synthesis'),
+    })
+  } else if (synthesisDraftCount > 0 || taskWorkbenchStats.completedCount > 0 || workspaceStats.completedEntries > 0 || moduleStats.completedCount > 0) {
+    recommendations.push({
+      id: 'portfolio-next',
+      type: 'portfolio-next',
+      typeLabel: 'Portfolio',
+      title: '整理作品档案并导出阶段成果',
+      reason: `已有可归档成果：${taskWorkbenchStats.completedCount} 个执行台完成项、${workspaceStats.completedEntries} 个跨场景完成项、${synthesisDraftCount} 个综合写作草稿。`,
+      estimatedMinutes: 10,
+      tags: ['Portfolio', 'archive', 'export'],
+      ctaLabel: '打开作品档案',
+      action: () => onSelectTasksSubpage('portfolio'),
+    })
+  }
+
+  if (compareDraftCount === 0 && (missionDraftCount > 0 || completedMissionCount > 0 || workspaceStats.totalEntries > 0 || taskWorkbenchStats.activeCount > 0)) {
+    recommendations.push({
+      id: 'compare-bridge',
+      type: 'compare-bridge',
+      typeLabel: 'Compare bridge',
+      title: '用 Compare Lab 连接第二个历史身份',
+      reason: '你已经在一个任务或场景中留下学习痕迹；下一步可加入第二个身份，训练相同点、差异与证据边界。',
+      estimatedMinutes: 25,
+      tags: ['Compare Lab', 'second scenario', 'cross-era'],
+      ctaLabel: '打开比较实验室',
+      action: () => onSelectAtlasSubpage('compare'),
+    })
+  }
+
+  if (!hasAnyLocalProgress) {
+    const starterTask = getStarterTask(libraryTasks)
+    const starterScenario = scenarios[0]
+
+    recommendations.push({
+      id: 'starter:first-task',
+      type: 'starter',
+      typeLabel: 'Start here',
+      title: starterTask ? `从 15 分钟任务开始：${starterTask.title}` : `从一个身份开始：${starterScenario.title}`,
+      reason: '当前本地还没有任务、Lab 或 workspace 草稿；先完成一个短任务，Learning Coach 后续会基于你的本地状态继续推荐。',
+      estimatedMinutes: Math.min(20, starterTask?.durationMinutes ?? 15),
+      tags: ['zero state', 'starter', starterTask?.sourceLabel ?? 'Scenario'],
+      ctaLabel: starterTask ? '开始首个任务' : '打开首个身份',
+      action: () => starterTask ? onStartTask(starterTask.id) : onSelectScenario(starterScenario.id, sectionIds.sceneReader),
+    })
+
+    recommendations.push({
+      id: 'starter:discover',
+      type: 'starter',
+      typeLabel: 'Browse',
+      title: '先浏览任务库集合',
+      reason: '如果还不确定学习主题，可以从 Tasks Discovery 的集合筛选进入任务库，不需要新增历史场景或后端数据。',
+      estimatedMinutes: 5,
+      tags: ['Discovery', 'Task Library', 'local only'],
+      ctaLabel: '查看任务库',
+      action: () => onSelectTasksSubpage('library'),
+    })
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({
+      id: 'fallback:portfolio',
+      type: 'portfolio-next',
+      typeLabel: 'Review',
+      title: '复盘学习档案，选择下一份可提交作品',
+      reason: '当前没有明显未完成草稿；建议检查 Portfolio 中的最近记录，决定要导出、修订还是开启新任务。',
+      estimatedMinutes: 10,
+      tags: ['Portfolio', 'review', 'next step'],
+      ctaLabel: '打开作品档案',
+      action: () => onSelectTasksSubpage('portfolio'),
+    })
+  }
+
+  return recommendations.slice(0, 4)
+}
+
 function getTaskDiscoveryCollections(): TaskDiscoveryCollection[] {
   return [
     {
@@ -6458,6 +6745,43 @@ function App() {
   )
   const workspaceStats = useMemo(() => getWorkspaceStats(workspaceState), [workspaceState])
   const taskModuleStats = useMemo(() => getTaskModuleProgressStats(taskModuleProgressState), [taskModuleProgressState])
+  const taskWorkbenchStats = useMemo(() => getTaskWorkbenchStats(taskWorkbenchDraftState), [taskWorkbenchDraftState])
+  const labDraftCount = useMemo(() => getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState])
+  const compareDraftCount = useMemo(() => getActiveCompareDrafts(compareDraftState).length, [compareDraftState])
+  const synthesisDraftCount = useMemo(() => getActiveSynthesisDrafts(synthesisDraftState).length, [synthesisDraftState])
+  const missionDraftCount = useMemo(() => getMissionDraftCount(missionWorkState), [missionWorkState])
+  const learningCoachSnapshot = useMemo(() => ({
+    totalCompletedMissionCount,
+    missionDraftCount,
+    workspaceStats,
+    taskModuleStats,
+    taskWorkbenchStats,
+    labDraftCount,
+    compareDraftCount,
+    synthesisDraftCount,
+  }), [totalCompletedMissionCount, missionDraftCount, workspaceStats, taskModuleStats, taskWorkbenchStats, labDraftCount, compareDraftCount, synthesisDraftCount])
+  const learningCoachRecommendations = buildLearningCoachRecommendations({
+    libraryTasks: assignmentLibraryTasks,
+    taskWorkbenchDraftState,
+    taskModuleProgressState,
+    workspaceState,
+    argumentDraftState,
+    corroborationDraftState,
+    causationDraftState,
+    periodizationDraftState,
+    perspectivesDraftState,
+    contextDraftState,
+    significanceDraftState,
+    synthesisDraftState,
+    compareDraftState,
+    missionWorkState,
+    completedMissionIdsByScenario,
+    onStartTask: startTaskWorkbench,
+    onSelectTasksSubpage: selectTasksSubpage,
+    onSelectScenario: selectScenario,
+    onSelectLabsSubpage: selectLabsSubpage,
+    onSelectAtlasSubpage: selectAtlasSubpage,
+  })
   const missionWorkCountByScenario = useMemo(
     () =>
       Object.fromEntries(
@@ -7280,6 +7604,8 @@ function App() {
             />
             {activeTasksSubpage === 'discover' ? (
               <TaskDiscoveryPanel
+                learningCoachRecommendations={learningCoachRecommendations}
+                learningCoachSnapshot={learningCoachSnapshot}
                 onOpenLibraryPreset={openTaskLibraryPreset}
                 onOpenScenario={selectScenario}
                 onLoadCompare={loadCompareFromInquiryPath}
@@ -11380,7 +11706,82 @@ function PortfolioPanel({
   )
 }
 
+
+function LearningCoachPanel({
+  recommendations,
+  snapshot,
+}: {
+  recommendations: LearningCoachRecommendation[]
+  snapshot: LearningCoachPlanSnapshot
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  async function copyPlan() {
+    try {
+      await copyTextToClipboard(formatLearningCoachPlan(recommendations, snapshot))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section className="mb-5 rounded-[1.75rem] border border-teal-200/20 bg-teal-100/[0.055] p-4" aria-labelledby="learning-coach-title">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.25em] text-teal-100">
+            <Compass size={18} /> learning coach
+          </div>
+          <h3 id="learning-coach-title" className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">下一步建议</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">
+            基于当前浏览器里的任务、Lab、Compare 与工作区草稿即时派生；不新增历史场景、不写入后端，也不会创建新的 Tasks 子页面。
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void copyPlan()}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+        >
+          {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+          {copyStatus === 'copied' ? '学习计划已复制' : copyStatus === 'failed' ? '复制失败' : '复制学习计划'}
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+        {recommendations.slice(0, 4).map((recommendation) => (
+          <article key={recommendation.id} className="flex min-h-full flex-col rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+              <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-3 py-1 text-teal-100">{recommendation.typeLabel}</span>
+              <span>{recommendation.estimatedMinutes} min</span>
+            </div>
+            <h4 className="mt-3 text-base font-semibold leading-6 text-stone-50">{recommendation.title}</h4>
+            <p className="mt-2 text-sm leading-6 text-stone-400">{recommendation.reason}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {recommendation.tags.slice(0, 4).map((tag) => (
+                <span key={tag} className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-stone-300">{tag}</span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={recommendation.action}
+              className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+            >
+              <ArrowRight size={16} />
+              {recommendation.ctaLabel}
+            </button>
+          </article>
+        ))}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-stone-500" aria-live="polite">
+        {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : `计划包含 ${recommendations.length} 条建议，最多显示 4 条。`}
+      </p>
+    </section>
+  )
+}
+
 function TaskDiscoveryPanel({
+  learningCoachRecommendations,
+  learningCoachSnapshot,
   onOpenLibraryPreset,
   onOpenScenario,
   onLoadCompare,
@@ -11394,6 +11795,8 @@ function TaskDiscoveryPanel({
   onOpenDebateStudio,
   onStartTask,
 }: {
+  learningCoachRecommendations: LearningCoachRecommendation[]
+  learningCoachSnapshot: LearningCoachPlanSnapshot
   onOpenLibraryPreset: (preset: TaskLibraryPreset) => void
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath | AtlasMapRoute) => void
@@ -11440,6 +11843,8 @@ function TaskDiscoveryPanel({
           <Sparkles size={20} />
           <span className="text-sm uppercase tracking-[0.3em]">tasks discovery launcher</span>
         </div>
+        <LearningCoachPanel recommendations={learningCoachRecommendations} snapshot={learningCoachSnapshot} />
+
         <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <div>
             <h2 id="task-discovery-title" className="text-3xl font-semibold tracking-tight text-stone-50">
