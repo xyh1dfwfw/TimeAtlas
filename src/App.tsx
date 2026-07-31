@@ -56,6 +56,7 @@ const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
 const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
 const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
+const evidenceCaseFileStorageKey = 'timeatlas:evidence-case-file-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
@@ -73,6 +74,7 @@ const sectionIds = {
   decisionPanel: 'decision-panel',
   argumentStudio: 'argument-studio',
   sourceReader: 'source-reader',
+  evidenceCaseFiles: 'case-files',
   causationLab: 'causation-lab',
   periodizationLab: 'periodization-lab',
   perspectivesLab: 'perspectives-agency-lab',
@@ -406,6 +408,50 @@ type SynthesisDraft = {
 
 type SynthesisDraftState = Record<string, SynthesisDraft>
 
+type EvidenceCaseFileDraft = {
+  sourceNotes: string
+  contextNotes: string
+  corroborationNotes: string
+  tensions: string
+  missingVoices: string
+  workingClaim: string
+  confidence: SynthesisConfidence
+  completedTaskIds: string[]
+  updatedAt?: string
+}
+
+type EvidenceCaseFileDraftState = Record<string, EvidenceCaseFileDraft>
+
+type EvidenceCasePacketItem = {
+  id: string
+  scenario: Scenario
+  sourceType: 'source' | 'scene-beat' | 'decision' | 'timeline'
+  title: string
+  text: string
+  label: string
+  tags: string[]
+}
+
+type EvidenceCasePacket = {
+  sources: EvidenceCasePacketItem[]
+  sceneBeats: EvidenceCasePacketItem[]
+  decisions: EvidenceCasePacketItem[]
+  timelines: EvidenceCasePacketItem[]
+}
+
+type EvidenceCaseFile = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  skills: string[]
+  tags: string[]
+  selectorTerms: string[]
+  taskChecklist: string[]
+  suggestedClaimFrame: string
+}
+
 type SynthesisInquiryPreset = {
   id: string
   title: string
@@ -418,6 +464,7 @@ type SynthesisInquiryPreset = {
 }
 
 type SynthesisEvidenceOrigin =
+  | 'case-file'
   | 'corroboration'
   | 'causation'
   | 'periodization'
@@ -549,7 +596,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'lesson' | 'activities' | 'missions' | 'decision' | 'sources' | 'argument'
@@ -582,10 +629,16 @@ type SubpageNavItem<T extends string> = {
 }
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
+type EvidenceSubpage = 'source-atlas' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
 type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
+
+const evidenceSubpages: SubpageNavItem<EvidenceSubpage>[] = [
+  { id: 'source-atlas', label: 'Source Atlas', eyebrow: 'Atlas', description: '全站来源搜索、证据篮与互证', hash: 'source-atlas' },
+  { id: 'case-files', label: 'Case Files', eyebrow: 'Quests', description: '6 个来源任务档案与证据包', hash: sectionIds.evidenceCaseFiles },
+]
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
@@ -819,6 +872,7 @@ type LearningCoachPlanSnapshot = {
   labDraftCount: number
   compareDraftCount: number
   synthesisDraftCount: number
+  caseFileDraftCount: number
 }
 
 
@@ -836,6 +890,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'contextualization', label: 'Context & Scale Lab' },
   { value: 'significance', label: 'Significance Lab' },
   { value: 'synthesis', label: 'Synthesis Studio' },
+  { value: 'case-file', label: 'Evidence Case Files' },
 ]
 
 type SourceAtlasEntry = {
@@ -844,6 +899,81 @@ type SourceAtlasEntry = {
   source: Scenario['sources'][number]
   searchText: string
 }
+
+const evidenceCaseFiles: EvidenceCaseFile[] = [
+  {
+    id: 'sugar-coercion-archive-silence',
+    title: 'Sugar, Coercion, and Archive Silence',
+    subtitle: '糖、强制劳动与档案沉默',
+    drivingQuestion: '糖业商品链怎样依赖强制劳动，而现存来源又怎样过滤被奴役者的声音？',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador'],
+    skills: ['sourcing', 'corroboration', 'silence'],
+    tags: ['sugar', 'coercion', 'archive silence', 'labor discipline', 'commodity empire'],
+    selectorTerms: ['sugar', 'coercion', 'enslaved', 'plantation', 'commodity', 'labor', 'archive', 'silence', '糖', '强制', '奴役', '劳动', '档案'],
+    taskChecklist: ['标出至少两条关于强制或劳动纪律的来源', '比较来源视角：谁在记录、谁被记录', '写出一条档案沉默或缺席声音', '形成一句谨慎 claim'],
+    suggestedClaimFrame: '糖业利润不是单纯市场结果，而是建立在强制劳动、制度暴力和不完整档案之上；因此结论必须同时说明证据与沉默。',
+  },
+  {
+    id: 'monsoon-credit-port-trust',
+    title: 'Monsoon Credit and Port Trust',
+    subtitle: '季风信用与港口信任',
+    drivingQuestion: '远距离海上贸易怎样把季风时间、信用文书、语言中介和港口权力变成可执行的信任？',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    skills: ['contextualization', 'corroboration', 'sourcing'],
+    tags: ['monsoon', 'credit', 'port trust', 'letters', 'intermediaries'],
+    selectorTerms: ['monsoon', 'credit', 'letter', 'contract', 'port', 'broker', 'trust', 'merchant', '季风', '信用', '港口', '信件', '合约', '中介'],
+    taskChecklist: ['找出季风/时间风险证据', '找出信用或文书证据', '说明中介和港口规则如何降低或制造风险', '写出一条关于 trust 的解释'],
+    suggestedClaimFrame: '港口信任来自季节知识、书信合约、名声网络和制度权力的组合，而不是来自“自由市场”的自然秩序。',
+  },
+  {
+    id: 'nonwritten-records-imperial-labor',
+    title: 'Nonwritten Records and Imperial Labor',
+    subtitle: '非文字记录与帝国劳动',
+    drivingQuestion: 'khipu、道路仓储、考古和殖民文本怎样让帝国劳动可见，同时限制普通劳动者的解释权？',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker'],
+    skills: ['sourcing', 'contextualization', 'silence'],
+    tags: ['khipu', 'nonwritten evidence', 'imperial labor', 'archive silence'],
+    selectorTerms: ['khipu', 'quipu', 'nonwritten', 'record', 'road', 'storehouse', 'labor', 'empire', 'archive', '结绳', '非文字', '道路', '仓储', '劳役'],
+    taskChecklist: ['区分非文字、考古、书信或殖民文本证据', '指出记录制度如何组织劳动', '标出普通劳动者声音的缺口', '写出一条 evidence limit'],
+    suggestedClaimFrame: '非文字和物质证据能证明制度劳动的存在与组织方式，但常需要与后来的文字材料互证，并谨慎处理缺席声音。',
+  },
+  {
+    id: 'knowledge-cities-access-thresholds',
+    title: 'Knowledge Cities and Access Thresholds',
+    subtitle: '知识城市与进入门槛',
+    drivingQuestion: '城市、纸张、书院/手稿、市场与身份门槛怎样决定谁能接近知识？',
+    scenarioIds: ['abbasid-baghdad-scribe', 'song-bianjing-apprentice', 'timbuktu-manuscript-student', 'tang-changan-merchant', 'fustat-geniza-merchant-apprentice'],
+    skills: ['contextualization', 'perspective', 'corroboration'],
+    tags: ['knowledge', 'cities', 'access', 'manuscripts', 'paper'],
+    selectorTerms: ['knowledge', 'book', 'paper', 'manuscript', 'school', 'scribe', 'letter', 'access', 'city', '知识', '纸', '手稿', '书', '城市', '门槛'],
+    taskChecklist: ['找出知识媒介或学习场所证据', '说明身份/财富/制度门槛', '比较至少两个城市的进入条件', '写出一条 access claim'],
+    suggestedClaimFrame: '知识城市扩大了信息流动，但进入门槛由媒介、身份、财富、师承和保存条件共同决定。',
+  },
+  {
+    id: 'market-rules-not-neutral',
+    title: 'Market Rules Are Not Neutral',
+    subtitle: '市场规则并非中立',
+    drivingQuestion: '市场中的税、身份、国家权力、信用和习俗怎样塑造普通人的机会与风险？',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    skills: ['contextualization', 'causation', 'corroboration'],
+    tags: ['market rules', 'institutions', 'tax', 'state power', 'risk'],
+    selectorTerms: ['market', 'tax', 'rule', 'institution', 'state', 'credit', 'broker', 'merchant', '市场', '税', '规则', '制度', '国家', '信用'],
+    taskChecklist: ['列出至少三条市场规则或制度证据', '说明规则让谁获益/受限', '区分机会与风险', '写出一句反“市场中立”的 claim'],
+    suggestedClaimFrame: '市场不是无规则空间；规则、税收、身份与权力关系决定了交易机会、风险分配和普通人的行动边界。',
+  },
+  {
+    id: 'crisis-news-ordinary-safety',
+    title: 'Crisis News and Ordinary Safety',
+    subtitle: '危机新闻与普通安全',
+    drivingQuestion: '战争、征服、起义、空袭或价格危机的消息怎样进入普通人的安全判断？',
+    scenarioIds: ['wwii-london-civilian', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker', 'colonial-bombay-mill-worker', 'song-bianjing-apprentice'],
+    skills: ['perspective', 'contextualization', 'sourcing'],
+    tags: ['crisis news', 'ordinary safety', 'risk', 'war', 'community'],
+    selectorTerms: ['crisis', 'news', 'war', 'risk', 'safety', 'riot', 'revolt', 'bomb', 'price', '危机', '消息', '战争', '安全', '风险', '起义'],
+    taskChecklist: ['找出消息来源或风险提示', '说明普通人当时可知道什么', '区分短期安全与长期后果', '写出一条避免后见之明的 claim'],
+    suggestedClaimFrame: '危机判断发生在信息有限、风险不均和制度压力之中；普通人的安全选择不能用后来的结果简单评判。',
+  },
+]
 
 
 const taskModules: TaskModule[] = [
@@ -988,6 +1118,7 @@ const contextConfidenceLabels: Record<ContextConfidence, string> = corroboration
 const significanceConfidenceLabels: Record<SignificanceConfidence, string> = corroborationConfidenceLabels
 const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
+const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
 const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
   'immediate-impact': 'immediate-impact / 当时影响',
@@ -2925,6 +3056,217 @@ function getActiveSynthesisDrafts(synthesisDraftState: SynthesisDraftState) {
   return Object.entries(synthesisDraftState).filter(([, draft]) => hasSynthesisDraftActivity(draft))
 }
 
+
+function getEmptyEvidenceCaseFileDraft(): EvidenceCaseFileDraft {
+  return {
+    sourceNotes: '',
+    contextNotes: '',
+    corroborationNotes: '',
+    tensions: '',
+    missingVoices: '',
+    workingClaim: '',
+    confidence: 'uncertain',
+    completedTaskIds: [],
+  }
+}
+
+function hasEvidenceCaseFileDraftActivity(draft: EvidenceCaseFileDraft) {
+  return Boolean(
+    draft.sourceNotes.trim()
+      || draft.contextNotes.trim()
+      || draft.corroborationNotes.trim()
+      || draft.tensions.trim()
+      || draft.missingVoices.trim()
+      || draft.workingClaim.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completedTaskIds.length,
+  )
+}
+
+function getActiveEvidenceCaseFileDrafts(caseFileDraftState: EvidenceCaseFileDraftState) {
+  return Object.entries(caseFileDraftState).filter(([, draft]) => hasEvidenceCaseFileDraftActivity(draft))
+}
+
+function parseEvidenceCaseFileDraftState(rawState: string | null): EvidenceCaseFileDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as EvidenceCaseFileDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<EvidenceCaseFileDraft>
+        const completedTaskIds = Array.isArray(draft.completedTaskIds)
+          ? draft.completedTaskIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in evidenceCaseConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            sourceNotes: typeof draft.sourceNotes === 'string' ? draft.sourceNotes : '',
+            contextNotes: typeof draft.contextNotes === 'string' ? draft.contextNotes : '',
+            corroborationNotes: typeof draft.corroborationNotes === 'string' ? draft.corroborationNotes : '',
+            tensions: typeof draft.tensions === 'string' ? draft.tensions : '',
+            missingVoices: typeof draft.missingVoices === 'string' ? draft.missingVoices : '',
+            workingClaim: typeof draft.workingClaim === 'string' ? draft.workingClaim : '',
+            confidence,
+            completedTaskIds,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies EvidenceCaseFileDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as EvidenceCaseFileDraftState
+  }
+}
+
+function loadEvidenceCaseFileDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseEvidenceCaseFileDraftState(localStorage?.getItem(evidenceCaseFileStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasEvidenceCaseFileDraftActivity)) {
+    return localState
+  }
+
+  return parseEvidenceCaseFileDraftState(sessionStorage?.getItem(evidenceCaseFileStorageKey) ?? null)
+}
+
+function persistEvidenceCaseFileDraftState(state: EvidenceCaseFileDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(evidenceCaseFileStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(evidenceCaseFileStorageKey, serializedState)
+}
+
+function getEvidenceCaseFileProgress(caseFile: EvidenceCaseFile, draft: EvidenceCaseFileDraft) {
+  return caseFile.taskChecklist.length ? Math.round((draft.completedTaskIds.length / caseFile.taskChecklist.length) * 100) : 0
+}
+
+function matchEvidenceCaseTerms(text: string, terms: string[]) {
+  const normalizedText = text.toLowerCase()
+  return terms.some((term) => normalizedText.includes(term.toLowerCase()))
+}
+
+function scoreEvidenceCasePacketItem(text: string, terms: string[]) {
+  const normalizedText = text.toLowerCase()
+  return terms.reduce((score, term) => score + (normalizedText.includes(term.toLowerCase()) ? 1 : 0), 0)
+}
+
+function buildEvidenceCasePacket(caseFile: EvidenceCaseFile): EvidenceCasePacket {
+  const caseScenarios = caseFile.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  function sortByScore<T extends EvidenceCasePacketItem>(items: T[]) {
+    return [...items].sort((first, second) => scoreEvidenceCasePacketItem(second.text + second.title + second.tags.join(' '), caseFile.selectorTerms) - scoreEvidenceCasePacketItem(first.text + first.title + first.tags.join(' '), caseFile.selectorTerms))
+  }
+
+  const sources = sortByScore(caseScenarios.flatMap((scenario) => scenario.sources.map((source, index) => ({
+    id: `${caseFile.id}:${scenario.id}:source:${index}`,
+    scenario,
+    sourceType: 'source' as const,
+    title: source.title,
+    text: `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}｜追问：${source.sourceQuestion}`,
+    label: sourceTypeLabels[source.sourceType],
+    tags: [source.creator, sourceTypeLabels[source.sourceType], ...source.evidenceTags],
+  } satisfies EvidenceCasePacketItem)))).filter((entry) => matchEvidenceCaseTerms([entry.title, entry.text, ...entry.tags].join(' '), caseFile.selectorTerms)).slice(0, 8)
+
+  const sceneBeats = sortByScore(caseScenarios.flatMap((scenario) => scenario.sceneBeats.map((beat, index) => ({
+    id: `${caseFile.id}:${scenario.id}:scene:${index}`,
+    scenario,
+    sourceType: 'scene-beat' as const,
+    title: beat.title,
+    text: `${beat.timeLabel}｜${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+    label: 'Scene beat',
+    tags: [...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles],
+  } satisfies EvidenceCasePacketItem)))).slice(0, 8)
+
+  const decisions = sortByScore(caseScenarios.flatMap((scenario) => [
+    { id: `${caseFile.id}:${scenario.id}:decision:context`, scenario, sourceType: 'decision' as const, title: scenario.decision.prompt, text: scenario.decision.context, label: 'Decision context', tags: ['decision', scenario.theme, scenario.region] } satisfies EvidenceCasePacketItem,
+    ...scenario.decision.options.slice(0, 2).map((option) => ({ id: `${caseFile.id}:${scenario.id}:decision:${option.id}`, scenario, sourceType: 'decision' as const, title: option.label, text: `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`, label: 'Decision option', tags: ['decision', option.stance, scenario.theme] } satisfies EvidenceCasePacketItem)),
+  ])).slice(0, 7)
+
+  const timelines = sortByScore(caseScenarios.flatMap((scenario) => scenario.timeline.slice(0, 3).map((event, index) => ({
+    id: `${caseFile.id}:${scenario.id}:timeline:${index}`,
+    scenario,
+    sourceType: 'timeline' as const,
+    title: event.title,
+    text: `${event.year}｜${event.text}`,
+    label: 'Timeline',
+    tags: ['timeline', String(event.year), scenario.era, scenario.region],
+  } satisfies EvidenceCasePacketItem)))).slice(0, 8)
+
+  return { sources, sceneBeats, decisions, timelines }
+}
+
+function formatEvidenceCaseFileBrief(caseFile: EvidenceCaseFile, draft: EvidenceCaseFileDraft, packet: EvidenceCasePacket) {
+  const packetItems = [...packet.sources, ...packet.sceneBeats, ...packet.decisions, ...packet.timelines]
+  const completedTasks = caseFile.taskChecklist.filter((_, index) => draft.completedTaskIds.includes(`task:${index}`))
+
+  return [
+    'TimeAtlas Evidence Case Files / Archive Quests 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `Case File：${caseFile.title}｜${caseFile.subtitle}`,
+    `核心问题：${caseFile.drivingQuestion}`,
+    `场景：${caseFile.scenarioIds.map((id) => getScenarioById(id)?.title ?? id).join(' × ')}`,
+    `Skills：${caseFile.skills.join(' → ')}`,
+    `进度：${completedTasks.length}/${caseFile.taskChecklist.length} tasks`,
+    '',
+    '一、Evidence packet / 证据包',
+    ...packetItems.slice(0, 14).map((entry, index) => `${index + 1}. ${entry.scenario.title}｜${entry.label}｜${entry.title}\n   ${entry.text}\n   标签：${entry.tags.slice(0, 8).join('、') || '无'}`),
+    '',
+    '二、Skill ladder / 方法阶梯',
+    ...caseFile.skills.map((skill, index) => `${index + 1}. ${skill}：用证据说明来源、情境、互证、张力或沉默，而不是只摘录信息。`),
+    '',
+    '三、Task checklist / 任务清单',
+    ...caseFile.taskChecklist.map((task, index) => `- [${draft.completedTaskIds.includes(`task:${index}`) ? 'x' : ' '}] ${task}`),
+    '',
+    '四、Draft / 草稿',
+    `Source notes：${draft.sourceNotes.trim() || '尚未填写'}`,
+    `Context notes：${draft.contextNotes.trim() || '尚未填写'}`,
+    `Corroboration notes：${draft.corroborationNotes.trim() || '尚未填写'}`,
+    `Tensions：${draft.tensions.trim() || '尚未填写'}`,
+    `Missing voices：${draft.missingVoices.trim() || '尚未填写'}`,
+    `Working claim：${draft.workingClaim.trim() || caseFile.suggestedClaimFrame}`,
+    `Confidence：${evidenceCaseConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatEvidenceCaseFileTaskSheet(caseFile: EvidenceCaseFile) {
+  const packet = buildEvidenceCasePacket(caseFile)
+  return [
+    `TimeAtlas Evidence Case File Assignment：${caseFile.title}`,
+    `核心问题：${caseFile.drivingQuestion}`,
+    `场景：${caseFile.scenarioIds.map((id) => getScenarioById(id)?.title ?? id).join(' × ')}`,
+    `Skills：${caseFile.skills.join(' → ')}`,
+    '',
+    '任务：打开 Evidence Case Files，阅读 evidence packet，完成 checklist，并写出带来源限制的 working claim。',
+    '',
+    'Checklist：',
+    ...caseFile.taskChecklist.map((item) => `- ${item}`),
+    '',
+    '证据起点：',
+    ...[...packet.sources, ...packet.sceneBeats].slice(0, 6).map((entry) => `- ${entry.scenario.title}｜${entry.label}｜${entry.title}：${entry.text}`),
+    '',
+    '交付物：一份 Evidence Case File Brief，包含 source/context/corroboration notes、tensions、missing voices、working claim 与 confidence。',
+  ].join('\n')
+}
+
 function inferSignificanceDailyLifeKeys(inquiry: SignificanceInquiry): DailyLifeKey[] {
   if (inquiry.id.includes('knowledge')) {
     return ['education', 'work', 'freedoms', 'risks']
@@ -4037,6 +4379,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     significance: 'Significance draft / 意义草稿',
     compare: 'Compare draft / 比较草稿',
     'mission-work': 'Mission work / 场景任务草稿',
+    'case-file': 'Evidence Case File / 来源任务档案',
     workspace: 'Workspace entry / 跨场景工作区',
   }[origin]
 }
@@ -4057,6 +4400,7 @@ function buildSynthesisEvidencePool({
   contextDraftState,
   significanceDraftState,
   compareDraftState,
+  caseFileDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -4067,6 +4411,7 @@ function buildSynthesisEvidencePool({
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
   compareDraftState: CompareDraftState
+  caseFileDraftState: EvidenceCaseFileDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -4077,6 +4422,21 @@ function buildSynthesisEvidencePool({
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
   const entries: SynthesisEvidence[] = []
+
+  getActiveEvidenceCaseFileDrafts(caseFileDraftState).forEach(([caseFileId, draft]) => {
+    const caseFile = evidenceCaseFiles.find((candidate) => candidate.id === caseFileId)
+    if (!caseFile) return
+    entries.push({
+      id: makeSynthesisEvidenceId('case-file', caseFileId),
+      origin: 'case-file',
+      originLabel: getSynthesisOriginLabel('case-file'),
+      title: caseFile.title,
+      text: [`主张：${draft.workingClaim}`, `来源：${draft.sourceNotes}`, `情境：${draft.contextNotes}`, `互证：${draft.corroborationNotes}`, `张力：${draft.tensions}`, `缺席：${draft.missingVoices}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['case file', ...caseFile.tags, ...caseFile.skills, draft.confidence],
+      inquiryTitle: caseFile.drivingQuestion,
+      updatedAt: draft.updatedAt,
+    })
+  })
 
   getActiveCorroborationDrafts(corroborationDraftState).forEach(([basketKey, draft]) => {
     const sourceTitles = draft.sourceIds
@@ -4295,6 +4655,7 @@ function formatLearningArchive(
   contextDraftState: ContextDraftState,
   significanceDraftState: SignificanceDraftState,
   synthesisDraftState: SynthesisDraftState,
+  caseFileDraftState: EvidenceCaseFileDraftState,
   compareDraftState: CompareDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
@@ -4309,6 +4670,7 @@ function formatLearningArchive(
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
+  const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
@@ -4319,7 +4681,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -4337,6 +4699,7 @@ function formatLearningArchive(
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
+    `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
@@ -4588,6 +4951,29 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activeCaseFileDrafts.length > 0) {
+    lines.push('Evidence Case Files / Archive Quests：')
+    activeCaseFileDrafts.forEach(([caseFileId, draft]) => {
+      const caseFile = evidenceCaseFiles.find((candidate) => candidate.id === caseFileId)
+      if (!caseFile) return
+      const completedTasks = caseFile.taskChecklist.filter((_, index) => draft.completedTaskIds.includes(`task:${index}`))
+      lines.push(
+        `  - ${caseFile.title}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    核心问题：${caseFile.drivingQuestion}`,
+        `    已完成任务：${completedTasks.join('；') || '尚未勾选'}`,
+        `    Source notes：${draft.sourceNotes.trim() || '尚未填写'}`,
+        `    Context notes：${draft.contextNotes.trim() || '尚未填写'}`,
+        `    Corroboration：${draft.corroborationNotes.trim() || '尚未填写'}`,
+        `    Tensions：${draft.tensions.trim() || '尚未填写'}`,
+        `    Missing voices：${draft.missingVoices.trim() || '尚未填写'}`,
+        `    Working claim：${draft.workingClaim.trim() || '尚未填写'}`,
+        `    Confidence：${evidenceCaseConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCompareDrafts.length > 0) {
     lines.push('Compare Lab Workspace / 跨场景比较工作区：')
     activeCompareDrafts.forEach(([, draft]) => {
@@ -4670,7 +5056,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、任务执行台草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、任务执行台草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -4759,6 +5145,7 @@ function formatLearningCoachPlan(recommendations: LearningCoachRecommendation[],
     `- Labs 草稿：${snapshot.labDraftCount}`,
     `- Compare Lab 草稿：${snapshot.compareDraftCount}`,
     `- Synthesis 草稿：${snapshot.synthesisDraftCount}`,
+    `- Case Files 草稿：${snapshot.caseFileDraftCount}`,
     '',
     '推荐下一步：',
     ...(visibleRecommendations.length
@@ -4813,6 +5200,7 @@ function buildLearningCoachRecommendations({
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
   synthesisDraftState: SynthesisDraftState
+  caseFileDraftState: EvidenceCaseFileDraftState
   compareDraftState: CompareDraftState
   missionWorkState: MissionWorkState
   completedMissionIdsByScenario: Record<string, string[]>
@@ -5349,7 +5737,7 @@ function inferPageFromHash(hash: string): PageId {
     return 'scenario'
   }
 
-  if (normalizedHash === 'source-atlas') return 'evidence'
+  if (evidenceSubpages.some((item) => item.hash === normalizedHash)) return 'evidence'
   if (labsSubpages.some((item) => item.hash === normalizedHash)) return 'labs'
   if (['time-space-atlas', 'atlas-missions', 'atlas-inquiry-paths', sectionIds.compareLab].includes(normalizedHash)) return 'atlas'
   if (tasksSubpages.some((item) => item.hash === normalizedHash)) return 'tasks'
@@ -5377,6 +5765,16 @@ function getHashForScenarioTab(tab: ScenarioExperienceTab): ScenarioSectionId {
   return scenarioExperienceTabs.find((item) => item.id === tab)?.hash ?? sectionIds.experience
 }
 
+
+function getEvidenceSubpageFromHash(hash: string | null): EvidenceSubpage {
+  const normalizedHash = (hash ?? '').replace(/^#/, '')
+
+  return evidenceSubpages.find((item) => item.hash === normalizedHash)?.id ?? 'source-atlas'
+}
+
+function getHashForEvidenceSubpage(subpage: EvidenceSubpage) {
+  return evidenceSubpages.find((item) => item.id === subpage)?.hash ?? 'source-atlas'
+}
 
 function getAtlasSubpageFromHash(hash: string | null): AtlasSubpage {
   const normalizedHash = (hash ?? '').replace(/^#/, '')
@@ -5963,6 +6361,7 @@ function buildTaskLibraryTasks({
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
+  onOpenEvidenceCaseFile,
   onOpenDebateStudio,
   onStartTask,
 }: {
@@ -5975,6 +6374,7 @@ function buildTaskLibraryTasks({
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
+  onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio?: (scenarioId: string) => void
   onStartTask?: (taskId: string) => void
 }): LibraryTask[] {
@@ -6352,6 +6752,41 @@ function buildTaskLibraryTasks({
     }
 
     task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, preset.focus, preset.claimScope, ...tags, ...preset.paragraphFrame].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  evidenceCaseFiles.forEach((caseFile) => {
+    const caseScenarios = caseFile.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 50
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Evidence Case Files', 'Archive Quests', ...caseFile.tags, ...caseFile.skills]
+    const task: LibraryTask = {
+      id: `case-file:${caseFile.id}`,
+      title: caseFile.title,
+      context: caseScenarios.map((scenario) => scenario.title).join(' × ') || 'Evidence Case Files',
+      scenarioId: caseScenarios[0]?.id,
+      category: 'Evidence Case File / 来源任务档案',
+      source: 'case-file',
+      sourceLabel: 'Evidence Case Files',
+      durationMinutes,
+      durationBand,
+      summary: caseFile.drivingQuestion,
+      deliverable: 'Evidence Case File Brief：证据包、skill ladder、notes、missing voices、working claim 与 confidence',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Case File',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onOpenEvidenceCaseFile?.(caseFile.id),
+      onSecondaryAction: () => caseScenarios[0] ? onOpenScenario(caseScenarios[0].id, sectionIds.sourceReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [caseFile.drivingQuestion, caseFile.suggestedClaimFrame, `Skills：${caseFile.skills.join(' → ')}`],
+      checklist: caseFile.taskChecklist,
+      evidencePrompts: buildEvidenceCasePacket(caseFile).sources.slice(0, 5).map((entry) => `${entry.scenario.title}｜${entry.title}：${entry.text}`),
+      formatSheet: () => formatEvidenceCaseFileTaskSheet(caseFile),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, caseFile.subtitle, caseFile.suggestedClaimFrame, ...tags, ...caseFile.taskChecklist, ...caseFile.selectorTerms].join(' ').toLowerCase()
     tasks.push(task)
   })
 
@@ -6898,6 +7333,7 @@ function App() {
   const initialCompareSelection = useMemo(getInitialCompareSelection, [])
   const [activePage, setActivePage] = useState<PageId>(getInitialPage)
   const [activeAtlasSubpage, setActiveAtlasSubpage] = useState<AtlasSubpage>(() => (typeof window === 'undefined' ? 'routes' : getAtlasSubpageFromHash(window.location.hash)))
+  const [activeEvidenceSubpage, setActiveEvidenceSubpage] = useState<EvidenceSubpage>(() => (typeof window === 'undefined' ? 'source-atlas' : getEvidenceSubpageFromHash(window.location.hash)))
   const [activeLabsSubpage, setActiveLabsSubpage] = useState<LabsSubpage>(() => {
     if (typeof window === 'undefined') {
       return 'causation'
@@ -6929,6 +7365,8 @@ function App() {
   const [significanceDraftState, setSignificanceDraftState] = useState<SignificanceDraftState>(loadSignificanceDraftState)
   const [selectedSignificanceInquiryId, setSelectedSignificanceInquiryId] = useState(significanceInquiryDefinitions[0]?.id ?? '')
   const [synthesisDraftState, setSynthesisDraftState] = useState<SynthesisDraftState>(loadSynthesisDraftState)
+  const [caseFileDraftState, setCaseFileDraftState] = useState<EvidenceCaseFileDraftState>(loadEvidenceCaseFileDraftState)
+  const [selectedCaseFileId, setSelectedCaseFileId] = useState(evidenceCaseFiles[0]?.id ?? '')
   const [selectedSynthesisPresetId, setSelectedSynthesisPresetId] = useState(synthesisInquiryPresets[0]?.id ?? '')
   const [selectedContextInquiryId, setSelectedContextInquiryId] = useState(contextInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
@@ -6969,8 +7407,8 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -6984,6 +7422,7 @@ function App() {
   const labDraftCount = useMemo(() => getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState])
   const compareDraftCount = useMemo(() => getActiveCompareDrafts(compareDraftState).length, [compareDraftState])
   const synthesisDraftCount = useMemo(() => getActiveSynthesisDrafts(synthesisDraftState).length, [synthesisDraftState])
+  const caseFileDraftCount = useMemo(() => getActiveEvidenceCaseFileDrafts(caseFileDraftState).length, [caseFileDraftState])
   const missionDraftCount = useMemo(() => getMissionDraftCount(missionWorkState), [missionWorkState])
   const learningCoachSnapshot = useMemo(() => ({
     totalCompletedMissionCount,
@@ -6994,7 +7433,8 @@ function App() {
     labDraftCount,
     compareDraftCount,
     synthesisDraftCount,
-  }), [totalCompletedMissionCount, missionDraftCount, workspaceStats, taskModuleStats, taskWorkbenchStats, labDraftCount, compareDraftCount, synthesisDraftCount])
+    caseFileDraftCount,
+  }), [totalCompletedMissionCount, missionDraftCount, workspaceStats, taskModuleStats, taskWorkbenchStats, labDraftCount, compareDraftCount, synthesisDraftCount, caseFileDraftCount])
   const learningCoachRecommendations = buildLearningCoachRecommendations({
     libraryTasks: assignmentLibraryTasks,
     taskWorkbenchDraftState,
@@ -7008,6 +7448,7 @@ function App() {
     contextDraftState,
     significanceDraftState,
     synthesisDraftState,
+    caseFileDraftState,
     compareDraftState,
     missionWorkState,
     completedMissionIdsByScenario,
@@ -7151,6 +7592,18 @@ function App() {
     }
 
     try {
+      persistEvidenceCaseFileDraftState(caseFileDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [caseFileDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
       persistCompareDraftState(compareDraftState)
     } catch {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
@@ -7259,6 +7712,10 @@ function App() {
       setActiveAtlasSubpage(hash ? getAtlasSubpageFromHash(hash) : 'routes')
     }
 
+    if (page === 'evidence') {
+      setActiveEvidenceSubpage(hash ? getEvidenceSubpageFromHash(hash) : 'source-atlas')
+    }
+
     if (page === 'labs') {
       setActiveLabsSubpage(hash ? getLabsSubpageFromHash(hash) : 'causation')
     }
@@ -7288,6 +7745,34 @@ function App() {
     }
 
     scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function selectEvidenceSubpage(subpage: EvidenceSubpage) {
+    const hash = getHashForEvidenceSubpage(subpage)
+
+    setActiveEvidenceSubpage(subpage)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('evidence', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openEvidenceCaseFile(caseFileId: string) {
+    if (!evidenceCaseFiles.some((caseFile) => caseFile.id === caseFileId)) {
+      return
+    }
+
+    setSelectedCaseFileId(caseFileId)
+    setActivePage('evidence')
+    setActiveEvidenceSubpage('case-files')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('evidence', sectionIds.evidenceCaseFiles))
+    }
+
+    scrollToSection(sectionIds.evidenceCaseFiles, prefersReducedMotion)
   }
 
   function selectLabsSubpage(subpage: LabsSubpage) {
@@ -7739,12 +8224,32 @@ function App() {
         ) : null}
 
         {activePage === 'evidence' ? (
-          <SourceAtlasPanel
-            corroborationDraftState={corroborationDraftState}
-            onUpdateCorroborationDraftState={setCorroborationDraftState}
-            onOpenScenario={selectScenario}
-            onLoadCompareLens={loadCompareLens}
-          />
+          <>
+            <SubpageNav
+              ariaLabel="Evidence 子页面"
+              items={evidenceSubpages}
+              activeId={activeEvidenceSubpage}
+              onSelect={selectEvidenceSubpage}
+            />
+            {activeEvidenceSubpage === 'source-atlas' ? (
+              <SourceAtlasPanel
+                corroborationDraftState={corroborationDraftState}
+                onUpdateCorroborationDraftState={setCorroborationDraftState}
+                onOpenScenario={selectScenario}
+                onLoadCompareLens={loadCompareLens}
+              />
+            ) : null}
+            {activeEvidenceSubpage === 'case-files' ? (
+              <EvidenceCaseFilesPanel
+                selectedCaseFileId={selectedCaseFileId}
+                draftState={caseFileDraftState}
+                onSelectCaseFile={setSelectedCaseFileId}
+                onUpdateDraftState={setCaseFileDraftState}
+                onOpenSourceAtlas={() => selectEvidenceSubpage('source-atlas')}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
+          </>
         ) : null}
 
         {activePage === 'labs' ? (
@@ -7851,6 +8356,7 @@ function App() {
                 onLoadContextInquiry={loadContextInquiry}
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
                 onLoadSynthesisPreset={loadSynthesisPreset}
+                onOpenEvidenceCaseFile={openEvidenceCaseFile}
                 onOpenDebateStudio={openDebateStudio}
                 onStartTask={startTaskWorkbench}
               />
@@ -7868,6 +8374,7 @@ function App() {
                 onLoadContextInquiry={loadContextInquiry}
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
                 onLoadSynthesisPreset={loadSynthesisPreset}
+                onOpenEvidenceCaseFile={openEvidenceCaseFile}
                 onOpenDebateStudio={openDebateStudio}
                 onStartTask={startTaskWorkbench}
               />
@@ -7931,6 +8438,7 @@ function App() {
                 contextDraftState={contextDraftState}
                 significanceDraftState={significanceDraftState}
                 synthesisDraftState={synthesisDraftState}
+                caseFileDraftState={caseFileDraftState}
                 compareDraftState={compareDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
@@ -9804,6 +10312,225 @@ function SourceAtlasPanel({
         {visibleEntries.length === 0 ? (
           <p className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-400">没有匹配的来源。请放宽关键词、来源类型、场景或证据标签筛选。</p>
         ) : null}
+      </div>
+    </section>
+  )
+}
+
+
+function EvidenceCaseFilesPanel({
+  selectedCaseFileId,
+  draftState,
+  onSelectCaseFile,
+  onUpdateDraftState,
+  onOpenSourceAtlas,
+  onOpenScenario,
+}: {
+  selectedCaseFileId: string
+  draftState: EvidenceCaseFileDraftState
+  onSelectCaseFile: (id: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<EvidenceCaseFileDraftState>>
+  onOpenSourceAtlas: () => void
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedCaseFile = evidenceCaseFiles.find((caseFile) => caseFile.id === selectedCaseFileId) ?? evidenceCaseFiles[0]
+  const currentDraft = draftState[selectedCaseFile.id] ?? getEmptyEvidenceCaseFileDraft()
+  const packet = useMemo(() => buildEvidenceCasePacket(selectedCaseFile), [selectedCaseFile])
+  const packetSections = [
+    { key: 'sources', title: 'Sources', items: packet.sources },
+    { key: 'sceneBeats', title: 'Scene beats', items: packet.sceneBeats },
+    { key: 'decisions', title: 'Decisions', items: packet.decisions },
+    { key: 'timelines', title: 'Timeline', items: packet.timelines },
+  ]
+  const progress = getEvidenceCaseFileProgress(selectedCaseFile, currentDraft)
+
+  function updateDraft(updates: Partial<Omit<EvidenceCaseFileDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedCaseFile.id]: {
+        ...(currentState[selectedCaseFile.id] ?? getEmptyEvidenceCaseFileDraft()),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+    setCopyStatus('idle')
+  }
+
+  function toggleTask(taskId: string) {
+    const completedTaskIds = currentDraft.completedTaskIds.includes(taskId)
+      ? currentDraft.completedTaskIds.filter((id) => id !== taskId)
+      : [...currentDraft.completedTaskIds, taskId]
+
+    updateDraft({ completedTaskIds })
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatEvidenceCaseFileBrief(selectedCaseFile, currentDraft, packet))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    const safeTitle = selectedCaseFile.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'case-file'
+    downloadTextFile(`timeatlas-${safeTitle}-brief.txt`, formatEvidenceCaseFileBrief(selectedCaseFile, currentDraft, packet))
+  }
+
+  return (
+    <section id={sectionIds.evidenceCaseFiles} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="evidence-case-files-title">
+      <div className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-teal-100">
+          <ClipboardList size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">evidence case files / archive quests 1.0</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="evidence-case-files-title" className="text-3xl font-semibold tracking-tight text-stone-50">Evidence Case Files / 来源任务档案</h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              6 个轻量 archive quests 直接复用现有 sources、scene beats、decisions 与 timelines 派生证据包；Evidence 页可作为来源任务中心，不新增 schema 或顶层页面。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {getActiveEvidenceCaseFileDrafts(draftState).length} active drafts · {evidenceCaseFiles.length} case files
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.72fr_1.28fr]">
+          <aside className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+            {evidenceCaseFiles.map((caseFile) => {
+              const draft = draftState[caseFile.id] ?? getEmptyEvidenceCaseFileDraft()
+              const caseProgress = getEvidenceCaseFileProgress(caseFile, draft)
+              const caseScenarios = caseFile.scenarioIds.map((id) => getScenarioById(id)?.title ?? id)
+              const isActive = caseFile.id === selectedCaseFile.id
+
+              return (
+                <button
+                  key={caseFile.id}
+                  type="button"
+                  onClick={() => onSelectCaseFile(caseFile.id)}
+                  className={`rounded-[1.5rem] border p-4 text-left transition ${isActive ? 'border-amber-200/45 bg-amber-100/[0.08]' : 'border-white/10 bg-black/20 hover:border-teal-100/25 hover:bg-black/30'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{caseFile.subtitle}</div>
+                      <h3 className="mt-1 font-semibold text-stone-50">{caseFile.title}</h3>
+                    </div>
+                    <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-amber-100">{caseProgress}%</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-400">{caseFile.drivingQuestion}</p>
+                  <p className="mt-2 line-clamp-1 text-xs text-stone-500">{caseScenarios.join(' × ')}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {caseFile.skills.map((skill) => <span key={`${caseFile.id}-${skill}`} className="rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-2 py-0.5 text-xs text-teal-100">{skill}</span>)}
+                  </div>
+                </button>
+              )
+            })}
+          </aside>
+
+          <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-stone-500">selected case workspace</div>
+                <h3 className="mt-1 text-2xl font-semibold tracking-tight text-stone-50">{selectedCaseFile.title}</h3>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">{selectedCaseFile.drivingQuestion}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={onOpenSourceAtlas} className="inline-flex items-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"><LibraryBig size={16} />Source Atlas</button>
+                <button type="button" onClick={() => onOpenScenario(selectedCaseFile.scenarioIds[0], sectionIds.sceneReader)} className="inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"><ArrowRight size={16} />打开场景</button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.92fr]">
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {selectedCaseFile.skills.map((skill, index) => (
+                    <article key={`${selectedCaseFile.id}-skill-${skill}`} className="rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3">
+                      <div className="text-xs uppercase tracking-[0.18em] text-stone-500">step {index + 1}</div>
+                      <h4 className="mt-1 font-semibold text-teal-100">{skill}</h4>
+                      <p className="mt-1 text-xs leading-5 text-stone-500">先定位来源，再放回情境，最后处理互证、张力或沉默。</p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="font-semibold text-stone-50">Evidence packet</h4>
+                    <span className="text-xs text-stone-500">{[...packet.sources, ...packet.sceneBeats, ...packet.decisions, ...packet.timelines].length} items</span>
+                  </div>
+                  <div className="mt-3 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 lg:grid-cols-2">
+                    {packetSections.flatMap((section) => section.items.slice(0, 5).map((item) => (
+                      <article key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                          <span className="text-amber-100">{section.title}</span>
+                          <span>{item.scenario.title}</span>
+                        </div>
+                        <h5 className="mt-2 font-semibold text-stone-100">{item.title}</h5>
+                        <p className="mt-2 text-sm leading-6 text-stone-400">{item.text}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {item.tags.slice(0, 5).map((tag) => <span key={`${item.id}-${tag}`} className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-stone-500">{tag}</span>)}
+                        </div>
+                      </article>
+                    )))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="font-semibold text-amber-100">Task checklist</h4>
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400">{progress}% complete</span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {selectedCaseFile.taskChecklist.map((task, index) => {
+                      const taskId = `task:${index}`
+                      const checked = currentDraft.completedTaskIds.includes(taskId)
+                      return (
+                        <button key={taskId} type="button" onClick={() => toggleTask(taskId)} className="flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-left text-sm leading-6 text-stone-300 transition hover:border-amber-100/25">
+                          {checked ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-amber-100" /> : <Circle size={18} className="mt-0.5 shrink-0 text-stone-500" />}
+                          <span>{task}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                  <h4 className="font-semibold text-stone-50">Draft fields</h4>
+                  <div className="mt-3 grid gap-3">
+                    {([
+                      ['sourceNotes', 'source notes / 来源笔记', '哪些来源最关键？它们由谁留下？'],
+                      ['contextNotes', 'context notes / 情境笔记', '把证据放回地点、制度、时间和日常压力。'],
+                      ['corroborationNotes', 'corroboration notes / 互证笔记', '哪些线索相互支持或修正？'],
+                      ['tensions', 'tensions / 张力', '来源之间或解释之间的冲突。'],
+                      ['missingVoices', 'missing voices / 缺席声音', '谁没有被记录？还需要什么材料？'],
+                      ['workingClaim', 'working claim / 工作主张', selectedCaseFile.suggestedClaimFrame],
+                    ] as [keyof Omit<EvidenceCaseFileDraft, 'confidence' | 'completedTaskIds' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                      <label key={field} className="block">
+                        <span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">{label}</span>
+                        <textarea value={currentDraft[field]} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<EvidenceCaseFileDraft>)} rows={field === 'workingClaim' ? 3 : 2} placeholder={placeholder} className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/50" />
+                      </label>
+                    ))}
+                    <label className="block">
+                      <span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">confidence / 信心等级</span>
+                      <select value={currentDraft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as SynthesisConfidence })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-teal-200/50">
+                        {(Object.entries(evidenceCaseConfidenceLabels) as [SynthesisConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'copied' ? 'Brief 已复制' : '复制 brief'}</button>
+                    <button type="button" onClick={downloadBrief} className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"><ScrollText size={16} />下载 .txt</button>
+                  </div>
+                  <p className="mt-3 text-xs text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '任意填写或勾选后会保存到本机。'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -11755,6 +12482,7 @@ function PortfolioPanel({
   contextDraftState,
   significanceDraftState,
   synthesisDraftState,
+  caseFileDraftState,
   compareDraftState,
   taskWorkbenchDraftState,
 }: {
@@ -11773,6 +12501,7 @@ function PortfolioPanel({
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
   synthesisDraftState: SynthesisDraftState
+  caseFileDraftState: EvidenceCaseFileDraftState
   compareDraftState: CompareDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
@@ -11786,6 +12515,7 @@ function PortfolioPanel({
   const contextDraftCount = getActiveContextDrafts(contextDraftState).length
   const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
+  const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -11807,7 +12537,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, compareDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -11853,6 +12583,7 @@ function PortfolioPanel({
               { label: '情境化草稿', value: contextDraftCount },
               { label: '意义草稿', value: significanceDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
+              { label: 'Case Files', value: caseFileDraftCount },
               { label: '比较草稿', value: compareDraftCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
@@ -12027,6 +12758,7 @@ function TaskDiscoveryPanel({
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
+  onOpenEvidenceCaseFile,
   onOpenDebateStudio,
   onStartTask,
 }: {
@@ -12042,13 +12774,14 @@ function TaskDiscoveryPanel({
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
+  onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -13295,6 +14028,7 @@ function TaskLibraryPanel({
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
+  onOpenEvidenceCaseFile,
   onOpenDebateStudio,
   onStartTask,
 }: {
@@ -13309,6 +14043,7 @@ function TaskLibraryPanel({
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
+  onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
   onStartTask: (taskId: string) => void
 }) {
@@ -13320,8 +14055,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
