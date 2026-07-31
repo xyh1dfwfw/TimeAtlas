@@ -39,6 +39,8 @@ import {
   type Mission,
   type MissionTaskType,
   type Scenario,
+  type SocialActor,
+  type SocialEncounter,
 } from './data/scenarios'
 import './App.css'
 
@@ -63,6 +65,7 @@ const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
 const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
 const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
+const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -71,6 +74,7 @@ const sectionIds = {
   lessonPack: 'lesson-pack',
   activityPacks: 'activity-packs',
   missionBoard: 'mission-board',
+  actorNetwork: 'actor-network',
   decisionPanel: 'decision-panel',
   argumentStudio: 'argument-studio',
   sourceReader: 'source-reader',
@@ -472,6 +476,7 @@ type SynthesisEvidenceOrigin =
   | 'contextualization'
   | 'significance'
   | 'compare'
+  | 'actor-network'
   | 'mission-work'
   | 'workspace'
 
@@ -596,10 +601,10 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
-type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'lesson' | 'activities' | 'missions' | 'decision' | 'sources' | 'argument'
+type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
 
 const scenarioExperienceTabs: {
   id: ScenarioExperienceTab
@@ -614,6 +619,7 @@ const scenarioExperienceTabs: {
   { id: 'lesson', label: '课堂包', eyebrow: 'Lesson', description: 'Quick / source / debate 课堂流程', hash: sectionIds.lessonPack },
   { id: 'activities', label: '活动包', eyebrow: 'Activity', description: 'Warmup、source lab、roleplay、writing 等任务', hash: sectionIds.activityPacks },
   { id: 'missions', label: '任务板', eyebrow: 'Missions', description: '证据任务、草稿、勾选与学习输出', hash: sectionIds.missionBoard },
+  { id: 'actors', label: '人物网络', eyebrow: 'Actors', description: 'Social Worlds / Actor Network 协商地图', hash: sectionIds.actorNetwork },
   { id: 'decision', label: '历史岔路', eyebrow: 'Decision', description: '选择、后果与真实历史对照', hash: sectionIds.decisionPanel },
   { id: 'sources', label: '来源层', eyebrow: 'Sources', description: '来源类型、摘记、视角与可靠边界', hash: sectionIds.sourceReader },
   { id: 'argument', label: '论证', eyebrow: 'Argument', description: '把证据转成完整历史论证', hash: sectionIds.argumentStudio },
@@ -757,6 +763,19 @@ type TaskWorkbenchDraft = {
 
 type TaskWorkbenchState = Record<string, TaskWorkbenchDraft>
 
+type ActorNetworkDraft = {
+  selectedActorIds: string[]
+  roleBrief: string
+  perspectiveComparison: string
+  negotiationPlan: string
+  missingVoiceNote: string
+  evidenceNotes: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type ActorNetworkDraftState = Record<string, ActorNetworkDraft>
+
 type TaskWorkbenchStats = {
   activeDrafts: [string, TaskWorkbenchDraft][]
   activeCount: number
@@ -882,6 +901,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'activity', label: 'Activity Packs' },
   { value: 'lesson', label: 'Lesson Pack' },
   { value: 'debate', label: 'Debate Studio' },
+  { value: 'actor-network', label: 'Actor Network' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'causation', label: 'Causation Lab' },
@@ -2523,6 +2543,97 @@ function persistTaskWorkbenchDraftState(state: TaskWorkbenchState) {
   getSafeStorage('sessionStorage')?.setItem(taskWorkbenchStorageKey, serializedState)
 }
 
+function getEmptyActorNetworkDraft(encounter: SocialEncounter): ActorNetworkDraft {
+  return {
+    selectedActorIds: encounter.actorIds.slice(0, 2),
+    roleBrief: '',
+    perspectiveComparison: '',
+    negotiationPlan: '',
+    missingVoiceNote: '',
+    evidenceNotes: '',
+    completed: false,
+  }
+}
+
+function getActorNetworkDraftKey(scenarioId: string, encounterId: string) {
+  return `${scenarioId}:${encounterId}`
+}
+
+function parseActorNetworkDraftState(rawState: string | null): ActorNetworkDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as ActorNetworkDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<ActorNetworkDraft>
+        const selectedActorIds = Array.isArray(draft.selectedActorIds)
+          ? draft.selectedActorIds.filter((item): item is string => typeof item === 'string')
+          : []
+
+        return [[
+          key,
+          {
+            selectedActorIds,
+            roleBrief: typeof draft.roleBrief === 'string' ? draft.roleBrief : '',
+            perspectiveComparison: typeof draft.perspectiveComparison === 'string' ? draft.perspectiveComparison : '',
+            negotiationPlan: typeof draft.negotiationPlan === 'string' ? draft.negotiationPlan : '',
+            missingVoiceNote: typeof draft.missingVoiceNote === 'string' ? draft.missingVoiceNote : '',
+            evidenceNotes: typeof draft.evidenceNotes === 'string' ? draft.evidenceNotes : '',
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies ActorNetworkDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as ActorNetworkDraftState
+  }
+}
+
+function hasActorNetworkDraftActivity(draft: ActorNetworkDraft) {
+  return Boolean(
+    draft.selectedActorIds.length
+      || draft.roleBrief.trim()
+      || draft.perspectiveComparison.trim()
+      || draft.negotiationPlan.trim()
+      || draft.missingVoiceNote.trim()
+      || draft.evidenceNotes.trim()
+      || draft.completed,
+  )
+}
+
+function loadActorNetworkDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseActorNetworkDraftState(localStorage?.getItem(actorNetworkDraftStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasActorNetworkDraftActivity)) {
+    return localState
+  }
+
+  return parseActorNetworkDraftState(sessionStorage?.getItem(actorNetworkDraftStorageKey) ?? null)
+}
+
+function persistActorNetworkDraftState(state: ActorNetworkDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(actorNetworkDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(actorNetworkDraftStorageKey, serializedState)
+}
+
 function getTaskWorkbenchChecklist(task: LibraryTask) {
   return task.checklist?.length
     ? task.checklist
@@ -2565,6 +2676,58 @@ function getTaskWorkbenchStats(state: TaskWorkbenchState): TaskWorkbenchStats {
     checkedPromptCount: activeDrafts.reduce((count, [, draft]) => count + draft.checkedPromptIds.length, 0),
     recentDrafts: sortedDrafts.slice(0, 4),
   }
+}
+
+function formatActorNetworkBrief(scenario: Scenario, encounter: SocialEncounter, actors: SocialActor[], draft: ActorNetworkDraft) {
+  const selectedActors = actors.filter((actor) => draft.selectedActorIds.includes(actor.id))
+
+  return [
+    `TimeAtlas Actor Network Brief · ${scenario.title}`,
+    `Encounter：${encounter.title}`,
+    `Setting：${encounter.setting}`,
+    `Decision focus：${encounter.decisionFocus}`,
+    `状态：${draft.completed ? '已完成' : hasActorNetworkDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+    '',
+    'Selected actors:',
+    ...(selectedActors.length ? selectedActors.map((actor) => `- ${actor.name}｜${actor.role}｜关系：${actor.relationship}｜目标：${actor.goals}｜限制：${actor.constraints}｜知识边界：${actor.knowledgeLimits}｜风险：${actor.risksOrStakes}｜可能立场：${actor.likelyViewOfDecision}`) : ['- 尚未选择人物']),
+    '',
+    `Role brief：${draft.roleBrief.trim() || '尚未填写'}`,
+    `Perspective comparison：${draft.perspectiveComparison.trim() || '尚未填写'}`,
+    `Negotiation plan：${draft.negotiationPlan.trim() || '尚未填写'}`,
+    `Missing voice note：${draft.missingVoiceNote.trim() || '尚未填写'}`,
+    `Evidence notes：${draft.evidenceNotes.trim() || '尚未填写'}`,
+    '',
+    'Task checklist:',
+    ...encounter.taskChecklist.map((item) => `- ${item}`),
+    '',
+    'Evidence links:',
+    ...encounter.evidenceLinks.map((link) => `- ${link}`),
+  ].join('\n')
+}
+
+function formatActorNetworkTaskSheet(scenario: Scenario, encounter: SocialEncounter) {
+  const actors = scenario.socialActors.filter((actor) => encounter.actorIds.includes(actor.id))
+
+  return [
+    `TimeAtlas Actor Network Task · ${scenario.title}`,
+    `Encounter：${encounter.title}`,
+    `地点/情境：${scenario.location}｜${scenario.era}`,
+    `任务焦点：${encounter.decisionFocus}`,
+    `张力：${encounter.tension}`,
+    '',
+    '人物卡：',
+    ...actors.map((actor) => `- ${actor.name}：${actor.relationship}；目标：${actor.goals}；限制：${actor.constraints}；知识边界：${actor.knowledgeLimits}`),
+    '',
+    '执行清单：',
+    ...encounter.taskChecklist.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    '输出模板：',
+    'Role brief：',
+    'Perspective comparison：',
+    'Negotiation plan：',
+    'Missing voice / evidence limits：',
+  ].join('\n')
 }
 
 function formatTaskWorkbenchDraft(task: LibraryTask, draft: TaskWorkbenchDraft) {
@@ -2865,6 +3028,10 @@ function hasCompareDraftActivity(draft: CompareDraft) {
 
 function getActiveCompareDrafts(compareDraftState: CompareDraftState) {
   return Object.entries(compareDraftState).filter(([, draft]) => hasCompareDraftActivity(draft))
+}
+
+function getActiveActorNetworkDrafts(actorNetworkDraftState: ActorNetworkDraftState) {
+  return Object.entries(actorNetworkDraftState).filter(([, draft]) => hasActorNetworkDraftActivity(draft))
 }
 
 function hasCorroborationDraftActivity(draft: CorroborationDraft) {
@@ -4378,6 +4545,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     contextualization: 'Context draft / 情境化草稿',
     significance: 'Significance draft / 意义草稿',
     compare: 'Compare draft / 比较草稿',
+    'actor-network': 'Actor Network draft / 人物网络草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     workspace: 'Workspace entry / 跨场景工作区',
@@ -4401,6 +4569,7 @@ function buildSynthesisEvidencePool({
   significanceDraftState,
   compareDraftState,
   caseFileDraftState,
+  actorNetworkDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -4412,6 +4581,7 @@ function buildSynthesisEvidencePool({
   significanceDraftState: SignificanceDraftState
   compareDraftState: CompareDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
+  actorNetworkDraftState: ActorNetworkDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -4554,6 +4724,26 @@ function buildSynthesisEvidencePool({
     })
   })
 
+  getActiveActorNetworkDrafts(actorNetworkDraftState).forEach(([key, draft]) => {
+    const [scenarioId, encounterId] = key.split(':')
+    const scenario = getScenarioById(scenarioId)
+    const encounter = scenario?.socialEncounters.find((candidate) => candidate.id === encounterId)
+    const actors = scenario?.socialActors.filter((actor) => draft.selectedActorIds.includes(actor.id)) ?? []
+
+    entries.push({
+      id: makeSynthesisEvidenceId('actor-network', key),
+      origin: 'actor-network',
+      originLabel: getSynthesisOriginLabel('actor-network'),
+      title: encounter?.title ?? key,
+      text: [`人物：${actors.map((actor) => actor.name).join('、')}`, `角色简报：${draft.roleBrief}`, `视角比较：${draft.perspectiveComparison}`, `协商方案：${draft.negotiationPlan}`, `缺席声音：${draft.missingVoiceNote}`, `证据：${draft.evidenceNotes}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['actor network', 'social worlds', scenario?.region, scenario?.theme, draft.completed ? 'completed' : 'draft'].filter((tag): tag is string => Boolean(tag)),
+      scenarioTitle: scenario?.title,
+      scenarioId: scenario?.id,
+      inquiryTitle: encounter?.decisionFocus,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
   Object.entries(missionWorkState).forEach(([key, work]) => {
     if (!work.notes.trim() && work.checkedEvidence.length === 0) return
     const [scenarioId, missionId] = key.split(':')
@@ -4657,6 +4847,7 @@ function formatLearningArchive(
   synthesisDraftState: SynthesisDraftState,
   caseFileDraftState: EvidenceCaseFileDraftState,
   compareDraftState: CompareDraftState,
+  actorNetworkDraftState: ActorNetworkDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
@@ -4672,6 +4863,7 @@ function formatLearningArchive(
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
   const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
+  const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -4681,7 +4873,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -4701,6 +4893,7 @@ function formatLearningArchive(
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
+    `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
@@ -4734,6 +4927,25 @@ function formatLearningArchive(
     if (missionLines.length > 0) {
       lines.push(`${scenario.title} · ${scenario.era}`, ...missionLines, '')
     }
+  })
+
+  activeActorNetworkDrafts.forEach(([key, draft]) => {
+    const [scenarioId, encounterId] = key.split(':')
+    const scenario = getScenarioById(scenarioId)
+    const encounter = scenario?.socialEncounters.find((candidate) => candidate.id === encounterId)
+    const actors = scenario?.socialActors.filter((actor) => draft.selectedActorIds.includes(actor.id)) ?? []
+
+    lines.push(
+      `Actor Network / 人物网络：${encounter?.title ?? key}`,
+      `  场景：${scenario?.title ?? scenarioId}`,
+      `  状态：${draft.completed ? '已完成' : '草稿'}；人物：${actors.map((actor) => actor.name).join('、') || '未选择'}`,
+      `  Role brief：${draft.roleBrief.trim() || '未填写'}`,
+      `  Perspective comparison：${draft.perspectiveComparison.trim() || '未填写'}`,
+      `  Negotiation plan：${draft.negotiationPlan.trim() || '未填写'}`,
+      `  Missing voice：${draft.missingVoiceNote.trim() || '未填写'}`,
+      `  Evidence notes：${draft.evidenceNotes.trim() || '未填写'}`,
+      '',
+    )
   })
 
   const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
@@ -5703,6 +5915,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.lessonPack
   }
 
+  if (source === 'actor-network') {
+    return sectionIds.actorNetwork
+  }
+
   return defaultScenarioSectionId
 }
 
@@ -5726,6 +5942,7 @@ function inferPageFromHash(hash: string): PageId {
     sectionIds.lessonPack,
     sectionIds.activityPacks,
     sectionIds.missionBoard,
+    sectionIds.actorNetwork,
     sectionIds.decisionPanel,
     sectionIds.argumentStudio,
     sectionIds.sourceReader,
@@ -5754,6 +5971,7 @@ function getScenarioTabFromHash(hash: string | null): ScenarioExperienceTab {
   if (normalizedHash === sectionIds.lessonPack) return 'lesson'
   if (normalizedHash === sectionIds.activityPacks) return 'activities'
   if (normalizedHash === sectionIds.missionBoard) return 'missions'
+  if (normalizedHash === sectionIds.actorNetwork) return 'actors'
   if (normalizedHash === sectionIds.decisionPanel) return 'decision'
   if (normalizedHash === sectionIds.sourceReader) return 'sources'
   if (normalizedHash === sectionIds.argumentStudio) return 'argument'
@@ -6510,6 +6728,41 @@ function buildTaskLibraryTasks({
       }
 
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, ...tags, ...roleCards.map((role) => `${role.title} ${role.stance} ${role.brief}`), ...evidenceCards.map((card) => `${card.title} ${card.claimUse} ${card.reliabilityNote}`)].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
+    scenario.socialEncounters.forEach((encounter) => {
+      const encounterActors = scenario.socialActors.filter((actor) => encounter.actorIds.includes(actor.id))
+      const durationMinutes = 30
+      const durationBand = getDurationBand(durationMinutes)
+      const tags = ['Actor Network', 'Social Worlds', '人物网络', scenario.region, scenario.theme, ...encounterActors.map((actor) => actor.role)]
+      const task: LibraryTask = {
+        id: `actor-network:${scenario.id}:${encounter.id}`,
+        title: encounter.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: '人物关系与社会世界地图',
+        source: 'actor-network',
+        sourceLabel: 'Actor Network',
+        durationMinutes,
+        durationBand,
+        summary: encounter.decisionFocus,
+        deliverable: 'Actor Network Brief：人物立场、约束/知识边界、协商方案、缺席声音与证据 notes',
+        tags,
+        sourceBased: true,
+        searchText: '',
+        primaryActionLabel: '打开人物网络',
+        secondaryActionLabel: '打开来源层',
+        onPrimaryAction: () => onOpenScenario(scenario.id, sectionIds.actorNetwork),
+        onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.sourceReader),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [encounter.decisionFocus, encounter.tension, `人物：${encounterActors.map((actor) => actor.name).join('、')}`],
+        checklist: encounter.taskChecklist,
+        evidencePrompts: encounterActors.map((actor) => `${actor.name}：目标 ${actor.goals}；限制 ${actor.constraints}；知识边界 ${actor.knowledgeLimits}`),
+        formatSheet: () => formatActorNetworkTaskSheet(scenario, encounter),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, encounter.setting, encounter.tension, ...tags, ...encounter.taskChecklist, ...encounterActors.flatMap((actor) => [actor.name, actor.relationship, actor.goals, actor.constraints, actor.knowledgeLimits, actor.risksOrStakes, actor.likelyViewOfDecision])].join(' ').toLowerCase()
       tasks.push(task)
     })
   })
@@ -7378,6 +7631,7 @@ function App() {
   )
   const [assignmentBuilderDraft, setAssignmentBuilderDraft] = useState<AssignmentBuilderDraft>(loadAssignmentBuilderDraft)
   const [taskWorkbenchDraftState, setTaskWorkbenchDraftState] = useState<TaskWorkbenchState>(loadTaskWorkbenchDraftState)
+  const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
@@ -7407,7 +7661,7 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, missionWorkState, workspaceState])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
@@ -7670,6 +7924,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [taskWorkbenchDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistActorNetworkDraftState(actorNetworkDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [actorNetworkDraftState])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -8169,9 +8435,11 @@ function App() {
             completedMissionCount={completedMissionCount}
             missionWorkState={missionWorkState}
             argumentDraft={argumentDraftState[selectedScenario.id] ?? getEmptyArgumentDraft()}
+            actorNetworkDraftState={actorNetworkDraftState}
             onToggleMission={toggleMission}
             onUpdateMissionWork={setMissionWorkState}
             onUpdateArgumentDraft={setArgumentDraftState}
+            onUpdateActorNetworkDraftState={setActorNetworkDraftState}
             prefersReducedMotion={prefersReducedMotion}
             onOpenDebateStudio={openDebateStudio}
           />
@@ -8440,6 +8708,7 @@ function App() {
                 synthesisDraftState={synthesisDraftState}
                 caseFileDraftState={caseFileDraftState}
                 compareDraftState={compareDraftState}
+                actorNetworkDraftState={actorNetworkDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
             ) : null}
@@ -12484,6 +12753,7 @@ function PortfolioPanel({
   synthesisDraftState,
   caseFileDraftState,
   compareDraftState,
+  actorNetworkDraftState,
   taskWorkbenchDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
@@ -12503,6 +12773,7 @@ function PortfolioPanel({
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   compareDraftState: CompareDraftState
+  actorNetworkDraftState: ActorNetworkDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -12517,6 +12788,7 @@ function PortfolioPanel({
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
+  const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
@@ -12534,10 +12806,13 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentWorkbenchDrafts = taskWorkbenchStats.recentDrafts.slice(0, 3)
+  const recentActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -12585,6 +12860,7 @@ function PortfolioPanel({
               { label: '综合论证', value: synthesisDraftCount },
               { label: 'Case Files', value: caseFileDraftCount },
               { label: '比较草稿', value: compareDraftCount },
+              { label: '人物网络', value: actorNetworkDraftCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
@@ -12603,7 +12879,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -12622,6 +12898,19 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{task?.title ?? taskId}</div>
                       <div>Tasks Workbench · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {checkedCount}/{checklist.length} checklist</div>
                       <div className="mt-1 text-stone-500">{draft.claimExplanation.trim() || draft.evidenceNotes.trim() || '尚未填写 claim 或 evidence notes'}</div>
+                    </div>
+                  )
+                })}
+                {recentActorNetworkDrafts.map(([key, draft]) => {
+                  const [scenarioId, encounterId] = key.split(':')
+                  const scenario = getScenarioById(scenarioId)
+                  const encounter = scenario?.socialEncounters.find((candidate) => candidate.id === encounterId)
+
+                  return (
+                    <div key={key} className="rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{encounter?.title ?? key}</div>
+                      <div>Actor Network · {scenario?.title ?? scenarioId} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
+                      <div className="mt-1 text-stone-500">{draft.negotiationPlan.trim() || draft.perspectiveComparison.trim() || '尚未填写协商方案'}</div>
                     </div>
                   )
                 })}
@@ -15388,9 +15677,11 @@ function ScenarioExperience({
   completedMissionCount,
   missionWorkState,
   argumentDraft,
+  actorNetworkDraftState,
   onToggleMission,
   onUpdateMissionWork,
   onUpdateArgumentDraft,
+  onUpdateActorNetworkDraftState,
   prefersReducedMotion,
   onOpenDebateStudio,
 }: {
@@ -15403,9 +15694,11 @@ function ScenarioExperience({
   completedMissionCount: number
   missionWorkState: MissionWorkState
   argumentDraft: ArgumentDraft
+  actorNetworkDraftState: ActorNetworkDraftState
   onToggleMission: (scenarioId: string, missionId: string) => void
   onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
   onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
+  onUpdateActorNetworkDraftState: Dispatch<SetStateAction<ActorNetworkDraftState>>
   prefersReducedMotion: boolean | null
   onOpenDebateStudio: (scenarioId: string) => void
 }) {
@@ -15500,6 +15793,13 @@ function ScenarioExperience({
               onUpdateMissionWork={onUpdateMissionWork}
             />
           ) : null}
+          {selectedTab === 'actors' ? (
+            <ActorNetworkPanel
+              scenario={scenario}
+              draftState={actorNetworkDraftState}
+              onUpdateDraftState={onUpdateActorNetworkDraftState}
+            />
+          ) : null}
           {selectedTab === 'decision' ? (
             <DecisionPanel
               scenario={scenario}
@@ -15521,6 +15821,180 @@ function ScenarioExperience({
           ) : null}
         </motion.div>
       </AnimatePresence>
+    </section>
+  )
+}
+
+function ActorNetworkPanel({
+  scenario,
+  draftState,
+  onUpdateDraftState,
+}: {
+  scenario: Scenario
+  draftState: ActorNetworkDraftState
+  onUpdateDraftState: Dispatch<SetStateAction<ActorNetworkDraftState>>
+}) {
+  const [selectedEncounterId, setSelectedEncounterId] = useState(scenario.socialEncounters[0]?.id ?? '')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const encounter = scenario.socialEncounters.find((item) => item.id === selectedEncounterId) ?? scenario.socialEncounters[0]
+
+  useEffect(() => {
+    setSelectedEncounterId(scenario.socialEncounters[0]?.id ?? '')
+    setCopyStatus('idle')
+  }, [scenario.id, scenario.socialEncounters])
+
+  if (!encounter) {
+    return null
+  }
+
+  const draftKey = getActorNetworkDraftKey(scenario.id, encounter.id)
+  const draft = draftState[draftKey] ?? getEmptyActorNetworkDraft(encounter)
+  const encounterActors = scenario.socialActors.filter((actor) => encounter.actorIds.includes(actor.id))
+  const selectedActors = encounterActors.filter((actor) => draft.selectedActorIds.includes(actor.id))
+
+  function updateDraft(patch: Partial<ActorNetworkDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[draftKey] ?? getEmptyActorNetworkDraft(encounter)
+
+      return {
+        ...currentState,
+        [draftKey]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatActorNetworkBrief(scenario, encounter, encounterActors, draft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    downloadTextFile(`timeatlas-${scenario.id}-${encounter.id}-actor-network.txt`, formatActorNetworkBrief(scenario, encounter, encounterActors, draft))
+  }
+
+  return (
+    <section id={sectionIds.actorNetwork} className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5 shadow-2xl shadow-black/20" aria-labelledby="actor-network-title">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3 text-teal-100">
+            <Users size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">Social Worlds / Actor Network</span>
+          </div>
+          <h2 id="actor-network-title" className="text-3xl font-semibold tracking-tight text-stone-50">人物关系与社会世界地图</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">把人物关系、目标、限制、知识边界和证据缺口压缩成一张可协商的社会地图。</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+            {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+            {copyStatus === 'copied' ? '已复制 brief' : copyStatus === 'failed' ? '复制失败' : '复制 brief'}
+          </button>
+          <button type="button" onClick={downloadBrief} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-amber-100/30 hover:bg-white/[0.05]">下载 txt</button>
+          <a href={`#${sectionIds.sourceReader}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">打开来源</a>
+          <a href={`#${sectionIds.sceneReader}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">打开场景</a>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+        <aside className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="mb-3 text-xs uppercase tracking-[0.24em] text-stone-500">encounter workspace</div>
+            <div className="grid gap-2">
+              {scenario.socialEncounters.map((item) => (
+                <button key={item.id} type="button" onClick={() => setSelectedEncounterId(item.id)} className={`rounded-2xl border p-3 text-left transition ${item.id === encounter.id ? 'border-teal-200/45 bg-teal-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-teal-100/25'}`}>
+                  <div className="font-semibold text-stone-50">{item.title}</div>
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.decisionFocus}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-teal-100">Compact social map</h3>
+            <div className="mt-4 grid gap-3">
+              {encounterActors.map((actor, index) => (
+                <div key={actor.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-stone-950">{index + 1}</span>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-stone-50">{actor.name}</div>
+                    <div className="line-clamp-1 text-xs text-stone-500">{actor.relationship}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="grid gap-4">
+          <div className="grid gap-3 lg:grid-cols-3">
+            {encounterActors.map((actor) => {
+              const selected = draft.selectedActorIds.includes(actor.id)
+              return (
+                <button key={actor.id} type="button" onClick={() => updateDraft({ selectedActorIds: selected ? draft.selectedActorIds.filter((id) => id !== actor.id) : [...draft.selectedActorIds, actor.id] })} className={`rounded-3xl border p-4 text-left transition ${selected ? 'border-amber-200/45 bg-amber-100/[0.08]' : 'border-white/10 bg-black/20 hover:border-amber-100/25'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-stone-50">{actor.name}</h3>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-500">{actor.role}</p>
+                    </div>
+                    {selected ? <CheckCircle2 className="text-amber-100" size={18} /> : <Circle className="text-stone-600" size={18} />}
+                  </div>
+                  <dl className="mt-3 space-y-2 text-xs leading-5 text-stone-400">
+                    <div><dt className="text-teal-100">目标</dt><dd>{actor.goals}</dd></div>
+                    <div><dt className="text-teal-100">限制 / 知识边界</dt><dd>{actor.constraints}；{actor.knowledgeLimits}</dd></div>
+                    <div><dt className="text-teal-100">风险 / 可能立场</dt><dd>{actor.risksOrStakes}；{actor.likelyViewOfDecision}</dd></div>
+                  </dl>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1fr_0.82fr]">
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Draft fields</h3>
+              <div className="mt-3 grid gap-3">
+                {([
+                  ['roleBrief', 'Role brief', 2],
+                  ['perspectiveComparison', 'Perspective comparison', 3],
+                  ['negotiationPlan', 'Negotiation plan', 3],
+                  ['missingVoiceNote', 'Missing voice note', 2],
+                  ['evidenceNotes', 'Evidence notes', 3],
+                ] as [keyof ActorNetworkDraft, string, number][]).map(([field, label, rows]) => (
+                  <label key={field} className="block">
+                    <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                    <textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<ActorNetworkDraft>)} rows={rows} className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-stone-950/70 px-3 py-2 text-sm leading-6 text-stone-100 outline-none transition focus:border-amber-100/50" />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                <h3 className="font-semibold text-amber-100">Task checklist</h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-300">
+                  {encounter.taskChecklist.map((item) => <li key={item} className="flex gap-2"><Check size={16} className="mt-1 shrink-0 text-amber-100" />{item}</li>)}
+                </ul>
+                <button type="button" onClick={() => updateDraft({ completed: !draft.completed })} className={`mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${draft.completed ? 'bg-teal-100 text-stone-950' : 'border border-white/10 text-stone-200 hover:bg-white/[0.05]'}`}>
+                  {draft.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                  {draft.completed ? '已完成' : '标记完成'}
+                </button>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <h3 className="font-semibold text-stone-50">Selected voices</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{selectedActors.length ? selectedActors.map((actor) => actor.name).join('、') : '尚未选择人物'}</p>
+                <p className="mt-3 text-xs leading-5 text-stone-500">证据入口：{encounter.evidenceLinks.join(' / ')}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
