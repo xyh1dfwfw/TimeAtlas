@@ -71,10 +71,12 @@ const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
 const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
 const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
+const dispatchBoardDraftStorageKey = 'timeatlas:dispatch-board-drafts'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
   dailyLife: 'daily-life',
+  dispatchBoard: 'dispatch-board',
   sceneReader: 'scene-reader',
   lessonPack: 'lesson-pack',
   materialCulture: 'material-culture',
@@ -514,6 +516,7 @@ type SynthesisEvidenceOrigin =
   | 'chronology'
   | 'actor-network'
   | 'material-culture'
+  | 'dispatch'
   | 'mission-work'
   | 'workspace'
 
@@ -638,10 +641,10 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
-type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
+type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
 
 const scenarioExperienceTabs: {
   id: ScenarioExperienceTab
@@ -653,6 +656,7 @@ const scenarioExperienceTabs: {
   { id: 'overview', label: '概览', eyebrow: 'Overview', description: '身份卡、时间线与情境开场', hash: sectionIds.experience },
   { id: 'scenes', label: '现场阅读', eyebrow: 'Scene', description: '4 个历史现场 beat 与观察任务', hash: sectionIds.sceneReader },
   { id: 'daily', label: '日常生活', eyebrow: 'Daily', description: '食物、居所、工作、教育、风险与自由', hash: sectionIds.dailyLife },
+  { id: 'dispatches', label: '情境简报', eyebrow: 'Dispatch', description: '3 个短情境任务：选择、来源核查与风险简报', hash: sectionIds.dispatchBoard },
   { id: 'objects', label: '物件证据', eyebrow: 'Objects', description: 'Material Culture / Object Desk 物件证据台', hash: sectionIds.materialCulture },
   { id: 'lesson', label: '课堂包', eyebrow: 'Lesson', description: 'Quick / source / debate 课堂流程', hash: sectionIds.lessonPack },
   { id: 'activities', label: '活动包', eyebrow: 'Activity', description: 'Warmup、source lab、roleplay、writing 等任务', hash: sectionIds.activityPacks },
@@ -761,6 +765,52 @@ type TaskModule = {
 }
 
 type TaskModuleProgressState = Record<string, string[]>
+
+type DispatchMode = 'urgent-choice' | 'source-check' | 'risk-brief'
+
+type DispatchEvidence = {
+  id: string
+  label: string
+  title: string
+  text: string
+  sourceType: 'decision' | 'decision-option' | 'source' | 'scene-beat' | 'daily-life'
+  ctaHash?: ScenarioSectionId
+}
+
+type DispatchActionOption = {
+  id: string
+  label: string
+  description: string
+}
+
+type ScenarioDispatch = {
+  id: string
+  mode: DispatchMode
+  title: string
+  subtitle: string
+  situation: string
+  objective: string
+  urgency: string
+  suggestedEvidence: DispatchEvidence[]
+  actionOptions: DispatchActionOption[]
+  deliverable: string
+  tags: string[]
+  estimatedMinutes: number
+}
+
+type DispatchDraft = {
+  selectedActionId: string
+  selectedEvidenceIds: string[]
+  situationReading: string
+  riskAssessment: string
+  actionRationale: string
+  sourceLimitNote: string
+  messageReply: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type DispatchDraftState = Record<string, DispatchDraft>
 
 type LibraryTask = {
   id: string
@@ -956,6 +1006,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'debate', label: 'Debate Studio' },
   { value: 'actor-network', label: 'Actor Network' },
   { value: 'material-culture', label: 'Material Culture' },
+  { value: 'dispatch', label: 'Scenario Dispatch' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'causation', label: 'Causation Lab' },
@@ -2579,6 +2630,70 @@ function persistTaskModuleProgressState(state: TaskModuleProgressState) {
 }
 
 
+function parseDispatchDraftState(rawState: string | null): DispatchDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as DispatchDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<DispatchDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+
+        return [[
+          key,
+          {
+            selectedActionId: typeof draft.selectedActionId === 'string' ? draft.selectedActionId : '',
+            selectedEvidenceIds,
+            situationReading: typeof draft.situationReading === 'string' ? draft.situationReading : '',
+            riskAssessment: typeof draft.riskAssessment === 'string' ? draft.riskAssessment : '',
+            actionRationale: typeof draft.actionRationale === 'string' ? draft.actionRationale : '',
+            sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+            messageReply: typeof draft.messageReply === 'string' ? draft.messageReply : '',
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies DispatchDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as DispatchDraftState
+  }
+}
+
+function loadDispatchDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseDispatchDraftState(localStorage?.getItem(dispatchBoardDraftStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasDispatchDraftActivity)) {
+    return localState
+  }
+
+  return parseDispatchDraftState(sessionStorage?.getItem(dispatchBoardDraftStorageKey) ?? null)
+}
+
+function persistDispatchDraftState(state: DispatchDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(dispatchBoardDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(dispatchBoardDraftStorageKey, serializedState)
+}
+
 function getEmptyTaskWorkbenchDraft(taskId: string): TaskWorkbenchDraft {
   return {
     taskId,
@@ -3009,6 +3124,63 @@ function formatMaterialCultureTaskSheet(scenario: Scenario) {
   ].join('\n')
 }
 
+function formatDispatchBrief(dispatch: ScenarioDispatch, draft: DispatchDraft, selectedEvidence: DispatchEvidence[]) {
+  const selectedAction = dispatch.actionOptions.find((option) => option.id === draft.selectedActionId)
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : dispatch.suggestedEvidence.slice(0, 3)
+
+  return [
+    `TimeAtlas Scenario Dispatch Brief · ${dispatch.title}`,
+    `Mode：${getDispatchModeLabel(dispatch.mode)}`,
+    `状态：${draft.completed ? '已完成' : hasDispatchDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+    '',
+    `Situation：${dispatch.situation}`,
+    `Objective：${dispatch.objective}`,
+    `Urgency / pressure：${dispatch.urgency}`,
+    `Selected action：${selectedAction ? `${selectedAction.label}｜${selectedAction.description}` : '尚未选择'}`,
+    '',
+    'Selected evidence:',
+    ...evidenceForExport.map((evidence, index) => `${index + 1}. ${evidence.label}｜${evidence.title}
+   ${evidence.text}`),
+    '',
+    'Workspace draft:',
+    `Situation reading：${draft.situationReading.trim() || '尚未填写'}`,
+    `Risk assessment：${draft.riskAssessment.trim() || '尚未填写'}`,
+    `Action rationale：${draft.actionRationale.trim() || '尚未填写'}`,
+    `Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `Message reply：${draft.messageReply.trim() || '尚未填写'}`,
+    '',
+    `Deliverable：${dispatch.deliverable}`,
+  ].join('\n')
+}
+
+function formatDispatchTaskSheet(dispatch: ScenarioDispatch) {
+  return [
+    `TimeAtlas Scenario Dispatch Task：${dispatch.title}`,
+    `Mode：${getDispatchModeLabel(dispatch.mode)}`,
+    dispatch.subtitle,
+    '',
+    `情境：${dispatch.situation}`,
+    `目标：${dispatch.objective}`,
+    `压力/紧迫性：${dispatch.urgency}`,
+    '',
+    '建议证据：',
+    ...dispatch.suggestedEvidence.map((evidence, index) => `${index + 1}. ${evidence.label}｜${evidence.title}：${evidence.text}`),
+    '',
+    '行动选项：',
+    ...dispatch.actionOptions.map((option, index) => `${index + 1}. ${option.label}：${option.description}`),
+    '',
+    '执行清单：',
+    '1. 先用一句话读懂情境。',
+    '2. 选择至少 2 条 suggested evidence。',
+    '3. 选择一个 action option，并说明为什么现在可执行。',
+    '4. 写出风险评估和来源限制。',
+    '5. 用 message reply 完成短回应。',
+    '',
+    `交付物：${dispatch.deliverable}`,
+  ].join('\n')
+}
+
 function formatTaskWorkbenchDraft(task: LibraryTask, draft: TaskWorkbenchDraft) {
   const checklist = getTaskWorkbenchChecklist(task)
   const evidencePrompts = getTaskWorkbenchEvidencePrompts(task)
@@ -3195,6 +3367,186 @@ function getWorkspaceStats(workspaceState: WorkspaceState): WorkspaceStats {
   }
 }
 
+
+function getDispatchModeLabel(mode: DispatchMode) {
+  return {
+    'urgent-choice': 'Urgent choice / 紧急选择',
+    'source-check': 'Source check / 来源核查',
+    'risk-brief': 'Risk brief / 风险简报',
+  }[mode]
+}
+
+function getDispatchDraftKey(scenarioId: string, dispatchId: string) {
+  return `${scenarioId}:${dispatchId}`
+}
+
+function getEmptyDispatchDraft(dispatch?: ScenarioDispatch): DispatchDraft {
+  return {
+    selectedActionId: dispatch?.actionOptions[0]?.id ?? '',
+    selectedEvidenceIds: dispatch?.suggestedEvidence.slice(0, 2).map((evidence) => evidence.id) ?? [],
+    situationReading: '',
+    riskAssessment: '',
+    actionRationale: '',
+    sourceLimitNote: '',
+    messageReply: '',
+    completed: false,
+  }
+}
+
+function hasDispatchDraftActivity(draft: DispatchDraft) {
+  return Boolean(
+    draft.selectedActionId
+      || draft.selectedEvidenceIds.length
+      || draft.situationReading.trim()
+      || draft.riskAssessment.trim()
+      || draft.actionRationale.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.messageReply.trim()
+      || draft.completed,
+  )
+}
+
+function getActiveDispatchDrafts(dispatchDraftState: DispatchDraftState) {
+  return Object.entries(dispatchDraftState).filter((entry): entry is [string, DispatchDraft] => hasDispatchDraftActivity(entry[1]))
+}
+
+function getScenarioDispatchDraftStats(dispatchDraftState: DispatchDraftState) {
+  const activeDrafts = getActiveDispatchDrafts(dispatchDraftState)
+
+  return {
+    activeDrafts,
+    activeCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceIds.length, 0),
+    recentDrafts: [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '')).slice(0, 4),
+  }
+}
+
+function buildScenarioDispatches(scenario: Scenario): ScenarioDispatch[] {
+  const dailyByKey = Object.fromEntries(scenario.dailyLife.map((section) => [section.key, section])) as Partial<Record<DailyLifeKey, Scenario['dailyLife'][number]>>
+  const topSources = scenario.sources.slice(0, 3)
+  const riskDailySections = [dailyByKey.risks, dailyByKey.work, dailyByKey.freedoms].filter((section): section is Scenario['dailyLife'][number] => Boolean(section))
+  const decisionEvidence: DispatchEvidence[] = [
+    {
+      id: `${scenario.id}:decision:context`,
+      label: 'Decision context',
+      title: scenario.decision.prompt,
+      text: scenario.decision.context,
+      sourceType: 'decision',
+      ctaHash: sectionIds.decisionPanel,
+    },
+    ...scenario.decision.options.slice(0, 3).map((option) => ({
+      id: `${scenario.id}:decision:option:${option.id}`,
+      label: option.label,
+      title: option.stance,
+      text: `${option.description}｜即时：${option.immediate}｜长期：${option.longTerm}`,
+      sourceType: 'decision-option' as const,
+      ctaHash: sectionIds.decisionPanel,
+    })),
+    ...scenario.sceneBeats.slice(0, 1).map((beat, index) => ({
+      id: `${scenario.id}:decision:scene:${index}`,
+      label: 'Scene pressure',
+      title: `${beat.timeLabel} · ${beat.title}`,
+      text: `${beat.historicalTension}｜${beat.evidenceHook}`,
+      sourceType: 'scene-beat' as const,
+      ctaHash: sectionIds.sceneReader,
+    })),
+  ]
+
+  const sourceEvidence: DispatchEvidence[] = [
+    ...topSources.map((source, index) => ({
+      id: `${scenario.id}:source-check:source:${index}`,
+      label: sourceTypeLabels[source.sourceType],
+      title: source.title,
+      text: `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}`,
+      sourceType: 'source' as const,
+      ctaHash: sectionIds.sourceReader,
+    })),
+    {
+      id: `${scenario.id}:source-check:use`,
+      label: 'Evidence use',
+      title: '场景证据使用边界',
+      text: scenario.sourceEvidenceUse,
+      sourceType: 'source' as const,
+      ctaHash: sectionIds.sourceReader,
+    },
+  ]
+
+  const riskEvidence: DispatchEvidence[] = [
+    ...scenario.sceneBeats.slice(0, 2).map((beat, index) => ({
+      id: `${scenario.id}:risk:scene:${index}`,
+      label: 'Scene beat',
+      title: `${beat.timeLabel} · ${beat.title}`,
+      text: `${beat.historicalTension}｜${beat.learnerPrompt}`,
+      sourceType: 'scene-beat' as const,
+      ctaHash: sectionIds.sceneReader,
+    })),
+    ...riskDailySections.map((section) => ({
+      id: `${scenario.id}:risk:daily:${section.key}`,
+      label: section.label,
+      title: section.title,
+      text: section.text,
+      sourceType: 'daily-life' as const,
+      ctaHash: sectionIds.dailyLife,
+    })),
+  ]
+
+  return [
+    {
+      id: 'urgent-choice',
+      mode: 'urgent-choice',
+      title: '紧急选择简报',
+      subtitle: '把历史岔路转成当事人可执行的下一步',
+      situation: `${scenario.identity} 正面对选择：${scenario.decision.prompt}`,
+      objective: '在信息不完整的情况下说明一个可执行决定，并区分即时结果与长期风险。',
+      urgency: scenario.decision.context,
+      suggestedEvidence: decisionEvidence,
+      actionOptions: [
+        ...scenario.decision.options.slice(0, 3).map((option) => ({ id: option.id, label: option.label, description: `${option.stance}｜${option.description}` })),
+        { id: 'defer-and-verify', label: '暂缓并核实', description: '先补充一条来源或场景证据，再决定是否行动。' },
+      ],
+      deliverable: '一段 120 字以内的行动理由：选择、证据、风险、仍不确定之处。',
+      tags: ['dispatch', 'decision', 'agency', scenario.region, scenario.theme],
+      estimatedMinutes: 15,
+    },
+    {
+      id: 'source-check',
+      mode: 'source-check',
+      title: '来源核查简报',
+      subtitle: '先判断能信什么，再决定如何使用材料',
+      situation: `${scenario.title} 的来源层提供了 ${scenario.sources.length} 条材料，但视角与保存条件并不完整。`,
+      objective: '选 1-2 条来源，说明它能证明什么、不能证明什么，以及还需哪类互证。',
+      urgency: topSources[0]?.sourceQuestion ?? scenario.interpretationNote,
+      suggestedEvidence: sourceEvidence,
+      actionOptions: [
+        { id: 'use-with-caution', label: '谨慎采用', description: '把来源作为局部证据，同时明确可靠边界。' },
+        { id: 'seek-corroboration', label: '寻找互证', description: '需要另一条来源、scene beat 或日常生活线索支持。' },
+        { id: 'flag-silence', label: '标出沉默', description: '重点说明谁没有留下声音、材料为何不完整。' },
+      ],
+      deliverable: '一份 Source Check note：可用证据、可靠边界、缺席声音、下一步核查。',
+      tags: ['dispatch', 'source', 'corroboration', 'archive silence', scenario.region, scenario.theme],
+      estimatedMinutes: 12,
+    },
+    {
+      id: 'risk-brief',
+      mode: 'risk-brief',
+      title: '风险态势简报',
+      subtitle: '从现场、劳动与自由边界判断安全/机会',
+      situation: `${scenario.identity} 的一天同时受工作、风险与可行动空间影响。`,
+      objective: '用 scene beats 与日常生活风险/工作/自由线索，判断最紧迫的风险和可行回应。',
+      urgency: riskDailySections.map((section) => `${section.title}：${section.text}`).join('｜') || scenario.atmosphere,
+      suggestedEvidence: riskEvidence,
+      actionOptions: [
+        { id: 'reduce-exposure', label: '降低暴露', description: '先避开最直接的人身、制度或市场风险。' },
+        { id: 'protect-work', label: '保住工作/生计', description: '优先维护当天可执行的劳动、交易或学习安排。' },
+        { id: 'use-limited-freedom', label: '利用有限自由', description: '寻找协商、绕行、结盟或信息更新的空间。' },
+      ],
+      deliverable: '一段 risk brief：风险排序、可用资源、行动边界与给同伴/家人的短回复。',
+      tags: ['dispatch', 'risk', 'daily life', 'work', 'freedom', scenario.region, scenario.theme],
+      estimatedMinutes: 18,
+    },
+  ]
+}
 
 function countScenarioMissionWork(scenario: Scenario, missionWorkState: MissionWorkState) {
   return scenario.missions.filter((mission) => {
@@ -4859,6 +5211,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     compare: 'Compare draft / 比较草稿',
     'actor-network': 'Actor Network draft / 人物网络草稿',
     'material-culture': 'Material Culture draft / 物件证据草稿',
+    dispatch: 'Scenario Dispatch draft / 情境简报草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     workspace: 'Workspace entry / 跨场景工作区',
@@ -4885,6 +5238,7 @@ function buildSynthesisEvidencePool({
   caseFileDraftState,
   actorNetworkDraftState,
   materialCultureDraftState,
+  dispatchDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -4899,6 +5253,7 @@ function buildSynthesisEvidencePool({
   caseFileDraftState: EvidenceCaseFileDraftState
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
+  dispatchDraftState: DispatchDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -5076,6 +5431,27 @@ function buildSynthesisEvidencePool({
       scenarioTitle: scenario?.title,
       scenarioId: scenario?.id,
       inquiryTitle: encounter?.decisionFocus,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveDispatchDrafts(dispatchDraftState).forEach(([key, draft]) => {
+    const [scenarioId, dispatchId] = key.split(':')
+    const scenario = getScenarioById(scenarioId)
+    const dispatch = scenario ? buildScenarioDispatches(scenario).find((candidate) => candidate.id === dispatchId) : undefined
+    const selectedEvidence = dispatch?.suggestedEvidence.filter((evidence) => draft.selectedEvidenceIds.includes(evidence.id)) ?? []
+    const selectedAction = dispatch?.actionOptions.find((option) => option.id === draft.selectedActionId)
+
+    entries.push({
+      id: makeSynthesisEvidenceId('dispatch', key),
+      origin: 'dispatch',
+      originLabel: getSynthesisOriginLabel('dispatch'),
+      title: dispatch?.title ?? key,
+      text: [`行动：${selectedAction?.label ?? draft.selectedActionId}`, `情境：${draft.situationReading}`, `风险：${draft.riskAssessment}`, `理由：${draft.actionRationale}`, `限制：${draft.sourceLimitNote}`, `回复：${draft.messageReply}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['dispatch', dispatch?.mode, scenario?.region, scenario?.theme, ...selectedEvidence.map((evidence) => evidence.label), draft.completed ? 'completed' : 'draft'].filter((tag): tag is string => Boolean(tag)),
+      scenarioTitle: scenario?.title,
+      scenarioId: scenario?.id,
+      inquiryTitle: dispatch?.objective,
       updatedAt: draft.updatedAt,
     })
   })
@@ -5330,6 +5706,7 @@ function formatLearningArchive(
   compareDraftState: CompareDraftState,
   actorNetworkDraftState: ActorNetworkDraftState,
   materialCultureDraftState: MaterialCultureDraftState,
+  dispatchDraftState: DispatchDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
@@ -5348,6 +5725,7 @@ function formatLearningArchive(
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
   const activeMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
+  const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -5357,7 +5735,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -5380,6 +5758,7 @@ function formatLearningArchive(
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
+    `- Scenario Dispatch 草稿：${dispatchDraftStats.activeCount} drafts，${dispatchDraftStats.completedCount} completed，${dispatchDraftStats.selectedEvidenceCount} selected evidence`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
@@ -5450,6 +5829,31 @@ function formatLearningArchive(
       '',
     )
   })
+
+
+  if (dispatchDraftStats.activeDrafts.length > 0) {
+    lines.push('Scenario Dispatch Board / 情境简报板：')
+    dispatchDraftStats.activeDrafts.forEach(([key, draft]) => {
+      const [scenarioId, dispatchId] = key.split(':')
+      const scenario = getScenarioById(scenarioId)
+      const dispatch = scenario ? buildScenarioDispatches(scenario).find((candidate) => candidate.id === dispatchId) : undefined
+      const selectedAction = dispatch?.actionOptions.find((option) => option.id === draft.selectedActionId)
+      const selectedEvidenceTitles = dispatch?.suggestedEvidence.filter((evidence) => draft.selectedEvidenceIds.includes(evidence.id)).map((evidence) => `${evidence.label}｜${evidence.title}`) ?? []
+
+      lines.push(
+        `  - ${dispatch?.title ?? dispatchId}（${draft.completed ? '已完成' : '草稿'}｜${scenario?.title ?? scenarioId}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    行动：${selectedAction ? `${selectedAction.label}｜${selectedAction.description}` : draft.selectedActionId || '尚未选择'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    情境阅读：${draft.situationReading.trim() || '尚未填写'}`,
+        `    风险评估：${draft.riskAssessment.trim() || '尚未填写'}`,
+        `    行动理由：${draft.actionRationale.trim() || '尚未填写'}`,
+        `    来源限制：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    短回复：${draft.messageReply.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
+  }
 
   const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
 
@@ -5797,7 +6201,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -6452,6 +6856,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.materialCulture
   }
 
+  if (source === 'dispatch') {
+    return sectionIds.dispatchBoard
+  }
+
   if (source === 'chronology') {
     return sectionIds.sceneReader
   }
@@ -6481,6 +6889,7 @@ function inferPageFromHash(hash: string): PageId {
     sectionIds.missionBoard,
     sectionIds.actorNetwork,
     sectionIds.materialCulture,
+    sectionIds.dispatchBoard,
     sectionIds.decisionPanel,
     sectionIds.argumentStudio,
     sectionIds.sourceReader,
@@ -6506,6 +6915,7 @@ function getScenarioTabFromHash(hash: string | null): ScenarioExperienceTab {
 
   if (normalizedHash === sectionIds.sceneReader) return 'scenes'
   if (normalizedHash === sectionIds.dailyLife) return 'daily'
+  if (normalizedHash === sectionIds.dispatchBoard) return 'dispatches'
   if (normalizedHash === sectionIds.materialCulture) return 'objects'
   if (normalizedHash === sectionIds.lessonPack) return 'lesson'
   if (normalizedHash === sectionIds.activityPacks) return 'activities'
@@ -7172,6 +7582,39 @@ function buildTaskLibraryTasks({
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, summary, task.deliverable, ...tags, ...mission.steps, ...mission.evidenceChecklist].join(' ').toLowerCase()
       tasks.push(task)
     })
+
+    buildScenarioDispatches(scenario).forEach((dispatch) => {
+      const durationBand = getDurationBand(dispatch.estimatedMinutes)
+      const task: LibraryTask = {
+        id: `dispatch:${scenario.id}:${dispatch.id}`,
+        title: dispatch.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: getDispatchModeLabel(dispatch.mode),
+        source: 'dispatch',
+        sourceLabel: 'Scenario Dispatch',
+        durationMinutes: dispatch.estimatedMinutes,
+        durationBand,
+        summary: dispatch.objective,
+        deliverable: dispatch.deliverable,
+        tags: dispatch.tags,
+        sourceBased: true,
+        searchText: '',
+        primaryActionLabel: '打开情境简报',
+        secondaryActionLabel: '打开来源层',
+        onPrimaryAction: () => onOpenScenario(scenario.id, sectionIds.dispatchBoard),
+        onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.sourceReader),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [dispatch.situation, dispatch.objective, dispatch.urgency],
+        checklist: ['读懂情境与紧迫性', '选择至少 2 条 suggested evidence', '选择一个 action option', '写出行动理由与风险评估', '说明来源限制并完成短回复'],
+        evidencePrompts: dispatch.suggestedEvidence.map((evidence) => `${evidence.label}｜${evidence.title}：${evidence.text}`),
+        formatSheet: () => formatDispatchTaskSheet(dispatch),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, dispatch.subtitle, dispatch.situation, dispatch.urgency, ...dispatch.tags, ...dispatch.suggestedEvidence.flatMap((evidence) => [evidence.label, evidence.title, evidence.text]), ...dispatch.actionOptions.flatMap((option) => [option.label, option.description])].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
 
     scenario.activityPacks.forEach((activity) => {
       const durationBand = getDurationBand(activity.durationMinutes)
@@ -8243,6 +8686,7 @@ function App() {
   const [taskWorkbenchDraftState, setTaskWorkbenchDraftState] = useState<TaskWorkbenchState>(loadTaskWorkbenchDraftState)
   const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
   const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
+  const [dispatchDraftState, setDispatchDraftState] = useState<DispatchDraftState>(loadDispatchDraftState)
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
@@ -8272,7 +8716,7 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
@@ -8571,6 +9015,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [materialCultureDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistDispatchDraftState(dispatchDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [dispatchDraftState])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -9088,11 +9544,13 @@ function App() {
             argumentDraft={argumentDraftState[selectedScenario.id] ?? getEmptyArgumentDraft()}
             actorNetworkDraftState={actorNetworkDraftState}
             materialCultureDraftState={materialCultureDraftState}
+            dispatchDraftState={dispatchDraftState}
             onToggleMission={toggleMission}
             onUpdateMissionWork={setMissionWorkState}
             onUpdateArgumentDraft={setArgumentDraftState}
             onUpdateActorNetworkDraftState={setActorNetworkDraftState}
             onUpdateMaterialCultureDraftState={setMaterialCultureDraftState}
+            onUpdateDispatchDraftState={setDispatchDraftState}
             prefersReducedMotion={prefersReducedMotion}
             onOpenDebateStudio={openDebateStudio}
           />
@@ -9375,6 +9833,7 @@ function App() {
                 compareDraftState={compareDraftState}
                 actorNetworkDraftState={actorNetworkDraftState}
                 materialCultureDraftState={materialCultureDraftState}
+                dispatchDraftState={dispatchDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
             ) : null}
@@ -13422,6 +13881,7 @@ function PortfolioPanel({
   compareDraftState,
   actorNetworkDraftState,
   materialCultureDraftState,
+  dispatchDraftState,
   taskWorkbenchDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
@@ -13444,6 +13904,7 @@ function PortfolioPanel({
   compareDraftState: CompareDraftState
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
+  dispatchDraftState: DispatchDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -13461,6 +13922,7 @@ function PortfolioPanel({
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
   const materialCultureDraftCount = getActiveMaterialCultureDrafts(materialCultureDraftState).length
+  const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
@@ -13484,13 +13946,14 @@ function PortfolioPanel({
   const recentMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentDispatchDrafts = dispatchDraftStats.recentDrafts.slice(0, 3)
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -13541,6 +14004,8 @@ function PortfolioPanel({
               { label: '比较草稿', value: compareDraftCount },
               { label: '人物网络', value: actorNetworkDraftCount },
               { label: '物件证据', value: materialCultureDraftCount },
+              { label: '情境简报', value: dispatchDraftStats.activeCount },
+              { label: '简报完成', value: dispatchDraftStats.completedCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
@@ -13559,7 +14024,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -13602,6 +14067,19 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{challenge?.title ?? challengeId}</div>
                       <div>Chronology Desk · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEventIds.length} 条时间证据</div>
                       <div className="mt-1 text-stone-500">{draft.finalChronologyBrief.trim() || draft.turningPointClaim.trim() || draft.sequenceNotes.trim() || '尚未填写 chronology brief'}</div>
+                    </div>
+                  )
+                })}
+                {recentDispatchDrafts.map(([key, draft]) => {
+                  const [scenarioId, dispatchId] = key.split(':')
+                  const scenario = getScenarioById(scenarioId)
+                  const dispatch = scenario ? buildScenarioDispatches(scenario).find((candidate) => candidate.id === dispatchId) : undefined
+
+                  return (
+                    <div key={key} className="rounded-2xl border border-cyan-200/15 bg-cyan-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{dispatch?.title ?? dispatchId}</div>
+                      <div>Scenario Dispatch · {scenario?.title ?? scenarioId} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
+                      <div className="mt-1 text-stone-500">{draft.actionRationale.trim() || draft.messageReply.trim() || draft.situationReading.trim() || '尚未填写 dispatch rationale'}</div>
                     </div>
                   )
                 })}
@@ -16647,11 +17125,13 @@ function ScenarioExperience({
   argumentDraft,
   actorNetworkDraftState,
   materialCultureDraftState,
+  dispatchDraftState,
   onToggleMission,
   onUpdateMissionWork,
   onUpdateArgumentDraft,
   onUpdateActorNetworkDraftState,
   onUpdateMaterialCultureDraftState,
+  onUpdateDispatchDraftState,
   prefersReducedMotion,
   onOpenDebateStudio,
 }: {
@@ -16666,11 +17146,13 @@ function ScenarioExperience({
   argumentDraft: ArgumentDraft
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
+  dispatchDraftState: DispatchDraftState
   onToggleMission: (scenarioId: string, missionId: string) => void
   onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
   onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
   onUpdateActorNetworkDraftState: Dispatch<SetStateAction<ActorNetworkDraftState>>
   onUpdateMaterialCultureDraftState: Dispatch<SetStateAction<MaterialCultureDraftState>>
+  onUpdateDispatchDraftState: Dispatch<SetStateAction<DispatchDraftState>>
   prefersReducedMotion: boolean | null
   onOpenDebateStudio: (scenarioId: string) => void
 }) {
@@ -16753,6 +17235,13 @@ function ScenarioExperience({
 
           {selectedTab === 'scenes' ? <SceneReaderPanel scenario={scenario} /> : null}
           {selectedTab === 'daily' ? <DailyLifeGrid scenario={scenario} /> : null}
+          {selectedTab === 'dispatches' ? (
+            <DispatchBoardPanel
+              scenario={scenario}
+              draftState={dispatchDraftState}
+              onUpdateDraftState={onUpdateDispatchDraftState}
+            />
+          ) : null}
           {selectedTab === 'objects' ? (
             <MaterialCulturePanel
               scenario={scenario}
@@ -17418,6 +17907,214 @@ function DailyLifeGrid({ scenario }: { scenario: Scenario }) {
           <p className="mt-3 leading-7 text-stone-400">{section.text}</p>
         </article>
       ))}
+    </section>
+  )
+}
+
+
+function DispatchBoardPanel({
+  scenario,
+  draftState,
+  onUpdateDraftState,
+}: {
+  scenario: Scenario
+  draftState: DispatchDraftState
+  onUpdateDraftState: Dispatch<SetStateAction<DispatchDraftState>>
+}) {
+  const dispatches = useMemo(() => buildScenarioDispatches(scenario), [scenario])
+  const [selectedDispatchId, setSelectedDispatchId] = useState(dispatches[0]?.id ?? '')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedDispatch = dispatches.find((dispatch) => dispatch.id === selectedDispatchId) ?? dispatches[0]
+  const draftKey = selectedDispatch ? getDispatchDraftKey(scenario.id, selectedDispatch.id) : ''
+  const draft = selectedDispatch ? draftState[draftKey] ?? getEmptyDispatchDraft(selectedDispatch) : getEmptyDispatchDraft()
+  const selectedEvidence = selectedDispatch?.suggestedEvidence.filter((evidence) => draft.selectedEvidenceIds.includes(evidence.id)) ?? []
+  const selectedAction = selectedDispatch?.actionOptions.find((option) => option.id === draft.selectedActionId)
+  const completedFields = [draft.situationReading, draft.riskAssessment, draft.actionRationale, draft.sourceLimitNote, draft.messageReply].filter((value) => value.trim()).length
+
+  useEffect(() => {
+    setSelectedDispatchId(dispatches[0]?.id ?? '')
+    setCopyStatus('idle')
+  }, [dispatches, scenario.id])
+
+  if (!selectedDispatch) {
+    return null
+  }
+
+  function updateDraft(patch: Partial<DispatchDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[draftKey] ?? getEmptyDispatchDraft(selectedDispatch)
+
+      return {
+        ...currentState,
+        [draftKey]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[draftKey]
+      return nextState
+    })
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatDispatchBrief(selectedDispatch, draft, selectedEvidence))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    downloadTextFile(`timeatlas-${scenario.id}-${selectedDispatch.id}-dispatch-brief.txt`, formatDispatchBrief(selectedDispatch, draft, selectedEvidence))
+  }
+
+  return (
+    <section id={sectionIds.dispatchBoard} className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.045] p-5 shadow-2xl shadow-black/20" aria-labelledby="dispatch-board-title">
+      <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3 text-cyan-100">
+            <ClipboardList size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">Scenario Dispatch Board</span>
+          </div>
+          <h2 id="dispatch-board-title" className="text-3xl font-semibold tracking-tight text-stone-50">情境简报板</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">每个历史身份自动派生 3 个可执行短任务：紧急选择、来源核查与风险态势。草稿保存在本机，不新增 scenario schema。</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-cyan-200 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-cyan-100">
+            {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+            {copyStatus === 'copied' ? '已复制 brief' : copyStatus === 'failed' ? '复制失败' : '复制 Dispatch Brief'}
+          </button>
+          <button type="button" onClick={downloadBrief} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-cyan-100/30 hover:bg-white/[0.05]">下载 txt</button>
+          <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-red-200/30 hover:bg-red-100/[0.05]">清空草稿</button>
+          <a href={`#${sectionIds.sourceReader}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">打开来源</a>
+          <a href={`#${sectionIds.sceneReader}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">打开场景</a>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
+        <aside className="space-y-4">
+          <div className="grid gap-2">
+            {dispatches.map((dispatch) => {
+              const key = getDispatchDraftKey(scenario.id, dispatch.id)
+              const itemDraft = draftState[key] ?? getEmptyDispatchDraft(dispatch)
+              const isSelected = dispatch.id === selectedDispatch.id
+
+              return (
+                <button key={dispatch.id} type="button" onClick={() => setSelectedDispatchId(dispatch.id)} className={`rounded-3xl border p-4 text-left transition ${isSelected ? 'border-cyan-200/50 bg-cyan-100/[0.09]' : 'border-white/10 bg-black/20 hover:border-cyan-100/25 hover:bg-white/[0.04]'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">{getDispatchModeLabel(dispatch.mode)}</div>
+                      <h3 className="mt-1 font-semibold text-stone-50">{dispatch.title}</h3>
+                    </div>
+                    {itemDraft.completed ? <CheckCircle2 size={17} className="shrink-0 text-cyan-100" /> : <Circle size={17} className="shrink-0 text-stone-600" />}
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-400">{dispatch.subtitle}</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-500">
+                    <span className="rounded-full border border-white/10 px-2.5 py-1">{dispatch.estimatedMinutes} min</span>
+                    <span className="rounded-full border border-white/10 px-2.5 py-1">{itemDraft.selectedEvidenceIds.length}/{dispatch.suggestedEvidence.length} evidence</span>
+                    <span className="rounded-full border border-white/10 px-2.5 py-1">{itemDraft.completed ? 'completed' : hasDispatchDraftActivity(itemDraft) ? 'draft' : 'new'}</span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">Workspace status</h3>
+            <p className="mt-2 text-sm text-stone-400">{draft.completed ? '已完成' : hasDispatchDraftActivity(draft) ? '草稿' : '未开始'} · fields {completedFields}/5 · evidence {selectedEvidence.length}</p>
+            <p className="mt-1 text-xs text-stone-500">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '优先 localStorage；受限时回退 sessionStorage。'}</p>
+            <button type="button" onClick={() => updateDraft({ completed: !draft.completed })} className={`mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${draft.completed ? 'bg-cyan-100 text-stone-950' : 'border border-white/10 text-stone-200 hover:bg-white/[0.05]'}`}>
+              {draft.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+              {draft.completed ? '已完成' : '标记完成'}
+            </button>
+          </div>
+        </aside>
+
+        <div className="grid gap-4">
+          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+            <article className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Situation detail</div>
+              <h3 className="mt-2 text-2xl font-semibold text-stone-50">{selectedDispatch.title}</h3>
+              <p className="mt-3 leading-7 text-stone-300">{selectedDispatch.situation}</p>
+              <dl className="mt-4 grid gap-3 text-sm leading-6 text-stone-400">
+                <div><dt className="text-cyan-100">Objective</dt><dd>{selectedDispatch.objective}</dd></div>
+                <div><dt className="text-cyan-100">Urgency</dt><dd>{selectedDispatch.urgency}</dd></div>
+                <div><dt className="text-cyan-100">Deliverable</dt><dd>{selectedDispatch.deliverable}</dd></div>
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedDispatch.tags.slice(0, 8).map((tag) => <span key={tag} className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-xs text-stone-400">{tag}</span>)}
+              </div>
+            </article>
+
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Action options</h3>
+              <div className="mt-3 grid gap-2">
+                {selectedDispatch.actionOptions.map((option) => (
+                  <button key={option.id} type="button" onClick={() => updateDraft({ selectedActionId: option.id })} className={`rounded-2xl border p-3 text-left text-sm transition ${draft.selectedActionId === option.id ? 'border-cyan-200/50 bg-cyan-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-cyan-100/25'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-stone-50">{option.label}</span>
+                      {draft.selectedActionId === option.id ? <CheckCircle2 size={16} className="text-cyan-100" /> : null}
+                    </div>
+                    <p className="mt-1 leading-5 text-stone-400">{option.description}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-stone-500">当前行动：{selectedAction ? selectedAction.label : '尚未选择'}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-cyan-100">Suggested evidence</h3>
+              <div className="mt-3 grid gap-2">
+                {selectedDispatch.suggestedEvidence.map((evidence) => {
+                  const selected = draft.selectedEvidenceIds.includes(evidence.id)
+
+                  return (
+                    <button key={evidence.id} type="button" onClick={() => updateDraft({ selectedEvidenceIds: selected ? draft.selectedEvidenceIds.filter((id) => id !== evidence.id) : [...draft.selectedEvidenceIds, evidence.id] })} className={`rounded-2xl border p-3 text-left transition ${selected ? 'border-cyan-200/45 bg-cyan-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-cyan-100/25'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.16em] text-stone-500">{evidence.label}</div>
+                          <div className="mt-1 font-semibold text-stone-50">{evidence.title}</div>
+                        </div>
+                        {selected ? <CheckCircle2 size={16} className="shrink-0 text-cyan-100" /> : null}
+                      </div>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-stone-400">{evidence.text}</p>
+                      {evidence.ctaHash ? <a href={`#${evidence.ctaHash}`} className="mt-2 inline-flex text-xs font-semibold text-cyan-100 hover:text-cyan-50">打开相关 section</a> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Workspace draft fields</h3>
+              <div className="mt-3 grid gap-3">
+                {([
+                  ['situationReading', 'Situation reading', 2],
+                  ['riskAssessment', 'Risk assessment', 2],
+                  ['actionRationale', 'Action rationale', 2],
+                  ['sourceLimitNote', 'Source limit note', 2],
+                  ['messageReply', 'Message reply', 2],
+                ] as [keyof DispatchDraft, string, number][]).map(([field, label, rows]) => (
+                  <label key={field} className="block">
+                    <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                    <textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<DispatchDraft>)} rows={rows} className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-stone-950/70 px-3 py-2 text-sm leading-6 text-stone-100 outline-none transition focus:border-cyan-100/50" />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
