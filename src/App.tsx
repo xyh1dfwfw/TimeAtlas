@@ -764,6 +764,31 @@ type TaskLibraryPreset = {
   matcher: (task: LibraryTask) => boolean
 }
 
+type TaskPackSelector = {
+  taskIds?: string[]
+  sources?: TaskLibrarySource[]
+  scenarioIds?: string[]
+  durationBands?: DurationBand[]
+  keywords?: string[]
+  sourceBasedOnly?: boolean
+}
+
+type TaskPack = {
+  id: string
+  title: string
+  audience: string
+  totalMinutes: number
+  learningGoal: string
+  finalDeliverable: string
+  teacherNotes: string
+  studentInstructions: string
+  rubricFocus: string
+  tags: string[]
+  coverage: string[]
+  selectors: TaskPackSelector[]
+  fallbackKeywords: string[]
+}
+
 type TaskDiscoveryCollection = TaskLibraryPreset & {
   reason: string
   audience: string
@@ -4942,6 +4967,123 @@ function buildLearningCoachRecommendations({
   return recommendations.slice(0, 4)
 }
 
+const taskPacks: TaskPack[] = [
+  {
+    id: 'first-45-minutes',
+    title: 'First 45 Minutes',
+    audience: '第一次进入 TimeAtlas 的中学历史课堂 / 社团体验课',
+    totalMinutes: 45,
+    learningGoal: '用一个低门槛身份现场、一个来源判断和一个短出口产出，建立 TimeAtlas 的证据驱动学习流程。',
+    finalDeliverable: '一张 45 分钟入门任务单：现场观察、来源边界、出口判断。',
+    teacherNotes: '先用 quick / warmup 型任务降低进入门槛，再转向一条 source-based 任务，最后要求学生写出“我能确定 / 仍不确定”的出口判断。',
+    studentInstructions: '按顺序完成任务；每一步只保留最关键的一条证据和一句解释，最后写出一个仍需要更多来源的问题。',
+    rubricFocus: '进入情境、证据定位、来源边界、出口判断清晰度',
+    tags: ['starter', '45 minutes', 'warmup', 'source-based'],
+    coverage: ['Scenario entry', 'Source judgement', 'Exit ticket'],
+    selectors: [
+      { sources: ['lesson'], durationBands: ['short'], keywords: ['quick', '15', 'exit ticket', '快速'] },
+      { sources: ['activity'], durationBands: ['short', 'medium'], keywords: ['warmup', 'source-lab', '观察', '来源'] },
+      { sources: ['mission'], durationBands: ['short', 'medium'], keywords: ['evidence', 'source', '现场', '证据'] },
+    ],
+    fallbackKeywords: ['quick', 'warmup', 'source', 'evidence', 'exit ticket', '快速', '来源', '证据'],
+  },
+  {
+    id: 'source-detective-workshop',
+    title: 'Source Detective Workshop',
+    audience: '史料阅读训练、小组互证课、研究型作业起步',
+    totalMinutes: 60,
+    learningGoal: '训练学生判断来源视角、可靠边界、互证关系和档案沉默，而不是把材料当作透明事实。',
+    finalDeliverable: '一份 Source Detective evidence log：来源、可说明内容、可靠边界、需要互证的问题。',
+    teacherNotes: '优先选择 source-based 任务；提醒学生每条来源必须同时写“能说明什么”和“不能说明什么”。',
+    studentInstructions: '每完成一个任务，记录至少一条来源细节、一个可靠性判断和一个需要其他材料互证的问题。',
+    rubricFocus: '来源判断、互证、缺席声音、不确定性表达',
+    tags: ['source detective', 'corroboration', 'archive silence', 'evidence'],
+    coverage: ['Source Atlas', 'Compare credibility', 'Archive silence'],
+    selectors: [
+      { taskIds: ['compare:source-credibility'] },
+      { sources: ['activity'], sourceBasedOnly: true, keywords: ['source-lab', 'credibility', 'silence', '来源', '可靠'] },
+      { sources: ['perspectives', 'significance', 'causation'], sourceBasedOnly: true, keywords: ['source', 'evidence', 'archive', 'silence', '来源', '证据', '档案', '沉默'] },
+    ],
+    fallbackKeywords: ['source', 'evidence', 'credibility', 'corroboration', 'archive', 'silence', '来源', '证据', '互证', '可靠', '档案', '沉默'],
+  },
+  {
+    id: 'commodity-chains-labor',
+    title: 'Commodity Chains & Labor',
+    audience: '全球史、劳动史、工业化或奴隶制专题课',
+    totalMinutes: 75,
+    learningGoal: '解释糖、棉和港口商品链如何连接强制劳动、工厂时间、殖民监管和来源沉默。',
+    finalDeliverable: '四站商品链劳动证据图 + 一段关于劳动纪律变化的历史论证。',
+    teacherNotes: '让学生避免只说“全球贸易”，必须指出商品链怎样穿过身体、制度、时间纪律和档案。',
+    studentInstructions: '把每个任务中的商品、劳动形式、制度约束和证据限制各记录一句，最后合成一条主张。',
+    rubricFocus: '商品链因果、劳动纪律、跨场景连接、来源限制',
+    tags: ['commodity chains', 'labor', 'sugar', 'cotton', 'causation'],
+    coverage: ['Saint-Domingue', 'Manchester/Bombay', 'Causation', 'Synthesis'],
+    selectors: [
+      { taskIds: ['causation:commodity-empires-labor-discipline', 'periodization:commodity-chains-labor-time-periods', 'significance:commodity-chains-changing-worlds', 'synthesis:commodity-chains-labor'] },
+      { scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker'], keywords: ['sugar', 'cotton', 'labor', 'discipline', '糖', '棉', '劳动', '纪律'] },
+      { sources: ['inquiry'], keywords: ['sugar', 'cotton', 'commodity', 'labor', '强制劳动', '商品'] },
+    ],
+    fallbackKeywords: ['commodity', 'sugar', 'cotton', 'labor', 'labour', 'discipline', 'coercion', '商品', '糖', '棉', '劳动', '强制', '纪律'],
+  },
+  {
+    id: 'monsoon-ports-credit',
+    title: 'Monsoon Ports & Credit',
+    audience: '印度洋、海上亚洲、商业信用与中介角色专题课',
+    totalMinutes: 75,
+    learningGoal: '说明季风时间、信用文书、语言中介、港口名声和国家权力如何共同维持远距离交易。',
+    finalDeliverable: '港口信用工作链：时间、文书、中介、风险、权力与证据边界。',
+    teacherNotes: '把“贸易路线”改写为可执行交易机制：谁写信、谁担保、谁翻译、谁承担延误和政治风险。',
+    studentInstructions: '在每个任务中标出一个信用机制、一个港口/季风风险和一个中介行动，再解释它们怎样连接。',
+    rubricFocus: '情境尺度、信用机制、中介角色、风险与证据',
+    tags: ['monsoon', 'ports', 'credit', 'intermediaries', 'context'],
+    coverage: ['Fustat/Geniza', 'Kilwa', 'Malacca', 'Context/Causation'],
+    selectors: [
+      { taskIds: ['contextualization:monsoon-ports-intermediaries', 'causation:port-credit-distant-trade', 'periodization:port-credit-monsoon-world-periods', 'synthesis:markets-power-risk'] },
+      { scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker'], keywords: ['monsoon', 'credit', 'letter', 'broker', 'port', '季风', '信用', '港口', '中介'] },
+      { sources: ['inquiry'], keywords: ['monsoon', 'indian ocean', 'credit', 'geniza', 'port', '季风', '印度洋', '信用'] },
+    ],
+    fallbackKeywords: ['monsoon', 'port', 'credit', 'intermediary', 'broker', 'letter', 'contract', 'indian ocean', '季风', '港口', '信用', '中介', '书信', '合约'],
+  },
+  {
+    id: 'nonwritten-evidence-archive-silence',
+    title: 'Nonwritten Evidence & Archive Silence',
+    audience: '史料方法、安第斯/美洲史、殖民档案与边缘声音专题课',
+    totalMinutes: 75,
+    learningGoal: '比较 khipu、考古、殖民编年和幸存档案怎样让制度劳动可见，同时让普通人的解释权沉默。',
+    finalDeliverable: '“记录媒介—制度劳动—可见/沉默”证据图 + 谨慎历史解释。',
+    teacherNotes: '提醒学生不要用想象填补空白；把非文字证据和档案沉默都当作需要说明的历史证据条件。',
+    studentInstructions: '每一步写清楚：证据媒介是什么、能看见谁/什么劳动、看不见谁的声音、你的结论需要怎样限定。',
+    rubricFocus: '非文字证据、档案沉默、来源限制、谨慎论证',
+    tags: ['nonwritten evidence', 'khipu', 'archive silence', 'absent voices'],
+    coverage: ['Cusco khipu', 'Archive silence', 'Perspectives', 'Synthesis'],
+    selectors: [
+      { taskIds: ['inquiry:nonwritten-records-archive-silence', 'inquiry:nonwritten-evidence-and-imperial-labor', 'perspectives:who-speaks-who-is-recorded', 'synthesis:archive-silence-significance'] },
+      { taskIds: ['causation:archive-silence-causal-judgment', 'significance:archive-silence-changing-significance', 'contextualization:archive-context-visibility', 'periodization:archive-visibility-changes-periods'] },
+      { scenarioIds: ['inca-cusco-khipu-runner'], sourceBasedOnly: true, keywords: ['khipu', 'quipu', 'nonwritten', 'archive', 'silence', 'mit’a', '结绳', '非文字', '档案', '沉默'] },
+    ],
+    fallbackKeywords: ['nonwritten', 'non-written', 'khipu', 'quipu', 'archive', 'silence', 'absent', 'mit’a', 'mita', 'source limits', '非文字', '结绳', '档案', '沉默', '缺席', '来源限制'],
+  },
+  {
+    id: 'debate-to-argument',
+    title: 'Debate to Argument',
+    audience: '课堂讨论、角色辩论、论证写作前置课',
+    totalMinutes: 60,
+    learningGoal: '把角色立场、证据责任、反驳和来源限制从口头讨论转化为清晰历史论证。',
+    finalDeliverable: '一份 debate-to-argument sheet：立场、证据、反驳、来源限制、修订后的主张段落。',
+    teacherNotes: '先让学生进入角色和证据卡，再要求他们脱离表演，把讨论记录重写成可评价的历史主张。',
+    studentInstructions: '在辩论任务中记录一条己方证据、一条对方证据和一个追问；最后把它们改写成主张—证据—反驳段落。',
+    rubricFocus: '角色视角、证据支撑、反驳质量、论证清晰、来源限制',
+    tags: ['debate', 'argument', 'counterclaim', 'synthesis'],
+    coverage: ['Debate Studio', 'Roleplay', 'Evidence', 'Writing'],
+    selectors: [
+      { sources: ['debate'], keywords: ['debate', 'hearing', 'source challenge', 'forum', '辩论', '听证', '质询'] },
+      { sources: ['activity', 'lesson'], keywords: ['debate', 'roleplay', 'discussion', 'argument', 'writing', '辩论', '角色', '讨论', '写作'] },
+      { sources: ['synthesis'], keywords: ['argument', 'claim', 'counterargument', 'thesis', '论证', '主张', '反驳'] },
+    ],
+    fallbackKeywords: ['debate', 'roleplay', 'hearing', 'forum', 'argument', 'claim', 'counterargument', 'thesis', 'writing', '辩论', '角色', '讨论', '论证', '主张', '反驳', '写作'],
+  },
+]
+
 function getTaskDiscoveryCollections(): TaskDiscoveryCollection[] {
   return [
     {
@@ -5052,6 +5194,99 @@ function getMatchingTasksForPreset(tasks: LibraryTask[], preset: TaskLibraryPres
 
     return matchesPreset && matchesDuration && matchesSource && matchesSourceBased
   })
+}
+
+function taskMatchesSelector(task: LibraryTask, selector: TaskPackSelector) {
+  const matchesTaskId = !selector.taskIds?.length || selector.taskIds.includes(task.id)
+  const matchesSource = !selector.sources?.length || selector.sources.includes(task.source)
+  const matchesScenario = !selector.scenarioIds?.length || (task.scenarioId ? selector.scenarioIds.includes(task.scenarioId) : false)
+  const matchesDuration = !selector.durationBands?.length || selector.durationBands.includes(task.durationBand)
+  const matchesSourceBased = !selector.sourceBasedOnly || task.sourceBased
+  const matchesKeywords = !selector.keywords?.length || taskMatchesAny(task, selector.keywords)
+
+  return matchesTaskId && matchesSource && matchesScenario && matchesDuration && matchesSourceBased && matchesKeywords
+}
+
+function getTaskPackTasks(pack: TaskPack, libraryTasks: LibraryTask[]) {
+  const tasksById = new Map(libraryTasks.map((task) => [task.id, task]))
+  const selectedTasks: LibraryTask[] = []
+  const selectedTaskIds = new Set<string>()
+
+  function addTask(task: LibraryTask | undefined) {
+    if (!task || selectedTaskIds.has(task.id) || selectedTasks.length >= 6) {
+      return
+    }
+
+    selectedTasks.push(task)
+    selectedTaskIds.add(task.id)
+  }
+
+  pack.selectors.forEach((selector) => {
+    selector.taskIds?.forEach((taskId) => addTask(tasksById.get(taskId)))
+  })
+
+  pack.selectors.forEach((selector) => {
+    libraryTasks.filter((task) => taskMatchesSelector(task, selector)).forEach(addTask)
+  })
+
+  if (selectedTasks.length < Math.min(3, libraryTasks.length)) {
+    libraryTasks.filter((task) => taskMatchesAny(task, pack.fallbackKeywords)).forEach(addTask)
+  }
+
+  if (selectedTasks.length < Math.min(3, libraryTasks.length)) {
+    libraryTasks.filter((task) => pack.tags.some((tag) => task.searchText.includes(tag.toLowerCase()))).forEach(addTask)
+  }
+
+  return selectedTasks.slice(0, 6)
+}
+
+function buildTaskPackDraft(pack: TaskPack, tasks: LibraryTask[]): AssignmentBuilderDraft {
+  return {
+    selectedTaskIds: tasks.slice(0, 6).map((task) => task.id),
+    title: pack.title,
+    audience: pack.audience,
+    timeBox: `${pack.totalMinutes} 分钟（匹配任务合计 ${tasks.reduce((total, task) => total + task.durationMinutes, 0)} 分钟，可按课堂节奏裁剪）`,
+    learningGoal: pack.learningGoal,
+    finalDeliverable: pack.finalDeliverable,
+    teacherNotes: pack.teacherNotes,
+    studentInstructions: pack.studentInstructions,
+    rubricFocus: pack.rubricFocus,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function formatTaskPackSheet(pack: TaskPack, tasks: LibraryTask[]) {
+  const taskTotalMinutes = tasks.reduce((total, task) => total + task.durationMinutes, 0)
+  const sourceLabels = [...new Set(tasks.map((task) => task.sourceLabel))]
+  const scenarioCoverage = [...new Set(tasks.map((task) => task.scenarioId ? getScenarioById(task.scenarioId)?.title ?? task.scenarioId : task.context).filter(Boolean))]
+
+  return [
+    `TimeAtlas Task Pack：${pack.title}`,
+    `适用对象：${pack.audience}`,
+    `建议时间：${pack.totalMinutes} 分钟（匹配任务合计 ${taskTotalMinutes} 分钟）`,
+    `学习目标：${pack.learningGoal}`,
+    `最终交付物：${pack.finalDeliverable}`,
+    `覆盖：${pack.coverage.join('、')}`,
+    `标签：${pack.tags.join('、')}`,
+    `来源类别：${sourceLabels.join('、') || '暂无匹配'}`,
+    `场景覆盖：${scenarioCoverage.join('、') || '跨场景 / 通用任务'}`,
+    '',
+    '任务序列（最多 6 个）：',
+    ...tasks.slice(0, 6).map((task, index) => [
+      `${index + 1}. ${task.title}（${task.durationMinutes} 分钟｜${task.sourceLabel}｜${task.category}）`,
+      `   情境：${task.context}`,
+      `   任务：${task.summary}`,
+      `   交付物：${task.deliverable}`,
+    ].join('\n')),
+    tasks.length ? '' : '- 当前任务库未匹配到任务，请在 Assignment Builder 中手动补充。',
+    '教师说明：',
+    pack.teacherNotes,
+    '',
+    '学生说明：',
+    pack.studentInstructions,
+    '',
+    `评分关注：${pack.rubricFocus}`,
+  ].join('\n')
 }
 
 function scrollToSection(hash: string, prefersReducedMotion: boolean | null) {
@@ -12188,10 +12423,11 @@ function AssignmentBuilderPanel({
   const [sourceFilter, setSourceFilter] = useState<'all' | TaskLibrarySource>('all')
   const [durationFilter, setDurationFilter] = useState<'all' | DurationBand>('all')
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'failed'>('idle')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'pack' | 'failed'>('idle')
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
   const selectedTasks = getAssignmentSelectedTasks(draft, libraryTasks)
   const summary = getAssignmentBuilderSummary(draft, libraryTasks)
+  const taskPackMatches = useMemo(() => taskPacks.map((pack) => ({ pack, tasks: getTaskPackTasks(pack, libraryTasks) })), [libraryTasks])
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const visibleTasks = useMemo(
     () => libraryTasks.filter((task) => {
@@ -12262,6 +12498,28 @@ function AssignmentBuilderPanel({
     }
   }
 
+  function loadTaskPack(pack: TaskPack, tasks: LibraryTask[]) {
+    onUpdateDraft(buildTaskPackDraft(pack, tasks))
+    setCopyStatus('idle')
+  }
+
+  async function copyTaskPack(pack: TaskPack, tasks: LibraryTask[]) {
+    try {
+      await copyTextToClipboard(formatTaskPackSheet(pack, tasks))
+      setCopyStatus('pack')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function startFirstTaskPackTask(tasks: LibraryTask[]) {
+    const firstTask = tasks[0]
+
+    if (firstTask) {
+      onStartTask(firstTask.id)
+    }
+  }
+
   function clearDraft() {
     onUpdateDraft({
       ...getEmptyAssignmentBuilderDraft(),
@@ -12298,6 +12556,62 @@ function AssignmentBuilderPanel({
                 <div className="mt-1 text-xs text-stone-500">{item.label}</div>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[1.5rem] border border-sky-200/15 bg-sky-100/[0.045] p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] text-sky-100">Task Packs / 任务包策展入口</div>
+              <h3 className="mt-2 text-xl font-semibold text-stone-50">从策展任务包开始，再进入任务组合器微调</h3>
+              <p className="mt-1 text-sm leading-6 text-stone-400">每个任务包从现有 Task Library 可靠匹配最多 6 个任务；载入后会写入当前 Assignment Builder 草稿并自动持久化。</p>
+            </div>
+            <div className="text-sm text-stone-500" aria-live="polite">{copyStatus === 'pack' ? '任务包已复制。' : `${taskPackMatches.length} packs available`}</div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {taskPackMatches.map(({ pack, tasks }) => {
+              const matchedMinutes = tasks.reduce((total, task) => total + task.durationMinutes, 0)
+              const sourceCoverage = [...new Set(tasks.map((task) => task.sourceLabel))]
+              const scenarioCount = new Set(tasks.map((task) => task.scenarioId).filter(Boolean)).size
+
+              return (
+                <article key={pack.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-semibold text-stone-50">{pack.title}</h4>
+                      <p className="mt-1 text-xs leading-5 text-stone-500">{pack.audience}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-3 py-1 text-xs font-semibold text-sky-100">{pack.totalMinutes}m</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-400">
+                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">{tasks.length}/6 matched</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">{matchedMinutes} task minutes</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1">{scenarioCount || 'cross'} scenarios</span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-stone-300">{pack.learningGoal}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[...pack.tags.slice(0, 3), ...pack.coverage.slice(0, 2)].map((tag) => (
+                      <span key={tag} className="rounded-full border border-amber-200/15 bg-amber-100/[0.06] px-2.5 py-1 text-xs text-amber-100">{tag}</span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-stone-500">覆盖：{sourceCoverage.slice(0, 4).join('、') || '等待任务库匹配'}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => loadTaskPack(pack, tasks)} disabled={tasks.length === 0} className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-300 px-3 py-2 text-xs font-semibold text-stone-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-40">
+                      <ClipboardList size={14} />
+                      载入到任务组合
+                    </button>
+                    <button type="button" onClick={() => void copyTaskPack(pack, tasks)} className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]">
+                      <Copy size={14} />
+                      复制任务包
+                    </button>
+                    <button type="button" onClick={() => startFirstTaskPackTask(tasks)} disabled={tasks.length === 0} className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14] disabled:cursor-not-allowed disabled:opacity-40">
+                      <ArrowRight size={14} />
+                      开始首个任务
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
           </div>
         </div>
 
@@ -12480,7 +12794,7 @@ function AssignmentBuilderPanel({
                 </button>
               </div>
               <p className="mt-3 text-sm text-stone-500" aria-live="polite">
-                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : copyStatus === 'pack' ? '任务包已复制，可粘贴为课堂准备单。' : draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
               </p>
             </div>
           </div>
