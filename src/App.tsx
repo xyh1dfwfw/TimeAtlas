@@ -534,6 +534,25 @@ type WorkspaceStats = {
 type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
+type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'lesson' | 'activities' | 'missions' | 'decision' | 'sources' | 'argument'
+
+const scenarioExperienceTabs: {
+  id: ScenarioExperienceTab
+  label: string
+  eyebrow: string
+  description: string
+  hash: ScenarioSectionId
+}[] = [
+  { id: 'overview', label: '概览', eyebrow: 'Overview', description: '身份卡、时间线与情境开场', hash: sectionIds.experience },
+  { id: 'scenes', label: '现场阅读', eyebrow: 'Scene', description: '4 个历史现场 beat 与观察任务', hash: sectionIds.sceneReader },
+  { id: 'daily', label: '日常生活', eyebrow: 'Daily', description: '食物、居所、工作、教育、风险与自由', hash: sectionIds.experience },
+  { id: 'lesson', label: '课堂包', eyebrow: 'Lesson', description: 'Quick / source / debate 课堂流程', hash: sectionIds.lessonPack },
+  { id: 'activities', label: '活动包', eyebrow: 'Activity', description: 'Warmup、source lab、roleplay、writing 等任务', hash: sectionIds.activityPacks },
+  { id: 'missions', label: '任务板', eyebrow: 'Missions', description: '证据任务、草稿、勾选与学习输出', hash: sectionIds.missionBoard },
+  { id: 'decision', label: '历史岔路', eyebrow: 'Decision', description: '选择、后果与真实历史对照', hash: sectionIds.decisionPanel },
+  { id: 'sources', label: '来源层', eyebrow: 'Sources', description: '来源类型、摘记、视角与可靠边界', hash: sectionIds.sourceReader },
+  { id: 'argument', label: '论证', eyebrow: 'Argument', description: '把证据转成完整历史论证', hash: sectionIds.argumentStudio },
+]
 
 type GuidedSessionRoute = {
   id: string
@@ -3869,6 +3888,24 @@ function inferPageFromHash(hash: string): PageId {
   return 'home'
 }
 
+function getScenarioTabFromHash(hash: string | null): ScenarioExperienceTab {
+  const normalizedHash = (hash ?? '').replace(/^#/, '')
+
+  if (normalizedHash === sectionIds.sceneReader) return 'scenes'
+  if (normalizedHash === sectionIds.lessonPack) return 'lesson'
+  if (normalizedHash === sectionIds.activityPacks) return 'activities'
+  if (normalizedHash === sectionIds.missionBoard) return 'missions'
+  if (normalizedHash === sectionIds.decisionPanel) return 'decision'
+  if (normalizedHash === sectionIds.sourceReader) return 'sources'
+  if (normalizedHash === sectionIds.argumentStudio) return 'argument'
+
+  return 'overview'
+}
+
+function getHashForScenarioTab(tab: ScenarioExperienceTab): ScenarioSectionId {
+  return scenarioExperienceTabs.find((item) => item.id === tab)?.hash ?? sectionIds.experience
+}
+
 function getInitialPage() {
   if (typeof window === 'undefined') {
     return 'home' as PageId
@@ -4473,6 +4510,7 @@ function App() {
   const initialSelection = useMemo(getInitialSelection, [])
   const initialCompareSelection = useMemo(getInitialCompareSelection, [])
   const [activePage, setActivePage] = useState<PageId>(getInitialPage)
+  const [selectedScenarioTab, setSelectedScenarioTab] = useState<ScenarioExperienceTab>(() => (typeof window === 'undefined' ? 'overview' : getScenarioTabFromHash(window.location.hash)))
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
   const [compareScenarioAId, setCompareScenarioAId] = useState(initialCompareSelection.compareAId)
@@ -4744,6 +4782,7 @@ function App() {
     setSelectedScenarioId(id)
     setSelectedOptionId(null)
     setActivePage('scenario')
+    setSelectedScenarioTab(getScenarioTabFromHash(hash))
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildScenarioUrl(id, hash))
@@ -4873,6 +4912,18 @@ function App() {
     scrollToSection(sectionIds.synthesisStudio, prefersReducedMotion)
   }
 
+  function selectScenarioTab(tab: ScenarioExperienceTab) {
+    setSelectedScenarioTab(tab)
+
+    const hash = getHashForScenarioTab(tab)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildScenarioUrl(selectedScenario.id, hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#0b0a08] text-stone-100">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
@@ -4905,6 +4956,8 @@ function App() {
         {activePage === 'scenario' ? (
           <ScenarioExperience
             scenario={selectedScenario}
+            selectedTab={selectedScenarioTab}
+            onSelectTab={selectScenarioTab}
             selectedOption={selectedOption}
             onSelectOption={setSelectedOptionId}
             completedMissionIds={completedMissionIds}
@@ -9751,6 +9804,8 @@ function CompareAssignmentList({ title, items, ordered = false }: { title: strin
 
 function ScenarioExperience({
   scenario,
+  selectedTab,
+  onSelectTab,
   selectedOption,
   onSelectOption,
   completedMissionIds,
@@ -9763,6 +9818,8 @@ function ScenarioExperience({
   prefersReducedMotion,
 }: {
   scenario: Scenario
+  selectedTab: ScenarioExperienceTab
+  onSelectTab: (tab: ScenarioExperienceTab) => void
   selectedOption: DecisionOption | null
   onSelectOption: (id: string) => void
   completedMissionIds: string[]
@@ -9780,26 +9837,82 @@ function ScenarioExperience({
         initial: { opacity: 0, y: 24 },
         animate: { opacity: 1, y: 0 },
         exit: { opacity: 0, y: -16 },
-        transition: { duration: 0.35 },
+        transition: { duration: 0.28 },
       }
+  const completedLabel = `${completedMissionCount}/${scenario.missions.length}`
 
   return (
-    <section id={sectionIds.experience} className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
-      <AnimatePresence mode="wait">
-        <motion.div key={scenario.id} {...scenarioMotion} className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
-          <aside className="space-y-6">
-            <div className="sticky top-6 space-y-6">
-              <ScenarioPassport scenario={scenario} />
-              <TimelinePanel scenario={scenario} />
+    <section id={sectionIds.experience} className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
+      <div className="mb-5 rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 backdrop-blur">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.2em] text-stone-500">
+              <span>{scenario.era}</span>
+              <span>{scenario.location}</span>
+              <span>{scenario.year}</span>
             </div>
-          </aside>
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-stone-50">{scenario.title}</h1>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">{scenario.summary}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm sm:min-w-72">
+            <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.06] p-3">
+              <div className="text-xs uppercase tracking-[0.18em] text-amber-100/70">身份</div>
+              <div className="mt-1 text-stone-100">{scenario.identity}</div>
+            </div>
+            <div className="rounded-2xl border border-teal-200/15 bg-teal-100/[0.06] p-3">
+              <div className="text-xs uppercase tracking-[0.18em] text-teal-100/70">任务</div>
+              <div className="mt-1 text-stone-100">{completedLabel} 完成</div>
+            </div>
+          </div>
+        </div>
 
-          <div className="space-y-6">
-            <NarrativePanel scenario={scenario} />
-            <SceneReaderPanel scenario={scenario} />
-            <DailyLifeGrid scenario={scenario} />
-            <LessonPackPanel scenario={scenario} />
-            <ActivityPackPanel scenario={scenario} />
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" role="tablist" aria-label={`${scenario.title} 的子页面`}>
+          {scenarioExperienceTabs.map((tab) => {
+            const isSelected = selectedTab === tab.id
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => onSelectTab(tab.id)}
+                className={`rounded-2xl border p-3 text-left transition ${
+                  isSelected
+                    ? 'border-amber-200/50 bg-amber-200/12 text-stone-50'
+                    : 'border-white/10 bg-black/20 text-stone-400 hover:border-amber-100/25 hover:bg-white/[0.05] hover:text-stone-100'
+                }`}
+              >
+                <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{tab.eyebrow}</div>
+                <div className="mt-1 font-semibold">{tab.label}</div>
+                <div className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{tab.description}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div key={`${scenario.id}:${selectedTab}`} {...scenarioMotion}>
+          {selectedTab === 'overview' ? (
+            <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+              <aside className="space-y-6">
+                <ScenarioPassport scenario={scenario} />
+                <TimelinePanel scenario={scenario} />
+              </aside>
+              <div className="space-y-6">
+                <NarrativePanel scenario={scenario} />
+                <KeyTermsPanel scenario={scenario} />
+                <CompareAnglesPanel scenario={scenario} />
+              </div>
+            </div>
+          ) : null}
+
+          {selectedTab === 'scenes' ? <SceneReaderPanel scenario={scenario} /> : null}
+          {selectedTab === 'daily' ? <DailyLifeGrid scenario={scenario} /> : null}
+          {selectedTab === 'lesson' ? <LessonPackPanel scenario={scenario} /> : null}
+          {selectedTab === 'activities' ? <ActivityPackPanel scenario={scenario} /> : null}
+          {selectedTab === 'missions' ? (
             <MissionBoard
               scenario={scenario}
               completedMissionIds={completedMissionIds}
@@ -9808,12 +9921,17 @@ function ScenarioExperience({
               onToggleMission={onToggleMission}
               onUpdateMissionWork={onUpdateMissionWork}
             />
+          ) : null}
+          {selectedTab === 'decision' ? (
             <DecisionPanel
               scenario={scenario}
               selectedOption={selectedOption}
               onSelectOption={onSelectOption}
               prefersReducedMotion={prefersReducedMotion}
             />
+          ) : null}
+          {selectedTab === 'sources' ? <SourcesPanel scenario={scenario} /> : null}
+          {selectedTab === 'argument' ? (
             <ArgumentStudioPanel
               scenario={scenario}
               selectedOption={selectedOption}
@@ -9821,7 +9939,7 @@ function ScenarioExperience({
               argumentDraft={argumentDraft}
               onUpdateArgumentDraft={onUpdateArgumentDraft}
             />
-          </div>
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </section>
