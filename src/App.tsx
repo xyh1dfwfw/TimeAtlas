@@ -39,6 +39,7 @@ import {
   type Mission,
   type MissionTaskType,
   type Scenario,
+  type MaterialObject,
   type SocialActor,
   type SocialEncounter,
 } from './data/scenarios'
@@ -66,12 +67,14 @@ const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
 const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
 const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
 const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
+const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
   dailyLife: 'daily-life',
   sceneReader: 'scene-reader',
   lessonPack: 'lesson-pack',
+  materialCulture: 'material-culture',
   activityPacks: 'activity-packs',
   missionBoard: 'mission-board',
   actorNetwork: 'actor-network',
@@ -477,6 +480,7 @@ type SynthesisEvidenceOrigin =
   | 'significance'
   | 'compare'
   | 'actor-network'
+  | 'material-culture'
   | 'mission-work'
   | 'workspace'
 
@@ -601,10 +605,10 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
-type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
+type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
 
 const scenarioExperienceTabs: {
   id: ScenarioExperienceTab
@@ -616,6 +620,7 @@ const scenarioExperienceTabs: {
   { id: 'overview', label: '概览', eyebrow: 'Overview', description: '身份卡、时间线与情境开场', hash: sectionIds.experience },
   { id: 'scenes', label: '现场阅读', eyebrow: 'Scene', description: '4 个历史现场 beat 与观察任务', hash: sectionIds.sceneReader },
   { id: 'daily', label: '日常生活', eyebrow: 'Daily', description: '食物、居所、工作、教育、风险与自由', hash: sectionIds.dailyLife },
+  { id: 'objects', label: '物件证据', eyebrow: 'Objects', description: 'Material Culture / Object Desk 物件证据台', hash: sectionIds.materialCulture },
   { id: 'lesson', label: '课堂包', eyebrow: 'Lesson', description: 'Quick / source / debate 课堂流程', hash: sectionIds.lessonPack },
   { id: 'activities', label: '活动包', eyebrow: 'Activity', description: 'Warmup、source lab、roleplay、writing 等任务', hash: sectionIds.activityPacks },
   { id: 'missions', label: '任务板', eyebrow: 'Missions', description: '证据任务、草稿、勾选与学习输出', hash: sectionIds.missionBoard },
@@ -776,6 +781,20 @@ type ActorNetworkDraft = {
 
 type ActorNetworkDraftState = Record<string, ActorNetworkDraft>
 
+type MaterialCultureDraft = {
+  selectedObjectIds: string[]
+  observationNotes: string
+  evidenceClaim: string
+  laborConnection: string
+  exchangeOrPowerConnection: string
+  sourceLimits: string
+  comparisonQuestion: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type MaterialCultureDraftState = Record<string, MaterialCultureDraft>
+
 type TaskWorkbenchStats = {
   activeDrafts: [string, TaskWorkbenchDraft][]
   activeCount: number
@@ -902,6 +921,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'lesson', label: 'Lesson Pack' },
   { value: 'debate', label: 'Debate Studio' },
   { value: 'actor-network', label: 'Actor Network' },
+  { value: 'material-culture', label: 'Material Culture' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'causation', label: 'Causation Lab' },
@@ -2634,6 +2654,104 @@ function persistActorNetworkDraftState(state: ActorNetworkDraftState) {
   getSafeStorage('sessionStorage')?.setItem(actorNetworkDraftStorageKey, serializedState)
 }
 
+function getMaterialCultureDraftKey(scenarioId: string) {
+  return scenarioId
+}
+
+function getEmptyMaterialCultureDraft(objects: MaterialObject[]): MaterialCultureDraft {
+  return {
+    selectedObjectIds: objects.slice(0, 1).map((object) => object.id),
+    observationNotes: '',
+    evidenceClaim: '',
+    laborConnection: '',
+    exchangeOrPowerConnection: '',
+    sourceLimits: '',
+    comparisonQuestion: '',
+    completed: false,
+  }
+}
+
+function parseMaterialCultureDraftState(rawState: string | null): MaterialCultureDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as MaterialCultureDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<MaterialCultureDraft>
+        const selectedObjectIds = Array.isArray(draft.selectedObjectIds)
+          ? draft.selectedObjectIds.filter((item): item is string => typeof item === 'string')
+          : []
+
+        return [[
+          key,
+          {
+            selectedObjectIds,
+            observationNotes: typeof draft.observationNotes === 'string' ? draft.observationNotes : '',
+            evidenceClaim: typeof draft.evidenceClaim === 'string' ? draft.evidenceClaim : '',
+            laborConnection: typeof draft.laborConnection === 'string' ? draft.laborConnection : '',
+            exchangeOrPowerConnection: typeof draft.exchangeOrPowerConnection === 'string' ? draft.exchangeOrPowerConnection : '',
+            sourceLimits: typeof draft.sourceLimits === 'string' ? draft.sourceLimits : '',
+            comparisonQuestion: typeof draft.comparisonQuestion === 'string' ? draft.comparisonQuestion : '',
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies MaterialCultureDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as MaterialCultureDraftState
+  }
+}
+
+function hasMaterialCultureDraftActivity(draft: MaterialCultureDraft) {
+  return Boolean(
+    draft.selectedObjectIds.length
+      || draft.observationNotes.trim()
+      || draft.evidenceClaim.trim()
+      || draft.laborConnection.trim()
+      || draft.exchangeOrPowerConnection.trim()
+      || draft.sourceLimits.trim()
+      || draft.comparisonQuestion.trim()
+      || draft.completed,
+  )
+}
+
+function getActiveMaterialCultureDrafts(materialCultureDraftState: MaterialCultureDraftState) {
+  return Object.entries(materialCultureDraftState).filter((entry): entry is [string, MaterialCultureDraft] => hasMaterialCultureDraftActivity(entry[1]))
+}
+
+function loadMaterialCultureDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseMaterialCultureDraftState(localStorage?.getItem(materialCultureDraftStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasMaterialCultureDraftActivity)) {
+    return localState
+  }
+
+  return parseMaterialCultureDraftState(sessionStorage?.getItem(materialCultureDraftStorageKey) ?? null)
+}
+
+function persistMaterialCultureDraftState(state: MaterialCultureDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(materialCultureDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(materialCultureDraftStorageKey, serializedState)
+}
+
 function getTaskWorkbenchChecklist(task: LibraryTask) {
   return task.checklist?.length
     ? task.checklist
@@ -2727,6 +2845,64 @@ function formatActorNetworkTaskSheet(scenario: Scenario, encounter: SocialEncoun
     'Perspective comparison：',
     'Negotiation plan：',
     'Missing voice / evidence limits：',
+  ].join('\n')
+}
+
+function formatMaterialCultureBrief(scenario: Scenario, objects: MaterialObject[], draft: MaterialCultureDraft) {
+  const selectedObjects = objects.filter((object) => draft.selectedObjectIds.includes(object.id))
+  const objectsForExport = selectedObjects.length ? selectedObjects : objects.slice(0, 2)
+
+  return [
+    `TimeAtlas Object Evidence Brief · ${scenario.title}`,
+    `Scenario：${scenario.era}｜${scenario.location}｜${scenario.identity}`,
+    `状态：${draft.completed ? '已完成' : hasMaterialCultureDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+    '',
+    'Selected objects:',
+    ...objectsForExport.map((object, index) => `${index + 1}. ${object.name}｜${object.category}｜${object.shortLabel}
+   描述：${object.description}
+   日常使用：${object.everydayUse}
+   劳动/技能：${object.laborOrSkill}
+   交换/权力：${object.exchangeOrPower}
+   证据限制：${object.evidenceLimit}
+   来源：${object.linkedSourceTitles.join('、') || '场景来源层'}
+   场景：${object.linkedSceneBeatTitles.join('、') || 'Scene Reader'}`),
+    '',
+    'Workspace draft:',
+    `Observation notes：${draft.observationNotes.trim() || '尚未填写'}`,
+    `Evidence claim：${draft.evidenceClaim.trim() || '尚未填写'}`,
+    `Labor / skill connection：${draft.laborConnection.trim() || '尚未填写'}`,
+    `Exchange / power connection：${draft.exchangeOrPowerConnection.trim() || '尚未填写'}`,
+    `Source limits：${draft.sourceLimits.trim() || '尚未填写'}`,
+    `Comparison question：${draft.comparisonQuestion.trim() || '尚未填写'}`,
+    '',
+    'Inquiry prompts:',
+    ...objectsForExport.flatMap((object) => object.inquiryPrompts.map((prompt) => `- ${object.shortLabel}：${prompt}`)),
+  ].join('\n')
+}
+
+function formatMaterialCultureTaskSheet(scenario: Scenario) {
+  return [
+    `TimeAtlas Material Culture / Object Desk · ${scenario.title}`,
+    `地点/情境：${scenario.location}｜${scenario.era}`,
+    `任务：选择 1-2 个物件，说明它们如何连接日常使用、劳动/技能、交换/权力与证据限制。`,
+    '',
+    'Object shelf:',
+    ...scenario.materialObjects.map((object, index) => `${index + 1}. ${object.name}｜${object.category}｜${object.description}`),
+    '',
+    '执行清单：',
+    '1. 选择一个主要物件和一个可比较物件。',
+    '2. 写出可观察细节，不把重建物当成直接实物证据。',
+    '3. 连接劳动/技能与交换/权力。',
+    '4. 标出来源限制、缺席声音或仍需的比较对象。',
+    '',
+    '输出模板：',
+    'Observation notes：',
+    'Evidence claim：',
+    'Labor / skill connection：',
+    'Exchange / power connection：',
+    'Source limits：',
+    'Comparison question：',
   ].join('\n')
 }
 
@@ -4546,6 +4722,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     significance: 'Significance draft / 意义草稿',
     compare: 'Compare draft / 比较草稿',
     'actor-network': 'Actor Network draft / 人物网络草稿',
+    'material-culture': 'Material Culture draft / 物件证据草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     workspace: 'Workspace entry / 跨场景工作区',
@@ -4570,6 +4747,7 @@ function buildSynthesisEvidencePool({
   compareDraftState,
   caseFileDraftState,
   actorNetworkDraftState,
+  materialCultureDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -4582,6 +4760,7 @@ function buildSynthesisEvidencePool({
   compareDraftState: CompareDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   actorNetworkDraftState: ActorNetworkDraftState
+  materialCultureDraftState: MaterialCultureDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -4744,6 +4923,24 @@ function buildSynthesisEvidencePool({
     })
   })
 
+  getActiveMaterialCultureDrafts(materialCultureDraftState).forEach(([scenarioId, draft]) => {
+    const scenario = getScenarioById(scenarioId)
+    const selectedObjects = scenario?.materialObjects.filter((object) => draft.selectedObjectIds.includes(object.id)) ?? []
+
+    entries.push({
+      id: makeSynthesisEvidenceId('material-culture', scenarioId),
+      origin: 'material-culture',
+      originLabel: getSynthesisOriginLabel('material-culture'),
+      title: `Object Desk：${scenario?.title ?? scenarioId}`,
+      text: [`物件：${selectedObjects.map((object) => object.shortLabel).join('、')}`, `观察：${draft.observationNotes}`, `主张：${draft.evidenceClaim}`, `劳动/技能：${draft.laborConnection}`, `交换/权力：${draft.exchangeOrPowerConnection}`, `限制：${draft.sourceLimits}`, `比较问题：${draft.comparisonQuestion}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['material culture', 'object desk', scenario?.region, scenario?.theme, ...selectedObjects.flatMap((object) => object.tags), draft.completed ? 'completed' : 'draft'].filter((tag): tag is string => Boolean(tag)),
+      scenarioTitle: scenario?.title,
+      scenarioId: scenario?.id,
+      inquiryTitle: 'Material Culture / Object Desk',
+      updatedAt: draft.updatedAt,
+    })
+  })
+
   Object.entries(missionWorkState).forEach(([key, work]) => {
     if (!work.notes.trim() && work.checkedEvidence.length === 0) return
     const [scenarioId, missionId] = key.split(':')
@@ -4848,6 +5045,7 @@ function formatLearningArchive(
   caseFileDraftState: EvidenceCaseFileDraftState,
   compareDraftState: CompareDraftState,
   actorNetworkDraftState: ActorNetworkDraftState,
+  materialCultureDraftState: MaterialCultureDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
@@ -4864,6 +5062,7 @@ function formatLearningArchive(
   const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
+  const activeMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -4873,7 +5072,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -4894,6 +5093,7 @@ function formatLearningArchive(
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
+    `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
@@ -4944,6 +5144,23 @@ function formatLearningArchive(
       `  Negotiation plan：${draft.negotiationPlan.trim() || '未填写'}`,
       `  Missing voice：${draft.missingVoiceNote.trim() || '未填写'}`,
       `  Evidence notes：${draft.evidenceNotes.trim() || '未填写'}`,
+      '',
+    )
+  })
+
+  activeMaterialCultureDrafts.forEach(([scenarioId, draft]) => {
+    const scenario = getScenarioById(scenarioId)
+    const objects = scenario?.materialObjects.filter((object) => draft.selectedObjectIds.includes(object.id)) ?? []
+
+    lines.push(
+      `Material Culture / Object Desk：${scenario?.title ?? scenarioId}`,
+      `  状态：${draft.completed ? '已完成' : '草稿'}；物件：${objects.map((object) => object.shortLabel).join('、') || '未选择'}`,
+      `  Observation notes：${draft.observationNotes.trim() || '未填写'}`,
+      `  Evidence claim：${draft.evidenceClaim.trim() || '未填写'}`,
+      `  Labor / skill：${draft.laborConnection.trim() || '未填写'}`,
+      `  Exchange / power：${draft.exchangeOrPowerConnection.trim() || '未填写'}`,
+      `  Source limits：${draft.sourceLimits.trim() || '未填写'}`,
+      `  Comparison question：${draft.comparisonQuestion.trim() || '未填写'}`,
       '',
     )
   })
@@ -5919,6 +6136,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.actorNetwork
   }
 
+  if (source === 'material-culture') {
+    return sectionIds.materialCulture
+  }
+
   return defaultScenarioSectionId
 }
 
@@ -5943,6 +6164,7 @@ function inferPageFromHash(hash: string): PageId {
     sectionIds.activityPacks,
     sectionIds.missionBoard,
     sectionIds.actorNetwork,
+    sectionIds.materialCulture,
     sectionIds.decisionPanel,
     sectionIds.argumentStudio,
     sectionIds.sourceReader,
@@ -5968,6 +6190,7 @@ function getScenarioTabFromHash(hash: string | null): ScenarioExperienceTab {
 
   if (normalizedHash === sectionIds.sceneReader) return 'scenes'
   if (normalizedHash === sectionIds.dailyLife) return 'daily'
+  if (normalizedHash === sectionIds.materialCulture) return 'objects'
   if (normalizedHash === sectionIds.lessonPack) return 'lesson'
   if (normalizedHash === sectionIds.activityPacks) return 'activities'
   if (normalizedHash === sectionIds.missionBoard) return 'missions'
@@ -6730,6 +6953,37 @@ function buildTaskLibraryTasks({
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, ...tags, ...roleCards.map((role) => `${role.title} ${role.stance} ${role.brief}`), ...evidenceCards.map((card) => `${card.title} ${card.claimUse} ${card.reliabilityNote}`)].join(' ').toLowerCase()
       tasks.push(task)
     })
+
+
+    const materialTaskObjects = scenario.materialObjects.slice(0, 2)
+    const materialTask: LibraryTask = {
+      id: `material-culture:${scenario.id}`,
+      title: `${scenario.title} · Object Evidence Desk`,
+      context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+      scenarioId: scenario.id,
+      category: 'Material Culture / Object Desk',
+      source: 'material-culture',
+      sourceLabel: 'Material Culture',
+      durationMinutes: 25,
+      durationBand: getDurationBand(25),
+      summary: `用 ${materialTaskObjects.map((object) => object.shortLabel).join('、')} 解释日常物件如何连接劳动、交换/权力和证据限制。`,
+      deliverable: 'Object Evidence Brief：观察、证据主张、劳动/技能连接、交换/权力连接、来源限制与比较问题',
+      tags: ['Material Culture', 'Object Desk', '物件证据', scenario.region, scenario.theme, ...materialTaskObjects.flatMap((object) => object.tags.slice(0, 2))],
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开物件证据台',
+      secondaryActionLabel: '打开来源层',
+      onPrimaryAction: () => onOpenScenario(scenario.id, sectionIds.materialCulture),
+      onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.sourceReader),
+      onStartTask: onStartTask ? () => onStartTask(materialTask.id) : undefined,
+      workbenchPrompts: ['选择 1-2 个物件并写出观察', '把物件连接到劳动/技能与交换/权力', '指出证据限制和仍需比较的问题'],
+      checklist: ['选择至少一个物件证据', '写出观察 notes', '形成 object evidence claim', '连接劳动/技能与交换/权力', '说明来源限制或缺席材料'],
+      evidencePrompts: materialTaskObjects.flatMap((object) => object.inquiryPrompts.map((prompt) => `${object.shortLabel}：${prompt}`)).slice(0, 6),
+      formatSheet: () => formatMaterialCultureTaskSheet(scenario),
+    }
+
+    materialTask.searchText = [materialTask.title, materialTask.context, materialTask.category, materialTask.sourceLabel, materialTask.summary, materialTask.deliverable, ...materialTask.tags, ...scenario.materialObjects.flatMap((object) => [object.name, object.category, object.shortLabel, object.description, object.objectBiography, object.everydayUse, object.laborOrSkill, object.exchangeOrPower, object.evidenceLimit, ...object.linkedSourceTitles, ...object.linkedSceneBeatTitles, ...object.inquiryPrompts, ...object.tags])].join(' ').toLowerCase()
+    tasks.push(materialTask)
 
     scenario.socialEncounters.forEach((encounter) => {
       const encounterActors = scenario.socialActors.filter((actor) => encounter.actorIds.includes(actor.id))
@@ -7632,6 +7886,7 @@ function App() {
   const [assignmentBuilderDraft, setAssignmentBuilderDraft] = useState<AssignmentBuilderDraft>(loadAssignmentBuilderDraft)
   const [taskWorkbenchDraftState, setTaskWorkbenchDraftState] = useState<TaskWorkbenchState>(loadTaskWorkbenchDraftState)
   const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
+  const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
@@ -7661,7 +7916,7 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, missionWorkState, workspaceState])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
@@ -7936,6 +8191,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [actorNetworkDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistMaterialCultureDraftState(materialCultureDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [materialCultureDraftState])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -8436,10 +8703,12 @@ function App() {
             missionWorkState={missionWorkState}
             argumentDraft={argumentDraftState[selectedScenario.id] ?? getEmptyArgumentDraft()}
             actorNetworkDraftState={actorNetworkDraftState}
+            materialCultureDraftState={materialCultureDraftState}
             onToggleMission={toggleMission}
             onUpdateMissionWork={setMissionWorkState}
             onUpdateArgumentDraft={setArgumentDraftState}
             onUpdateActorNetworkDraftState={setActorNetworkDraftState}
+            onUpdateMaterialCultureDraftState={setMaterialCultureDraftState}
             prefersReducedMotion={prefersReducedMotion}
             onOpenDebateStudio={openDebateStudio}
           />
@@ -8709,6 +8978,7 @@ function App() {
                 caseFileDraftState={caseFileDraftState}
                 compareDraftState={compareDraftState}
                 actorNetworkDraftState={actorNetworkDraftState}
+                materialCultureDraftState={materialCultureDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
             ) : null}
@@ -12754,6 +13024,7 @@ function PortfolioPanel({
   caseFileDraftState,
   compareDraftState,
   actorNetworkDraftState,
+  materialCultureDraftState,
   taskWorkbenchDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
@@ -12774,6 +13045,7 @@ function PortfolioPanel({
   caseFileDraftState: EvidenceCaseFileDraftState
   compareDraftState: CompareDraftState
   actorNetworkDraftState: ActorNetworkDraftState
+  materialCultureDraftState: MaterialCultureDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -12789,6 +13061,7 @@ function PortfolioPanel({
   const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
+  const materialCultureDraftCount = getActiveMaterialCultureDrafts(materialCultureDraftState).length
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
@@ -12809,10 +13082,13 @@ function PortfolioPanel({
   const recentActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -12861,6 +13137,7 @@ function PortfolioPanel({
               { label: 'Case Files', value: caseFileDraftCount },
               { label: '比较草稿', value: compareDraftCount },
               { label: '人物网络', value: actorNetworkDraftCount },
+              { label: '物件证据', value: materialCultureDraftCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
@@ -12879,7 +13156,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -12911,6 +13188,18 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{encounter?.title ?? key}</div>
                       <div>Actor Network · {scenario?.title ?? scenarioId} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
                       <div className="mt-1 text-stone-500">{draft.negotiationPlan.trim() || draft.perspectiveComparison.trim() || '尚未填写协商方案'}</div>
+                    </div>
+                  )
+                })}
+                {recentMaterialCultureDrafts.map(([scenarioId, draft]) => {
+                  const scenario = getScenarioById(scenarioId)
+                  const objects = scenario?.materialObjects.filter((object) => draft.selectedObjectIds.includes(object.id)) ?? []
+
+                  return (
+                    <div key={scenarioId} className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{scenario?.title ?? scenarioId}</div>
+                      <div>Material Culture · {objects.map((object) => object.shortLabel).join('、') || '未选择物件'} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
+                      <div className="mt-1 text-stone-500">{draft.evidenceClaim.trim() || draft.observationNotes.trim() || '尚未填写 object evidence claim'}</div>
                     </div>
                   )
                 })}
@@ -15678,10 +15967,12 @@ function ScenarioExperience({
   missionWorkState,
   argumentDraft,
   actorNetworkDraftState,
+  materialCultureDraftState,
   onToggleMission,
   onUpdateMissionWork,
   onUpdateArgumentDraft,
   onUpdateActorNetworkDraftState,
+  onUpdateMaterialCultureDraftState,
   prefersReducedMotion,
   onOpenDebateStudio,
 }: {
@@ -15695,10 +15986,12 @@ function ScenarioExperience({
   missionWorkState: MissionWorkState
   argumentDraft: ArgumentDraft
   actorNetworkDraftState: ActorNetworkDraftState
+  materialCultureDraftState: MaterialCultureDraftState
   onToggleMission: (scenarioId: string, missionId: string) => void
   onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
   onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
   onUpdateActorNetworkDraftState: Dispatch<SetStateAction<ActorNetworkDraftState>>
+  onUpdateMaterialCultureDraftState: Dispatch<SetStateAction<MaterialCultureDraftState>>
   prefersReducedMotion: boolean | null
   onOpenDebateStudio: (scenarioId: string) => void
 }) {
@@ -15781,6 +16074,13 @@ function ScenarioExperience({
 
           {selectedTab === 'scenes' ? <SceneReaderPanel scenario={scenario} /> : null}
           {selectedTab === 'daily' ? <DailyLifeGrid scenario={scenario} /> : null}
+          {selectedTab === 'objects' ? (
+            <MaterialCulturePanel
+              scenario={scenario}
+              draftState={materialCultureDraftState}
+              onUpdateDraftState={onUpdateMaterialCultureDraftState}
+            />
+          ) : null}
           {selectedTab === 'lesson' ? <LessonPackPanel scenario={scenario} /> : null}
           {selectedTab === 'activities' ? <ActivityPackPanel scenario={scenario} /> : null}
           {selectedTab === 'missions' ? (
@@ -15821,6 +16121,184 @@ function ScenarioExperience({
           ) : null}
         </motion.div>
       </AnimatePresence>
+    </section>
+  )
+}
+
+
+function MaterialCulturePanel({
+  scenario,
+  draftState,
+  onUpdateDraftState,
+}: {
+  scenario: Scenario
+  draftState: MaterialCultureDraftState
+  onUpdateDraftState: Dispatch<SetStateAction<MaterialCultureDraftState>>
+}) {
+  const [selectedObjectId, setSelectedObjectId] = useState(scenario.materialObjects[0]?.id ?? '')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const draftKey = getMaterialCultureDraftKey(scenario.id)
+  const draft = draftState[draftKey] ?? getEmptyMaterialCultureDraft(scenario.materialObjects)
+  const selectedObject = scenario.materialObjects.find((object) => object.id === selectedObjectId) ?? scenario.materialObjects[0]
+  const selectedObjects = scenario.materialObjects.filter((object) => draft.selectedObjectIds.includes(object.id))
+  const completedFields = [draft.observationNotes, draft.evidenceClaim, draft.laborConnection, draft.exchangeOrPowerConnection, draft.sourceLimits, draft.comparisonQuestion].filter((value) => value.trim()).length
+
+  useEffect(() => {
+    setSelectedObjectId(scenario.materialObjects[0]?.id ?? '')
+    setCopyStatus('idle')
+  }, [scenario.id, scenario.materialObjects])
+
+  if (!selectedObject) {
+    return null
+  }
+
+  function updateDraft(patch: Partial<MaterialCultureDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[draftKey] ?? getEmptyMaterialCultureDraft(scenario.materialObjects)
+
+      return {
+        ...currentState,
+        [draftKey]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatMaterialCultureBrief(scenario, scenario.materialObjects, draft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    downloadTextFile(`timeatlas-${scenario.id}-object-evidence-brief.txt`, formatMaterialCultureBrief(scenario, scenario.materialObjects, draft))
+  }
+
+  return (
+    <section id={sectionIds.materialCulture} className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5 shadow-2xl shadow-black/20" aria-labelledby="material-culture-title">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3 text-amber-100">
+            <Landmark size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">Material Culture / Object Desk</span>
+          </div>
+          <h2 id="material-culture-title" className="text-3xl font-semibold tracking-tight text-stone-50">物件证据台</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">用小物件压缩日常使用、劳动技能、交换权力与证据限制；不新增图片，只读结构化物件证据。</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+            {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+            {copyStatus === 'copied' ? '已复制 brief' : copyStatus === 'failed' ? '复制失败' : '复制 Object Evidence Brief'}
+          </button>
+          <button type="button" onClick={downloadBrief} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-amber-100/30 hover:bg-white/[0.05]">下载 txt</button>
+          <a href={`#${sectionIds.sourceReader}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">打开来源</a>
+          <a href={`#${sectionIds.sceneReader}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">打开场景</a>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+        <aside className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-amber-100">Compact object shelf</h3>
+              <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-stone-500">{scenario.materialObjects.length} objects</span>
+            </div>
+            <div className="grid gap-2">
+              {scenario.materialObjects.map((object) => {
+                const selected = draft.selectedObjectIds.includes(object.id)
+                return (
+                  <button key={object.id} type="button" onClick={() => setSelectedObjectId(object.id)} className={`rounded-2xl border p-3 text-left transition ${object.id === selectedObject.id ? 'border-amber-200/45 bg-amber-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-amber-100/25'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-stone-50">{object.shortLabel}</div>
+                        <div className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-500">{object.category}</div>
+                      </div>
+                      {selected ? <CheckCircle2 size={17} className="shrink-0 text-amber-100" /> : null}
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-500">{object.description}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">Workspace status</h3>
+            <p className="mt-2 text-sm text-stone-400">{draft.completed ? '已完成' : '草稿'} · fields {completedFields}/6 · selected {selectedObjects.length || 0}</p>
+            <p className="mt-1 text-xs text-stone-500">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}</p>
+            <button type="button" onClick={() => updateDraft({ completed: !draft.completed })} className={`mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${draft.completed ? 'bg-teal-100 text-stone-950' : 'border border-white/10 text-stone-200 hover:bg-white/[0.05]'}`}>
+              {draft.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+              {draft.completed ? '已完成' : '标记完成'}
+            </button>
+          </div>
+        </aside>
+
+        <div className="grid gap-4">
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <article className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-semibold text-stone-50">{selectedObject.name}</h3>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-500">{selectedObject.category} · {selectedObject.shortLabel}</p>
+                </div>
+                <button type="button" onClick={() => updateDraft({ selectedObjectIds: draft.selectedObjectIds.includes(selectedObject.id) ? draft.selectedObjectIds.filter((id) => id !== selectedObject.id) : [...draft.selectedObjectIds, selectedObject.id] })} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${draft.selectedObjectIds.includes(selectedObject.id) ? 'bg-amber-200 text-stone-950' : 'border border-white/10 text-stone-300 hover:bg-white/[0.05]'}`}>{draft.selectedObjectIds.includes(selectedObject.id) ? '已选' : '选择'}</button>
+              </div>
+              <dl className="mt-4 grid gap-3 text-sm leading-6 text-stone-400">
+                <div><dt className="text-amber-100">Object biography</dt><dd>{selectedObject.objectBiography}</dd></div>
+                <div><dt className="text-amber-100">Everyday use</dt><dd>{selectedObject.everydayUse}</dd></div>
+                <div><dt className="text-amber-100">Labor / skill</dt><dd>{selectedObject.laborOrSkill}</dd></div>
+                <div><dt className="text-amber-100">Exchange / power</dt><dd>{selectedObject.exchangeOrPower}</dd></div>
+                <div><dt className="text-amber-100">Evidence limit</dt><dd>{selectedObject.evidenceLimit}</dd></div>
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-stone-400">
+                {selectedObject.tags.map((tag) => <span key={tag} className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1">{tag}</span>)}
+              </div>
+            </article>
+
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-stone-50">Workspace draft fields</h3>
+              <div className="mt-3 grid gap-3">
+                {([
+                  ['observationNotes', 'Observation notes', 2],
+                  ['evidenceClaim', 'Evidence claim', 2],
+                  ['laborConnection', 'Labor / skill connection', 2],
+                  ['exchangeOrPowerConnection', 'Exchange / power connection', 2],
+                  ['sourceLimits', 'Source limits', 2],
+                  ['comparisonQuestion', 'Comparison question', 2],
+                ] as [keyof MaterialCultureDraft, string, number][]).map(([field, label, rows]) => (
+                  <label key={field} className="block">
+                    <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                    <textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<MaterialCultureDraft>)} rows={rows} className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-stone-950/70 px-3 py-2 text-sm leading-6 text-stone-100 outline-none transition focus:border-amber-100/50" />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-teal-100">Inquiry prompts</h3>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                {selectedObject.inquiryPrompts.map((prompt) => <li key={prompt} className="flex gap-2"><ArrowRight size={15} className="mt-1 shrink-0 text-teal-100" />{prompt}</li>)}
+              </ul>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-teal-100">Linked sources</h3>
+              <p className="mt-3 text-sm leading-6 text-stone-400">{selectedObject.linkedSourceTitles.join(' / ') || '场景来源层'}</p>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-teal-100">Linked scenes</h3>
+              <p className="mt-3 text-sm leading-6 text-stone-400">{selectedObject.linkedSceneBeatTitles.join(' / ') || 'Scene Reader'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
