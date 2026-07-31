@@ -582,7 +582,7 @@ type SubpageNavItem<T extends string> = {
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'debate' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'assessment' | 'debate' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
 
@@ -606,6 +606,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
+  { id: 'assessment', label: '评价反馈', eyebrow: 'Assessment', description: '按任务、组合或模块生成 rubric、评分指南与反馈句式', hash: 'assessment-studio' },
   { id: 'debate', label: '辩论工作台', eyebrow: 'Debate', description: '角色卡、证据卡、回合计划与可复制指南', hash: 'debate-studio' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
   { id: 'modules', label: '单元模块', eyebrow: 'Modules', description: '6 个跨页学习单元、步骤进度与导出', hash: 'task-modules' },
@@ -703,6 +704,26 @@ type AssignmentBuilderSummary = {
   sourceCategories: string[]
   scenarioCoverage: string[]
   historicalThinkingTags: string[]
+}
+
+type AssessmentTargetType = 'assignment' | 'task' | 'module'
+
+type RubricCriterion = {
+  id: string
+  title: string
+  focus: string
+  levels: {
+    exceeds: string
+    meets: string
+    developing: string
+    beginning: string
+  }
+}
+
+type AssessmentDraft = {
+  targetType: AssessmentTargetType
+  taskId: string
+  moduleId: string
 }
 
 type TaskLibraryPreset = {
@@ -5650,6 +5671,380 @@ function formatAssignmentTeacherGuide(draft: AssignmentBuilderDraft, libraryTask
   ].join('\n')
 }
 
+
+type AssessmentTargetInfo = {
+  title: string
+  targetLabel: string
+  audience: string
+  timeBox: string
+  learningGoal: string
+  deliverable: string
+  context: string
+  summary: string
+  sourceLabels: string[]
+  categories: string[]
+  tags: string[]
+  tasks: LibraryTask[]
+  sourceBased: boolean
+  teacherNotes: string
+  rubricFocus: string
+}
+
+function getAssessmentTargetInfo(assessmentDraft: AssessmentDraft, assignmentDraft: AssignmentBuilderDraft, libraryTasks: LibraryTask[]): AssessmentTargetInfo {
+  if (assessmentDraft.targetType === 'task') {
+    const task = libraryTasks.find((candidate) => candidate.id === assessmentDraft.taskId) ?? libraryTasks[0]
+
+    if (!task) {
+      return getEmptyAssessmentTargetInfo('单个任务')
+    }
+
+    return {
+      title: task.title,
+      targetLabel: '单个 Task Library 任务',
+      audience: '可按课堂对象调整',
+      timeBox: `${task.durationMinutes} 分钟`,
+      learningGoal: task.summary,
+      deliverable: task.deliverable,
+      context: task.context,
+      summary: `${task.sourceLabel} · ${task.category} · ${task.sourceBased ? 'source-based' : 'product / thinking task'}`,
+      sourceLabels: [task.sourceLabel],
+      categories: [task.category],
+      tags: task.tags,
+      tasks: [task],
+      sourceBased: task.sourceBased,
+      teacherNotes: task.formatSheet().split('\n').slice(0, 8).join('；'),
+      rubricFocus: '证据使用、历史情境、方法推理、来源限制、表达清晰',
+    }
+  }
+
+  if (assessmentDraft.targetType === 'module') {
+    const module = taskModules.find((candidate) => candidate.id === assessmentDraft.moduleId) ?? taskModules[0]
+
+    if (!module) {
+      return getEmptyAssessmentTargetInfo('Task Module')
+    }
+
+    const linkedTasks = libraryTasks.filter((task) => module.scenarioIds.includes(task.scenarioId ?? '') || module.tags.some((tag) => task.searchText.includes(tag.toLowerCase())))
+    const moduleText = [module.title, module.subtitle, module.drivingQuestion, module.finalDeliverable, ...module.tags, ...module.steps.flatMap((step) => [step.title, step.description, step.actionLabel])].join(' ').toLowerCase()
+
+    return {
+      title: module.title,
+      targetLabel: 'Task Module 单元模块',
+      audience: '跨页面单元学习者 / 小组',
+      timeBox: `${module.totalMinutes} 分钟`,
+      learningGoal: module.drivingQuestion,
+      deliverable: module.finalDeliverable,
+      context: module.scenarioIds.map((scenarioId) => getScenarioById(scenarioId)?.title ?? scenarioId).join('、'),
+      summary: module.subtitle,
+      sourceLabels: [...new Set(linkedTasks.map((task) => task.sourceLabel))],
+      categories: [...new Set([...linkedTasks.map((task) => task.category), 'Task Module'])],
+      tags: module.tags,
+      tasks: linkedTasks,
+      sourceBased: moduleText.includes('source') || moduleText.includes('evidence') || moduleText.includes('来源') || moduleText.includes('证据') || moduleText.includes('archive') || module.steps.some((step) => step.action.type === 'evidence'),
+      teacherNotes: module.steps.map((step, index) => `${index + 1}. ${step.title}（${step.minutes}m）`).join('；'),
+      rubricFocus: '跨步骤证据整合、历史思维方法、来源边界、最终产出质量',
+    }
+  }
+
+  const summary = getAssignmentBuilderSummary(assignmentDraft, libraryTasks)
+  const selectedTasks = summary.selectedTasks
+
+  return {
+    title: assignmentDraft.title.trim() || 'Assignment Builder 当前草稿',
+    targetLabel: 'Assignment Builder 当前草稿',
+    audience: assignmentDraft.audience.trim() || '未填写，可按班级调整',
+    timeBox: assignmentDraft.timeBox.trim() || `${summary.totalMinutes} 分钟`,
+    learningGoal: assignmentDraft.learningGoal.trim() || '完成已选任务序列，并把证据转化为历史解释。',
+    deliverable: assignmentDraft.finalDeliverable.trim() || selectedTasks.map((task) => task.deliverable).join('；') || '课堂任务产出',
+    context: summary.scenarioCoverage.join('、') || '尚未选择场景',
+    summary: selectedTasks.map((task, index) => `${index + 1}. ${task.title}`).join('；') || '尚未选择任务；可先在 Assignment Builder 中加入任务。',
+    sourceLabels: summary.sourceCategories,
+    categories: [...new Set(selectedTasks.map((task) => task.category))],
+    tags: [...new Set([...summary.historicalThinkingTags, ...selectedTasks.flatMap((task) => task.tags)])],
+    tasks: selectedTasks,
+    sourceBased: selectedTasks.some((task) => task.sourceBased),
+    teacherNotes: assignmentDraft.teacherNotes.trim(),
+    rubricFocus: assignmentDraft.rubricFocus.trim() || '证据使用、历史情境、推理清晰、来源限制、完成度',
+  }
+}
+
+function getEmptyAssessmentTargetInfo(targetLabel: string): AssessmentTargetInfo {
+  return {
+    title: '尚无可评价目标',
+    targetLabel,
+    audience: '未填写',
+    timeBox: '未填写',
+    learningGoal: '请先选择或创建任务目标。',
+    deliverable: '未填写',
+    context: '未填写',
+    summary: '暂无内容',
+    sourceLabels: [],
+    categories: [],
+    tags: [],
+    tasks: [],
+    sourceBased: false,
+    teacherNotes: '',
+    rubricFocus: '证据使用、历史情境、推理清晰、来源限制、完成度',
+  }
+}
+
+function buildAssessmentRubricCriteria(target: AssessmentTargetInfo): RubricCriterion[] {
+  const haystack = [target.title, target.targetLabel, target.learningGoal, target.deliverable, target.context, target.summary, target.rubricFocus, target.teacherNotes, ...target.sourceLabels, ...target.categories, ...target.tags].join(' ').toLowerCase()
+  const hasCompare = includesAny(haystack, ['compare', 'comparison', '比较', '跨场景'])
+  const hasSynthesis = includesAny(haystack, ['synthesis', '综合', '整合', 'capstone'])
+  const hasDebate = includesAny(haystack, ['debate', 'roleplay', 'hearing', 'forum', '辩论', '角色'])
+  const hasCausation = includesAny(haystack, ['causation', 'cause', '因果', '原因', '后果'])
+  const hasPeriodization = includesAny(haystack, ['periodization', 'period', 'turning point', 'continuity', '分期', '转折', '连续'])
+  const hasArchiveSilence = includesAny(haystack, ['archive silence', 'silence', 'missing voices', 'nonwritten', 'khipu', '档案沉默', '缺席', '非文字', '结绳'])
+  const methodFocus = getAssessmentMethodFocus({ hasCompare, hasSynthesis, hasDebate, hasCausation, hasPeriodization })
+  const criteria: RubricCriterion[] = [
+    {
+      id: 'evidence-use',
+      title: 'Evidence use / 证据使用',
+      focus: target.sourceBased ? '选择、引用并解释具体来源证据。' : '用任务材料、场景细节或课堂记录支撑判断。',
+      levels: {
+        exceeds: '使用多条相关证据，说明出处、细节与推理关系，并能区分证据与推测。',
+        meets: '使用足够相关证据支撑主要判断，能说明证据如何回应任务。',
+        developing: '引用了一些证据，但解释较笼统，或证据与判断之间连接不稳定。',
+        beginning: '主要依靠概括或个人意见，证据不足、出处不清或与任务关系弱。',
+      },
+    },
+    {
+      id: 'historical-context',
+      title: 'Historical context / 历史情境',
+      focus: '把人物、制度、地点、时间和权力关系放回历史环境。',
+      levels: {
+        exceeds: '准确连接地方情境与更大尺度的制度、市场、帝国或文化背景，避免当下主义。',
+        meets: '能说明关键时间地点、社会关系和制度背景，并用它们解释选择或变化。',
+        developing: '提到背景信息，但背景与论点或产出之间联系不够清楚。',
+        beginning: '缺少历史背景，或把现代假设直接套用到过去。',
+      },
+    },
+    {
+      id: 'historical-method',
+      title: `${methodFocus.title} / 历史思维方法`,
+      focus: methodFocus.focus,
+      levels: methodFocus.levels,
+    },
+    {
+      id: 'argument-product-clarity',
+      title: 'Argument or product clarity / 论证与产出清晰度',
+      focus: '最终作品是否有清晰主张、结构和可读性。',
+      levels: {
+        exceeds: '主张明确、有结构、有过渡，产出形式服务历史解释，并能回应复杂性或反例。',
+        meets: '主张或中心任务清楚，结构完整，表达基本准确，能回应学习目标。',
+        developing: '有可辨认的中心想法，但组织松散、表达跳跃或部分偏离交付物要求。',
+        beginning: '缺少清楚中心、结构或完整产出，读者难以判断历史解释。',
+      },
+    },
+  ]
+
+  if (target.sourceBased || hasArchiveSilence) {
+    criteria.splice(3, 0, {
+      id: 'source-limits',
+      title: hasArchiveSilence ? 'Source limits and archive silence / 来源限制与档案沉默' : 'Source limits / 来源限制',
+      focus: hasArchiveSilence ? '指出谁被记录、谁被排除，以及非文字或残缺档案能说明什么、不能说明什么。' : '说明来源视角、可靠边界、缺失信息和不确定性。',
+      levels: {
+        exceeds: '主动识别来源视角、保存条件和缺席声音，并把限制纳入谨慎结论。',
+        meets: '能指出主要来源限制或不确定性，并避免超过证据范围。',
+        developing: '提到限制但较公式化，未明显改变或限定自己的判断。',
+        beginning: '把来源当作完整事实记录，忽视偏见、沉默或证据边界。',
+      },
+    })
+  }
+
+  return criteria
+}
+
+function getAssessmentMethodFocus(flags: { hasCompare: boolean, hasSynthesis: boolean, hasDebate: boolean, hasCausation: boolean, hasPeriodization: boolean }) {
+  if (flags.hasDebate) {
+    return {
+      title: 'Perspective, counterclaim and debate reasoning',
+      focus: '区分角色立场、证据责任、反驳与历史可能性，而不是只表演观点。',
+      levels: {
+        exceeds: '清楚代表立场，同时公平处理对方证据，反驳基于历史证据而非口号。',
+        meets: '能用证据表达立场，并回应至少一个相反观点或追问。',
+        developing: '有立场但证据或反驳不足，容易停留在角色表演。',
+        beginning: '立场、证据和回应混在一起，难以形成历史讨论。',
+      },
+    }
+  }
+
+  if (flags.hasCompare) {
+    return {
+      title: 'Comparison reasoning',
+      focus: '比较相似与差异，并解释这些异同为什么重要。',
+      levels: {
+        exceeds: '用共同标准比较两个以上案例，解释相似/差异的原因与意义。',
+        meets: '能列出并说明关键相似和差异，且大体使用同一比较维度。',
+        developing: '有并列描述，但比较标准不稳定，解释异同较少。',
+        beginning: '只分别介绍案例，缺少真实比较或比较依据。',
+      },
+    }
+  }
+
+  if (flags.hasCausation) {
+    return {
+      title: 'Causation reasoning',
+      focus: '区分背景、触发、约束、行动者选择和后果。',
+      levels: {
+        exceeds: '解释多重原因及其相互作用，区分短期/长期后果并承认不确定性。',
+        meets: '能识别主要原因和后果，并说明它们之间的合理联系。',
+        developing: '列出原因或结果，但链条较单线，机制解释不足。',
+        beginning: '把时间先后当作因果，或只给出一个未经证明的原因。',
+      },
+    }
+  }
+
+  if (flags.hasPeriodization) {
+    return {
+      title: 'Periodization and change-over-time reasoning',
+      focus: '判断连续、转折、速度和分期边界。',
+      levels: {
+        exceeds: '用证据划分阶段，解释转折点、连续性和不同群体经历的不同节奏。',
+        meets: '能说明重要变化与连续性，并给出合理分期或转折依据。',
+        developing: '提到变化，但分期依据或连续性分析不够清楚。',
+        beginning: '只按时间顺序叙述，缺少转折、连续或分期判断。',
+      },
+    }
+  }
+
+  if (flags.hasSynthesis) {
+    return {
+      title: 'Synthesis reasoning',
+      focus: '把多个任务、场景或证据池整合成一个有范围的历史解释。',
+      levels: {
+        exceeds: '整合多个证据来源与历史思维角度，形成有范围、有复杂性的综合主张。',
+        meets: '能把多个材料连接到同一主张，并解释材料之间的关系。',
+        developing: '汇集了多个材料，但连接多为罗列，综合主张不够集中。',
+        beginning: '只复制或并列材料，未形成综合解释。',
+      },
+    }
+  }
+
+  return {
+    title: 'Historical thinking method',
+    focus: '根据任务要求运用情境化、互证、视角、意义或变化解释。',
+    levels: {
+      exceeds: '方法选择清楚，能把证据、概念和限制合成有判断的历史解释。',
+      meets: '能使用合适历史思维方法完成任务，并解释基本推理。',
+      developing: '尝试使用方法，但步骤不完整或概念使用不稳定。',
+      beginning: '缺少明确历史思维方法，主要停留在信息摘录。',
+    },
+  }
+}
+
+function includesAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term.toLowerCase()))
+}
+
+function formatAssessmentStudentRubric(target: AssessmentTargetInfo, criteria: RubricCriterion[]) {
+  return [
+    `TimeAtlas Student-facing Rubric：${target.title}`,
+    `评价目标：${target.targetLabel}`,
+    `适用对象：${target.audience}`,
+    `时间盒：${target.timeBox}`,
+    `学习目标：${target.learningGoal}`,
+    `最终交付物：${target.deliverable}`,
+    '',
+    '四级标准：Exceeds / Meets / Developing / Beginning',
+    '',
+    ...criteria.flatMap((criterion, index) => [
+      `${index + 1}. ${criterion.title}`,
+      `   关注：${criterion.focus}`,
+      `   Exceeds：${criterion.levels.exceeds}`,
+      `   Meets：${criterion.levels.meets}`,
+      `   Developing：${criterion.levels.developing}`,
+      `   Beginning：${criterion.levels.beginning}`,
+      '',
+    ]),
+  ].join('\n')
+}
+
+function formatAssessmentTeacherScoringGuide(target: AssessmentTargetInfo, criteria: RubricCriterion[]) {
+  return [
+    `TimeAtlas Teacher Scoring Guide：${target.title}`,
+    `目标类型：${target.targetLabel}`,
+    `情境 / 覆盖：${target.context}`,
+    `来源类别：${target.sourceLabels.join('、') || '未识别'}`,
+    `任务类别：${target.categories.join('、') || '未识别'}`,
+    `标签：${target.tags.slice(0, 16).join('、') || '未识别'}`,
+    `评分关注：${target.rubricFocus}`,
+    '',
+    '建议计分：每项 4 分（Exceeds=4, Meets=3, Developing=2, Beginning=1）。总分可按课堂需要折算。',
+    '',
+    ...criteria.flatMap((criterion, index) => [
+      `${index + 1}. ${criterion.title}`,
+      `   4｜${criterion.levels.exceeds}`,
+      `   3｜${criterion.levels.meets}`,
+      `   2｜${criterion.levels.developing}`,
+      `   1｜${criterion.levels.beginning}`,
+      `   快速反馈关注：${criterion.focus}`,
+      '',
+    ]),
+    '评分提醒：先看证据是否足以支撑主张，再看方法与表达；来源沉默或非文字记录任务不要惩罚“无法确定”，应奖励谨慎限定。',
+    target.teacherNotes ? `教师备注：${target.teacherNotes}` : '',
+  ].filter(Boolean).join('\n')
+}
+
+function formatAssessmentFeedbackStems(target: AssessmentTargetInfo, criteria: RubricCriterion[]) {
+  return [
+    `TimeAtlas Feedback Sentence Stems：${target.title}`,
+    '',
+    'Strength / 亮点：',
+    '- 你最有力的证据是 ______，因为它直接说明 ______。',
+    '- 你把 ______ 放回了 ______ 的历史情境，这让解释更可信。',
+    '- 你的产出在 ______ 处显示了清楚的历史思维。',
+    '',
+    'Next step / 下一步：',
+    '- 请选择一条更具体的证据，并补上“这说明……”的推理句。',
+    '- 请把 ______ 与更大的制度、市场、文化或权力背景连接起来。',
+    '- 请说明这条来源能证明什么、不能证明什么。',
+    '- 请把最终主张改成“虽然 ______，但是 ______，因为 ______”。',
+    '',
+    'Criterion-specific stems / 按标准反馈：',
+    ...criteria.map((criterion) => `- ${criterion.title}：现在最接近 ______ 级；要提升一级，请 ______。`),
+    '',
+    `Deliverable reminder：${target.deliverable}`,
+  ].join('\n')
+}
+
+function formatAssessmentRevisionChecklist(target: AssessmentTargetInfo, criteria: RubricCriterion[]) {
+  return [
+    `TimeAtlas Revision Checklist：${target.title}`,
+    '',
+    `最终交付物：${target.deliverable}`,
+    '',
+    ...criteria.map((criterion) => `□ ${criterion.title}：我已经检查 ${criterion.focus}`),
+    '□ 我已经把每条关键证据后面补上“这说明 / this shows”。',
+    '□ 我已经删掉没有证据支撑或超过证据范围的句子。',
+    '□ 我已经确认最终主张回应学习目标，而不是只复述材料。',
+    target.sourceBased ? '□ 我已经标出来源视角、保存条件、缺席声音或不确定性。' : '□ 我已经把课堂活动细节转成可评分的历史解释。',
+  ].join('\n')
+}
+
+function downloadTextFile(filename: string, text: string) {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+function getAssessmentFilename(target: AssessmentTargetInfo, suffix: string) {
+  const safeTitle = target.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'assessment'
+
+  return `timeatlas-${safeTitle}-${suffix}.txt`
+}
+
 async function copyTextToClipboard(text: string) {
   if (typeof navigator === 'undefined' || !navigator.clipboard) {
     throw new Error('Clipboard API unavailable')
@@ -6075,6 +6470,19 @@ function App() {
     setActiveTasksSubpage('library')
 
     const hash = getHashForTasksSubpage('library')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openAssessmentStudioFromBuilder() {
+    setActivePage('tasks')
+    setActiveTasksSubpage('assessment')
+
+    const hash = getHashForTasksSubpage('assessment')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -6595,6 +7003,13 @@ function App() {
               <AssignmentBuilderPanel
                 draft={assignmentBuilderDraft}
                 onUpdateDraft={setAssignmentBuilderDraft}
+                libraryTasks={assignmentLibraryTasks}
+                onOpenAssessmentStudio={openAssessmentStudioFromBuilder}
+              />
+            ) : null}
+            {activeTasksSubpage === 'assessment' ? (
+              <AssessmentStudioPanel
+                assignmentBuilderDraft={assignmentBuilderDraft}
                 libraryTasks={assignmentLibraryTasks}
               />
             ) : null}
@@ -11000,10 +11415,12 @@ function AssignmentBuilderPanel({
   draft,
   onUpdateDraft,
   libraryTasks,
+  onOpenAssessmentStudio,
 }: {
   draft: AssignmentBuilderDraft
   onUpdateDraft: Dispatch<SetStateAction<AssignmentBuilderDraft>>
   libraryTasks: LibraryTask[]
+  onOpenAssessmentStudio: () => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<'all' | TaskLibrarySource>('all')
@@ -11281,12 +11698,246 @@ function AssignmentBuilderPanel({
                   {copyStatus === 'teacher' ? <Check size={16} /> : <Copy size={16} />}
                   {copyStatus === 'teacher' ? '教师指南已复制' : '复制教师指南'}
                 </button>
+                <button type="button" onClick={onOpenAssessmentStudio} className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]">
+                  <Scale size={16} />
+                  用当前组合打开评价反馈
+                </button>
                 <button type="button" onClick={clearDraft} className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]">
                   清空草稿
                 </button>
               </div>
               <p className="mt-3 text-sm text-stone-500" aria-live="polite">
                 {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
+function AssessmentStudioPanel({
+  assignmentBuilderDraft,
+  libraryTasks,
+}: {
+  assignmentBuilderDraft: AssignmentBuilderDraft
+  libraryTasks: LibraryTask[]
+}) {
+  const [assessmentDraft, setAssessmentDraft] = useState<AssessmentDraft>({
+    targetType: 'assignment',
+    taskId: libraryTasks[0]?.id ?? '',
+    moduleId: taskModules[0]?.id ?? '',
+  })
+  const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'feedback' | 'revision' | 'failed'>('idle')
+  const normalizedTaskSearch = taskSearchQuery.trim().toLowerCase()
+  const visibleTasks = useMemo(
+    () => libraryTasks.filter((task) => !normalizedTaskSearch || task.searchText.includes(normalizedTaskSearch)).slice(0, 80),
+    [libraryTasks, normalizedTaskSearch],
+  )
+  const target = getAssessmentTargetInfo(assessmentDraft, assignmentBuilderDraft, libraryTasks)
+  const criteria = buildAssessmentRubricCriteria(target)
+  const studentRubric = formatAssessmentStudentRubric(target, criteria)
+  const teacherGuide = formatAssessmentTeacherScoringGuide(target, criteria)
+  const feedbackStems = formatAssessmentFeedbackStems(target, criteria)
+  const revisionChecklist = formatAssessmentRevisionChecklist(target, criteria)
+  const assessmentExports = [
+    { id: 'student' as const, label: '学生 Rubric', text: studentRubric, filename: 'student-rubric' },
+    { id: 'teacher' as const, label: '教师评分指南', text: teacherGuide, filename: 'teacher-scoring-guide' },
+    { id: 'feedback' as const, label: '反馈句式', text: feedbackStems, filename: 'feedback-stems' },
+    { id: 'revision' as const, label: '修改清单', text: revisionChecklist, filename: 'revision-checklist' },
+  ]
+
+  function updateTargetType(targetType: AssessmentTargetType) {
+    setAssessmentDraft((currentDraft) => ({ ...currentDraft, targetType }))
+    setCopyStatus('idle')
+  }
+
+  async function copyAssessment(kind: 'student' | 'teacher' | 'feedback' | 'revision', text: string) {
+    try {
+      await copyTextToClipboard(text)
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="assessment-studio" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="assessment-studio-title">
+      <div className="rounded-[2rem] border border-sky-200/15 bg-sky-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-sky-100">
+          <Scale size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">assessment studio / 评价与反馈工作台</span>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <div>
+            <h2 id="assessment-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Tasks Assessment Studio / 评价与反馈工作台
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从当前任务组合、单个 Task Library 任务或 Task Module 生成四级评价标准，并复制或导出学生 rubric、教师评分指南、反馈句式与修改清单。
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'Rubric 项', value: criteria.length },
+              { label: '关联任务', value: target.tasks.length },
+              { label: '来源类别', value: target.sourceLabels.length },
+              { label: '方法标签', value: target.tags.length },
+            ].map((item) => (
+              <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
+                <div className="text-2xl font-semibold text-sky-100">{item.value}</div>
+                <div className="mt-1 text-xs text-stone-500">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="space-y-5">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">1. 选择评价目标 / Target</h3>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {([
+                  ['assignment', '当前任务组合', 'Assignment Builder draft'],
+                  ['task', '单个任务', 'LibraryTask'],
+                  ['module', '单元模块', 'Task Module'],
+                ] as [AssessmentTargetType, string, string][]).map(([value, label, helper]) => {
+                  const isActive = assessmentDraft.targetType === value
+
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => updateTargetType(value)}
+                      className={`rounded-3xl border p-4 text-left transition ${isActive ? 'border-sky-200/50 bg-sky-100/[0.1] text-sky-50' : 'border-white/10 bg-white/[0.025] text-stone-300 hover:bg-white/[0.06]'}`}
+                    >
+                      <div className="font-semibold">{label}</div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-500">{helper}</div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {assessmentDraft.targetType === 'task' ? (
+                <div className="mt-4 space-y-3">
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">搜索任务</span>
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-sky-200/60">
+                      <Search size={18} className="text-stone-500" />
+                      <input
+                        type="search"
+                        value={taskSearchQuery}
+                        onChange={(event) => setTaskSearchQuery(event.target.value)}
+                        placeholder="标题、来源、类别、标签……"
+                        className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600"
+                      />
+                    </div>
+                  </label>
+                  <select
+                    value={assessmentDraft.taskId}
+                    onChange={(event) => setAssessmentDraft((currentDraft) => ({ ...currentDraft, taskId: event.target.value }))}
+                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
+                  >
+                    {visibleTasks.map((task) => <option key={task.id} value={task.id}>{task.title} · {task.sourceLabel} · {task.durationMinutes}m</option>)}
+                  </select>
+                </div>
+              ) : null}
+
+              {assessmentDraft.targetType === 'module' ? (
+                <label className="mt-4 block">
+                  <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">选择 Task Module</span>
+                  <select
+                    value={assessmentDraft.moduleId}
+                    onChange={(event) => setAssessmentDraft((currentDraft) => ({ ...currentDraft, moduleId: event.target.value }))}
+                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
+                  >
+                    {taskModules.map((module) => <option key={module.id} value={module.id}>{module.title} · {module.totalMinutes}m</option>)}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">2. 目标摘要 / Assessment brief</h3>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-stone-300">
+                <div className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-3">
+                  <div className="text-xs uppercase tracking-[0.18em] text-sky-100">{target.targetLabel}</div>
+                  <h4 className="mt-2 font-semibold text-stone-50">{target.title}</h4>
+                  <p className="mt-2 text-stone-400">{target.summary}</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-sky-100">Time：</span>{target.timeBox}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-sky-100">Audience：</span>{target.audience}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3 sm:col-span-2"><span className="font-semibold text-sky-100">Goal：</span>{target.learningGoal}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3 sm:col-span-2"><span className="font-semibold text-sky-100">Deliverable：</span>{target.deliverable}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-sky-100">Sources：</span>{target.sourceLabels.join('、') || '未识别'}</div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-sky-100">Tags：</span>{target.tags.slice(0, 8).join('、') || '未识别'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">3. Rubric criteria / 四级评价标准</h3>
+              <div className="mt-4 grid gap-3">
+                {criteria.map((criterion, index) => (
+                  <article key={criterion.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                      <span className="rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-3 py-1 text-sky-100">Criterion {index + 1}</span>
+                      <span>{criterion.id}</span>
+                    </div>
+                    <h4 className="mt-2 font-semibold text-stone-50">{criterion.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{criterion.focus}</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      {([
+                        ['exceeds', 'Exceeds'],
+                        ['meets', 'Meets'],
+                        ['developing', 'Developing'],
+                        ['beginning', 'Beginning'],
+                      ] as [keyof RubricCriterion['levels'], string][]).map(([level, label]) => (
+                        <div key={level} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-300">
+                          <span className="font-semibold text-sky-100">{label}：</span>{criterion.levels[level]}
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">4. 复制 / 导出</h3>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {assessmentExports.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                    <div className="font-semibold text-stone-100">{item.label}</div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void copyAssessment(item.id, item.text)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-sky-200"
+                      >
+                        {copyStatus === item.id ? <Check size={16} /> : <Copy size={16} />}
+                        {copyStatus === item.id ? '已复制' : '复制'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadTextFile(getAssessmentFilename(target, item.filename), item.text)}
+                        className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
+                      >
+                        <Share2 size={16} />
+                        导出 .txt
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限；仍可使用导出按钮下载文本。' : '导出内容由当前目标即时生成，不新增 scenario 数据。'}
               </p>
             </div>
           </div>
