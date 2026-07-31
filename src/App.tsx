@@ -60,6 +60,7 @@ const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
+const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -581,7 +582,7 @@ type SubpageNavItem<T extends string> = {
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'sessions' | 'modules' | 'portfolio'
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
@@ -602,6 +603,7 @@ const labsSubpages: SubpageNavItem<LabsSubpage>[] = [
 const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
+  { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
   { id: 'modules', label: '单元模块', eyebrow: 'Modules', description: '6 个跨页学习单元、步骤进度与导出', hash: 'task-modules' },
   { id: 'portfolio', label: '作品档案', eyebrow: 'Portfolio', description: '学习草稿、完成记录与导出', hash: 'portfolio' },
@@ -678,6 +680,28 @@ type LibraryTask = {
   formatSheet: () => string
 }
 
+
+type AssignmentBuilderDraft = {
+  selectedTaskIds: string[]
+  title: string
+  audience: string
+  timeBox: string
+  learningGoal: string
+  finalDeliverable: string
+  teacherNotes: string
+  studentInstructions: string
+  rubricFocus: string
+  updatedAt?: string
+}
+
+type AssignmentBuilderSummary = {
+  selectedTasks: LibraryTask[]
+  totalMinutes: number
+  sourceCategories: string[]
+  scenarioCoverage: string[]
+  historicalThinkingTags: string[]
+}
+
 type TaskLibraryPreset = {
   id: string
   label: string
@@ -695,6 +719,22 @@ type TaskDiscoveryCollection = TaskLibraryPreset & {
   duration: string
   secondaryAction?: 'open-first' | 'copy-first'
 }
+
+
+const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: string }[] = [
+  { value: 'all', label: '全部来源' },
+  { value: 'mission', label: 'Scenario Missions' },
+  { value: 'activity', label: 'Activity Packs' },
+  { value: 'lesson', label: 'Lesson Pack' },
+  { value: 'inquiry', label: 'Inquiry Paths' },
+  { value: 'compare', label: 'Compare Lenses' },
+  { value: 'causation', label: 'Causation Lab' },
+  { value: 'periodization', label: 'Periodization Lab' },
+  { value: 'perspectives', label: 'Perspectives Lab' },
+  { value: 'contextualization', label: 'Context & Scale Lab' },
+  { value: 'significance', label: 'Significance Lab' },
+  { value: 'synthesis', label: 'Synthesis Studio' },
+]
 
 type SourceAtlasEntry = {
   id: string
@@ -2160,6 +2200,91 @@ function persistTaskModuleProgressState(state: TaskModuleProgressState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(taskModuleProgressStorageKey, serializedState)
+}
+
+function getEmptyAssignmentBuilderDraft(): AssignmentBuilderDraft {
+  return {
+    selectedTaskIds: [],
+    title: 'TimeAtlas 任务组合',
+    audience: '中学历史课堂 / 自主学习小组',
+    timeBox: '45–75 分钟',
+    learningGoal: '用多个 TimeAtlas 任务连接身份、来源、历史思维和最终论证。',
+    finalDeliverable: '一份证据驱动的学习输出，可包含任务草稿、比较判断或综合段落。',
+    teacherNotes: '',
+    studentInstructions: '',
+    rubricFocus: '证据选择、历史情境、推理清晰、来源限制、完成度',
+  }
+}
+
+function parseAssignmentBuilderDraft(rawState: string | null): AssignmentBuilderDraft {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return getEmptyAssignmentBuilderDraft()
+    }
+
+    const draft = parsedState as Partial<AssignmentBuilderDraft>
+    const selectedTaskIds = Array.isArray(draft.selectedTaskIds)
+      ? draft.selectedTaskIds.filter((item): item is string => typeof item === 'string').slice(0, 6)
+      : []
+
+    return {
+      ...getEmptyAssignmentBuilderDraft(),
+      selectedTaskIds,
+      title: typeof draft.title === 'string' ? draft.title : getEmptyAssignmentBuilderDraft().title,
+      audience: typeof draft.audience === 'string' ? draft.audience : getEmptyAssignmentBuilderDraft().audience,
+      timeBox: typeof draft.timeBox === 'string' ? draft.timeBox : getEmptyAssignmentBuilderDraft().timeBox,
+      learningGoal: typeof draft.learningGoal === 'string' ? draft.learningGoal : getEmptyAssignmentBuilderDraft().learningGoal,
+      finalDeliverable: typeof draft.finalDeliverable === 'string' ? draft.finalDeliverable : getEmptyAssignmentBuilderDraft().finalDeliverable,
+      teacherNotes: typeof draft.teacherNotes === 'string' ? draft.teacherNotes : '',
+      studentInstructions: typeof draft.studentInstructions === 'string' ? draft.studentInstructions : '',
+      rubricFocus: typeof draft.rubricFocus === 'string' ? draft.rubricFocus : getEmptyAssignmentBuilderDraft().rubricFocus,
+      updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+    }
+  } catch {
+    return getEmptyAssignmentBuilderDraft()
+  }
+}
+
+function hasAssignmentBuilderActivity(draft: AssignmentBuilderDraft) {
+  const emptyDraft = getEmptyAssignmentBuilderDraft()
+
+  return Boolean(
+    draft.selectedTaskIds.length
+      || draft.title.trim() !== emptyDraft.title
+      || draft.audience.trim() !== emptyDraft.audience
+      || draft.timeBox.trim() !== emptyDraft.timeBox
+      || draft.learningGoal.trim() !== emptyDraft.learningGoal
+      || draft.finalDeliverable.trim() !== emptyDraft.finalDeliverable
+      || draft.teacherNotes.trim()
+      || draft.studentInstructions.trim()
+      || draft.rubricFocus.trim() !== emptyDraft.rubricFocus,
+  )
+}
+
+function loadAssignmentBuilderDraft() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localDraft = parseAssignmentBuilderDraft(localStorage?.getItem(assignmentBuilderStorageKey) ?? null)
+
+  if (hasAssignmentBuilderActivity(localDraft)) {
+    return localDraft
+  }
+
+  return parseAssignmentBuilderDraft(sessionStorage?.getItem(assignmentBuilderStorageKey) ?? null)
+}
+
+function persistAssignmentBuilderDraft(draft: AssignmentBuilderDraft) {
+  const serializedState = JSON.stringify(draft)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(assignmentBuilderStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(assignmentBuilderStorageKey, serializedState)
 }
 
 
@@ -3906,6 +4031,8 @@ function formatLearningArchive(
   synthesisDraftState: SynthesisDraftState,
   compareDraftState: CompareDraftState,
   taskModuleProgressState: TaskModuleProgressState,
+  assignmentBuilderDraft: AssignmentBuilderDraft,
+  assignmentLibraryTasks: LibraryTask[],
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
@@ -3917,6 +4044,7 @@ function formatLearningArchive(
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
+  const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
@@ -3941,6 +4069,7 @@ function formatLearningArchive(
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
+    `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
     '',
   ]
@@ -3975,6 +4104,23 @@ function formatLearningArchive(
   })
 
   const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
+
+  if (assignmentSummary.selectedTasks.length > 0 || hasAssignmentBuilderActivity(assignmentBuilderDraft)) {
+    lines.push(
+      'Assignment Builder / 任务组合器：',
+      `  标题：${assignmentBuilderDraft.title.trim() || '未填写'}`,
+      `  对象：${assignmentBuilderDraft.audience.trim() || '未填写'}`,
+      `  时间盒：${assignmentBuilderDraft.timeBox.trim() || `${assignmentSummary.totalMinutes} 分钟`}`,
+      `  学习目标：${assignmentBuilderDraft.learningGoal.trim() || '未填写'}`,
+      `  最终交付物：${assignmentBuilderDraft.finalDeliverable.trim() || '未填写'}`,
+      `  任务序列：${assignmentSummary.selectedTasks.map((task, index) => `${index + 1}. ${task.title}`).join('；') || '尚未选择'}`,
+      `  来源类别：${assignmentSummary.sourceCategories.join('、') || '尚未选择'}`,
+      `  场景覆盖：${assignmentSummary.scenarioCoverage.join('、') || '尚未选择'}`,
+      `  历史思维标签：${assignmentSummary.historicalThinkingTags.slice(0, 12).join('、') || '尚未识别'}`,
+      `  评分关注：${assignmentBuilderDraft.rubricFocus.trim() || '未填写'}`,
+      '',
+    )
+  }
 
   if (taskModuleStats.details.length > 0) {
     lines.push('Tasks Learning Modules / 单元模块：')
@@ -5122,6 +5268,86 @@ function buildTaskLibraryTasks({
   return tasks
 }
 
+function getAssignmentSelectedTasks(draft: AssignmentBuilderDraft, libraryTasks: LibraryTask[]) {
+  const tasksById = new Map(libraryTasks.map((task) => [task.id, task]))
+
+  return draft.selectedTaskIds.map((id) => tasksById.get(id)).filter((task): task is LibraryTask => Boolean(task))
+}
+
+function getAssignmentBuilderSummary(draft: AssignmentBuilderDraft, libraryTasks: LibraryTask[]): AssignmentBuilderSummary {
+  const selectedTasks = getAssignmentSelectedTasks(draft, libraryTasks)
+  const scenarioCoverage = [...new Set(selectedTasks.map((task) => task.scenarioId ? getScenarioById(task.scenarioId)?.title ?? task.scenarioId : task.context).filter(Boolean))]
+  const thinkingKeywords = ['causation', '因果', 'periodization', '分期', 'perspective', '视角', 'agency', '能动性', 'context', '情境', 'scale', '尺度', 'significance', '意义', 'synthesis', '综合', 'compare', '比较', 'source', 'evidence', '来源', '证据', 'corroboration', '互证']
+  const historicalThinkingTags = [...new Set(selectedTasks.flatMap((task) => [task.category, task.sourceLabel, ...task.tags]).filter((tag) => thinkingKeywords.some((keyword) => tag.toLowerCase().includes(keyword.toLowerCase()))))]
+
+  return {
+    selectedTasks,
+    totalMinutes: selectedTasks.reduce((total, task) => total + task.durationMinutes, 0),
+    sourceCategories: [...new Set(selectedTasks.map((task) => task.sourceLabel))],
+    scenarioCoverage,
+    historicalThinkingTags,
+  }
+}
+
+function formatAssignmentStudentWorksheet(draft: AssignmentBuilderDraft, libraryTasks: LibraryTask[]) {
+  const summary = getAssignmentBuilderSummary(draft, libraryTasks)
+
+  return [
+    `TimeAtlas Student Worksheet：${draft.title.trim() || '任务组合'}`,
+    `适用对象：${draft.audience.trim() || '未填写'}`,
+    `建议时间：${draft.timeBox.trim() || `${summary.totalMinutes} 分钟`}`,
+    `学习目标：${draft.learningGoal.trim() || '未填写'}`,
+    `最终交付物：${draft.finalDeliverable.trim() || '未填写'}`,
+    '',
+    '任务顺序：',
+    ...summary.selectedTasks.map((task, index) => [
+      `${index + 1}. ${task.title}（${task.durationMinutes} 分钟｜${task.sourceLabel}｜${task.category}）`,
+      `   情境：${task.context}`,
+      `   任务：${task.summary}`,
+      `   交付物：${task.deliverable}`,
+      `   标签：${task.tags.slice(0, 8).join('、') || '无'}`,
+    ].join('\n')),
+    summary.selectedTasks.length ? '' : '- 尚未选择任务。',
+    '',
+    '学生说明：',
+    draft.studentInstructions.trim() || '按顺序完成任务；每一步至少记录一条证据、一句推理和一个仍不确定的问题。',
+    '',
+    '自检清单：',
+    '- 我是否说明了证据来自哪里？',
+    '- 我是否把证据连接到历史情境或历史思维概念？',
+    '- 我是否指出来源限制、档案沉默或不确定性？',
+    '- 我的最终交付物是否回应学习目标？',
+  ].join('\n')
+}
+
+function formatAssignmentTeacherGuide(draft: AssignmentBuilderDraft, libraryTasks: LibraryTask[]) {
+  const summary = getAssignmentBuilderSummary(draft, libraryTasks)
+
+  return [
+    `TimeAtlas Teacher Guide：${draft.title.trim() || '任务组合'}`,
+    `适用对象：${draft.audience.trim() || '未填写'}`,
+    `时间盒：${draft.timeBox.trim() || `${summary.totalMinutes} 分钟`}（任务估算合计 ${summary.totalMinutes} 分钟）`,
+    `学习目标：${draft.learningGoal.trim() || '未填写'}`,
+    `最终交付物：${draft.finalDeliverable.trim() || '未填写'}`,
+    '',
+    '组合概览：',
+    `- 任务数量：${summary.selectedTasks.length}/6`,
+    `- 来源类别：${summary.sourceCategories.join('、') || '尚未选择'}`,
+    `- 场景覆盖：${summary.scenarioCoverage.join('、') || '尚未选择'}`,
+    `- 历史思维标签：${summary.historicalThinkingTags.slice(0, 12).join('、') || '尚未识别'}`,
+    '',
+    '教学流程建议：',
+    ...summary.selectedTasks.map((task, index) => `${index + 1}. ${task.title}｜${task.durationMinutes} 分钟｜${task.sourceBased ? '来源型任务' : '概念/产出型任务'}｜${task.deliverable}`),
+    summary.selectedTasks.length ? '' : '- 尚未选择任务。',
+    '',
+    '教师备注：',
+    draft.teacherNotes.trim() || '可先用第一项建立情境，再用中段任务强化来源/历史思维，最后用交付物整合证据。',
+    '',
+    '评分关注：',
+    draft.rubricFocus.trim() || '证据选择、历史情境、推理清晰、来源限制、完成度',
+  ].join('\n')
+}
+
 async function copyTextToClipboard(text: string) {
   if (typeof navigator === 'undefined' || !navigator.clipboard) {
     throw new Error('Clipboard API unavailable')
@@ -5217,6 +5443,7 @@ function App() {
   const [taskModuleProgressState, setTaskModuleProgressState] = useState<TaskModuleProgressState>(
     loadTaskModuleProgressState,
   )
+  const [assignmentBuilderDraft, setAssignmentBuilderDraft] = useState<AssignmentBuilderDraft>(loadAssignmentBuilderDraft)
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
   const selectedScenario = useMemo(
@@ -5246,6 +5473,7 @@ function App() {
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -5431,6 +5659,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [taskModuleProgressState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistAssignmentBuilderDraft(assignmentBuilderDraft)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [assignmentBuilderDraft])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -6029,6 +6269,13 @@ function App() {
                 onLoadSynthesisPreset={loadSynthesisPreset}
               />
             ) : null}
+            {activeTasksSubpage === 'builder' ? (
+              <AssignmentBuilderPanel
+                draft={assignmentBuilderDraft}
+                onUpdateDraft={setAssignmentBuilderDraft}
+                libraryTasks={assignmentLibraryTasks}
+              />
+            ) : null}
             {activeTasksSubpage === 'sessions' ? (
               <GuidedSessionPanel
                 selectedScenarioId={selectedScenario.id}
@@ -6052,6 +6299,8 @@ function App() {
                 workspaceStats={workspaceStats}
                 taskModuleStats={taskModuleStats}
                 taskModuleProgressState={taskModuleProgressState}
+                assignmentBuilderDraft={assignmentBuilderDraft}
+                assignmentLibraryTasks={assignmentLibraryTasks}
                 corroborationDraftState={corroborationDraftState}
                 causationDraftState={causationDraftState}
                 periodizationDraftState={periodizationDraftState}
@@ -9873,6 +10122,8 @@ function PortfolioPanel({
   workspaceStats,
   taskModuleStats,
   taskModuleProgressState,
+  assignmentBuilderDraft,
+  assignmentLibraryTasks,
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
@@ -9888,6 +10139,8 @@ function PortfolioPanel({
   workspaceStats: WorkspaceStats
   taskModuleStats: ReturnType<typeof getTaskModuleProgressStats>
   taskModuleProgressState: TaskModuleProgressState
+  assignmentBuilderDraft: AssignmentBuilderDraft
+  assignmentLibraryTasks: LibraryTask[]
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
@@ -9908,6 +10161,7 @@ function PortfolioPanel({
   const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
+  const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -9924,7 +10178,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, compareDraftState, taskModuleProgressState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, compareDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -9971,6 +10225,8 @@ function PortfolioPanel({
               { label: '意义草稿', value: significanceDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
               { label: '比较草稿', value: compareDraftCount },
+              { label: '任务组合', value: assignmentSummary.selectedTasks.length },
+              { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '模块开始', value: taskModuleStats.startedCount },
               { label: '模块完成', value: taskModuleStats.completedCount },
               { label: '模块步骤', value: taskModuleStats.checkedStepCount },
@@ -9985,8 +10241,15 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
+                {assignmentSummary.selectedTasks.length > 0 ? (
+                  <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                    <div className="font-medium text-stone-100">{assignmentBuilderDraft.title || '任务组合'}</div>
+                    <div>Assignment Builder · {assignmentSummary.selectedTasks.length} tasks · {assignmentSummary.totalMinutes} 分钟 · {assignmentBuilderDraft.updatedAt ? new Date(assignmentBuilderDraft.updatedAt).toLocaleString() : '未记录时间'}</div>
+                    <div className="mt-1 text-stone-500">{assignmentSummary.selectedTasks.map((task) => task.title).join(' → ')}</div>
+                  </div>
+                ) : null}
                 {workspaceStats.recentEntries.map(({ key, title, category, entry }) => (
                   <div key={key} className="rounded-2xl border border-orange-200/15 bg-orange-100/[0.045] p-3 text-sm leading-6 text-stone-400">
                     <div className="font-medium text-stone-100">{title}</div>
@@ -10220,6 +10483,307 @@ function TaskDiscoveryPanel({
   )
 }
 
+
+function AssignmentBuilderPanel({
+  draft,
+  onUpdateDraft,
+  libraryTasks,
+}: {
+  draft: AssignmentBuilderDraft
+  onUpdateDraft: Dispatch<SetStateAction<AssignmentBuilderDraft>>
+  libraryTasks: LibraryTask[]
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<'all' | TaskLibrarySource>('all')
+  const [durationFilter, setDurationFilter] = useState<'all' | DurationBand>('all')
+  const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'failed'>('idle')
+  const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
+  const selectedTasks = getAssignmentSelectedTasks(draft, libraryTasks)
+  const summary = getAssignmentBuilderSummary(draft, libraryTasks)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const visibleTasks = useMemo(
+    () => libraryTasks.filter((task) => {
+      const matchesSearch = !normalizedSearchQuery || task.searchText.includes(normalizedSearchQuery)
+      const matchesSource = sourceFilter === 'all' || task.source === sourceFilter
+      const matchesDuration = durationFilter === 'all' || task.durationBand === durationFilter
+      const matchesSourceBased = !sourceBasedOnly || task.sourceBased
+
+      return matchesSearch && matchesSource && matchesDuration && matchesSourceBased
+    }),
+    [durationFilter, libraryTasks, normalizedSearchQuery, sourceBasedOnly, sourceFilter],
+  )
+
+  function updateDraft(patch: Partial<AssignmentBuilderDraft>) {
+    onUpdateDraft((currentDraft) => ({
+      ...currentDraft,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    }))
+  }
+
+  function toggleTask(taskId: string) {
+    onUpdateDraft((currentDraft) => {
+      const isSelected = currentDraft.selectedTaskIds.includes(taskId)
+      const selectedTaskIds = isSelected
+        ? currentDraft.selectedTaskIds.filter((id) => id !== taskId)
+        : currentDraft.selectedTaskIds.length >= 6
+          ? currentDraft.selectedTaskIds
+          : [...currentDraft.selectedTaskIds, taskId]
+
+      return {
+        ...currentDraft,
+        selectedTaskIds,
+        updatedAt: new Date().toISOString(),
+      }
+    })
+  }
+
+  function moveTask(taskId: string, direction: -1 | 1) {
+    onUpdateDraft((currentDraft) => {
+      const currentIndex = currentDraft.selectedTaskIds.indexOf(taskId)
+      const nextIndex = currentIndex + direction
+
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentDraft.selectedTaskIds.length) {
+        return currentDraft
+      }
+
+      const selectedTaskIds = [...currentDraft.selectedTaskIds]
+      const [removedTaskId] = selectedTaskIds.splice(currentIndex, 1)
+      selectedTaskIds.splice(nextIndex, 0, removedTaskId)
+
+      return {
+        ...currentDraft,
+        selectedTaskIds,
+        updatedAt: new Date().toISOString(),
+      }
+    })
+  }
+
+  async function copyAssignment(kind: 'student' | 'teacher') {
+    try {
+      await copyTextToClipboard(kind === 'student'
+        ? formatAssignmentStudentWorksheet(draft, libraryTasks)
+        : formatAssignmentTeacherGuide(draft, libraryTasks))
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function clearDraft() {
+    onUpdateDraft({
+      ...getEmptyAssignmentBuilderDraft(),
+      updatedAt: new Date().toISOString(),
+    })
+    setCopyStatus('idle')
+  }
+
+  return (
+    <section id="assignment-builder" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="assignment-builder-title">
+      <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-amber-100">
+          <ClipboardList size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">assignment builder / 任务组合器 1.0</span>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+          <div>
+            <h2 id="assignment-builder-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Tasks Assignment Builder / 任务组合器
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有 Task Library 任务中选择最多 6 个，排成课堂任务序列，并复制学生任务单或教师指南。草稿优先保存在 localStorage，受限时回退 sessionStorage。
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: '已选任务', value: `${summary.selectedTasks.length}/6` },
+              { label: '估算分钟', value: summary.totalMinutes },
+              { label: '来源类别', value: summary.sourceCategories.length },
+              { label: '场景覆盖', value: summary.scenarioCoverage.length },
+            ].map((item) => (
+              <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
+                <div className="text-2xl font-semibold text-amber-100">{item.value}</div>
+                <div className="mt-1 text-xs text-stone-500">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+            <h3 className="text-xl font-semibold text-stone-50">1. 选择任务 / Task picker</h3>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className="block md:col-span-2">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">搜索</span>
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-amber-200/60">
+                  <Search size={18} className="text-stone-500" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="标题、交付物、标签、场景或来源……"
+                    className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600"
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">来源</span>
+                <select
+                  value={sourceFilter}
+                  onChange={(event) => setSourceFilter(event.target.value as 'all' | TaskLibrarySource)}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  {taskLibrarySourceFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">时长</span>
+                <select
+                  value={durationFilter}
+                  onChange={(event) => setDurationFilter(event.target.value as 'all' | DurationBand)}
+                  className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-amber-200/60"
+                >
+                  <option value="all">全部时长</option>
+                  {durationBands.map((band) => <option key={band} value={band}>{getDurationBandLabel(band)}</option>)}
+                </select>
+              </label>
+            </div>
+            <label className="mt-4 inline-flex cursor-pointer items-center gap-3 rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-4 py-2 text-sm text-amber-100 transition hover:bg-amber-100/[0.1]">
+              <input
+                type="checkbox"
+                checked={sourceBasedOnly}
+                onChange={(event) => setSourceBasedOnly(event.target.checked)}
+                className="h-4 w-4 rounded border-white/20 bg-black text-amber-300 focus:ring-amber-200"
+              />
+              只显示来源型 / source-based 任务
+            </label>
+
+            <div className="mt-5 max-h-[46rem] space-y-3 overflow-y-auto pr-1">
+              {visibleTasks.slice(0, 64).map((task) => {
+                const isSelected = draft.selectedTaskIds.includes(task.id)
+                const isDisabled = !isSelected && draft.selectedTaskIds.length >= 6
+
+                return (
+                  <article key={task.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                          <span className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-amber-100">{task.sourceLabel}</span>
+                          <span>{task.durationMinutes}m</span>
+                          <span>{task.category}</span>
+                          {task.sourceBased ? <span>source-based</span> : null}
+                        </div>
+                        <h4 className="mt-2 font-semibold text-stone-50">{task.title}</h4>
+                        <p className="mt-1 text-xs leading-5 text-stone-500">{task.context}</p>
+                        <p className="mt-2 text-sm leading-6 text-stone-300">{task.summary}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleTask(task.id)}
+                        disabled={isDisabled}
+                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {isSelected ? <Check size={16} /> : <Circle size={16} />}
+                        {isSelected ? '已选择' : isDisabled ? '最多 6 个' : '加入组合'}
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
+              {visibleTasks.length === 0 ? <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-stone-500">没有匹配任务，请放宽筛选。</p> : null}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">2. 已选序列 / Selected sequence</h3>
+              <div className="mt-4 space-y-3">
+                {selectedTasks.length > 0 ? selectedTasks.map((task, index) => (
+                  <article key={task.id} className="rounded-2xl border border-emerald-200/15 bg-emerald-100/[0.045] p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-emerald-100">Step {index + 1} · {task.durationMinutes}m · {task.sourceLabel}</div>
+                        <h4 className="mt-2 font-semibold text-stone-50">{task.title}</h4>
+                        <p className="mt-1 text-sm leading-6 text-stone-400">{task.deliverable}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button type="button" onClick={() => moveTask(task.id, -1)} disabled={index === 0} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-stone-200 transition hover:bg-white/[0.08] disabled:opacity-35">上移</button>
+                        <button type="button" onClick={() => moveTask(task.id, 1)} disabled={index === selectedTasks.length - 1} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-stone-200 transition hover:bg-white/[0.08] disabled:opacity-35">下移</button>
+                        <button type="button" onClick={() => toggleTask(task.id)} className="rounded-full border border-rose-200/25 bg-rose-100/[0.08] px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-100/[0.14]">移除</button>
+                      </div>
+                    </div>
+                  </article>
+                )) : <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-stone-500">从左侧加入任务后，这里会显示可调整顺序的学习序列。</p>}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">3. 设置 / Settings</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {([
+                  ['title', '标题'],
+                  ['audience', '对象'],
+                  ['timeBox', '时间盒'],
+                  ['learningGoal', '学习目标'],
+                  ['finalDeliverable', '最终交付物'],
+                  ['teacherNotes', '教师备注'],
+                  ['studentInstructions', '学生说明'],
+                  ['rubricFocus', '评分关注'],
+                ] as [keyof AssignmentBuilderDraft, string][]).map(([field, label]) => (
+                  <label key={field} className={field === 'teacherNotes' || field === 'studentInstructions' || field === 'rubricFocus' || field === 'finalDeliverable' || field === 'learningGoal' ? 'block md:col-span-2' : 'block'}>
+                    <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">{label}</span>
+                    {field === 'teacherNotes' || field === 'studentInstructions' || field === 'rubricFocus' || field === 'finalDeliverable' || field === 'learningGoal' ? (
+                      <textarea
+                        value={draft[field] ?? ''}
+                        onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<AssignmentBuilderDraft>)}
+                        rows={field === 'rubricFocus' ? 2 : 3}
+                        className="w-full rounded-3xl border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+                      />
+                    ) : (
+                      <input
+                        value={draft[field] ?? ''}
+                        onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<AssignmentBuilderDraft>)}
+                        className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-amber-200/60"
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">4. 汇总与导出 / Summary & copy</h3>
+              <div className="mt-4 grid gap-3 text-sm leading-6 text-stone-300 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-amber-100">Total：</span>{summary.totalMinutes} 分钟</div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-amber-100">Sources：</span>{summary.sourceCategories.join('、') || '尚未选择'}</div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-amber-100">Scenarios：</span>{summary.scenarioCoverage.join('、') || '尚未选择'}</div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="font-semibold text-amber-100">Thinking：</span>{summary.historicalThinkingTags.slice(0, 10).join('、') || '尚未识别'}</div>
+              </div>
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <button type="button" onClick={() => void copyAssignment('student')} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+                  {copyStatus === 'student' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'student' ? '学生任务单已复制' : '复制学生任务单'}
+                </button>
+                <button type="button" onClick={() => void copyAssignment('teacher')} className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]">
+                  {copyStatus === 'teacher' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'teacher' ? '教师指南已复制' : '复制教师指南'}
+                </button>
+                <button type="button" onClick={clearDraft} className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]">
+                  清空草稿
+                </button>
+              </div>
+              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function TaskLibraryPanel({
   preset,
   onClearPreset,
@@ -10391,18 +10955,7 @@ function TaskLibraryPanel({
               onChange={(event) => setSourceFilter(event.target.value as 'all' | TaskLibrarySource)}
               className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
             >
-              <option value="all">全部来源</option>
-              <option value="mission">Scenario Missions</option>
-              <option value="activity">Activity Packs</option>
-              <option value="lesson">Lesson Pack</option>
-              <option value="inquiry">Inquiry Paths</option>
-              <option value="compare">Compare Lenses</option>
-              <option value="causation">Causation Lab</option>
-              <option value="periodization">Periodization Lab</option>
-              <option value="perspectives">Perspectives Lab</option>
-              <option value="contextualization">Context & Scale Lab</option>
-              <option value="significance">Significance Lab</option>
-              <option value="synthesis">Synthesis Studio</option>
+              {taskLibrarySourceFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
         </div>
