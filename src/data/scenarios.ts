@@ -676,6 +676,32 @@ export const atlasInquiryPaths: AtlasInquiryPath[] = [
     ],
   },
   {
+    id: 'nonwritten-records-archive-silence',
+    title: '非文字记录与档案沉默',
+    subtitle: '连接 Cusco、特诺奇蒂特兰、Fustat 与圣多明各，追问非文字记录、殖民编年、商人书信和强制劳动档案如何同时照亮与遮蔽普通人。',
+    lensKey: 'source-credibility',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker'],
+    drivingQuestion: '当 khipu、道路仓储、市场/贡赋证据、Geniza 书信和种植园清单并置时，哪些普通人的劳动被记录，哪些解释权仍被档案沉默过滤？',
+    whyTheseScenarios:
+      'Cusco 的 khipu 与 Qhapaq Ñan 展示非文字行政记录和道路/仓储劳动；特诺奇蒂特兰让市场、贡赋和征服后文字叙述之间的张力可见；Fustat 的 Geniza 书信让商人文书异常幸存；圣多明各糖园则显示法律和清单如何记录强制劳动却压低被奴役者自述。四站共同避免把“有字母文字”误当作“更完整历史”。',
+    tasks: [
+      '为四站各写一张“记录媒介—保存者—能证明的制度劳动—沉默的声音”证据卡。',
+      '比较 khipu/考古、殖民编年、商人书信和种植园清单：哪类材料更能保存制度结构？哪类更可能遮蔽个人解释？',
+      '写一段 230 字谨慎判断：历史论证如何使用非文字证据和文字档案，同时承认 archive silence？',
+    ],
+    discussionMoves: [
+      '先要求学生把“没有文字”改写为“不同媒介记录不同信息”，再进入来源可信度判断。',
+      '给每条证据贴上“当时记录 / 殖民转述 / 后世保存或研究解释”标签。',
+      '追问为什么制度劳动常以数量、配额、路线、财产或信用条目出现，而不是以劳动者自述出现。',
+    ],
+    rubric: [
+      '能准确区分非文字记录、殖民文本、商人书信、法律清单和现代研究的证据功能',
+      '能把 khipu、道路/仓储、贡赋、信用或强制劳动与记录形式连接起来',
+      '至少使用 Cusco、Tenochtitlan、Fustat、Saint-Domingue 四站证据，并说明每类来源边界',
+      '结论能主动处理 archive silence，不把殖民文字当作无偏事实，也不把非文字记录当作空白',
+    ],
+  },
+  {
     id: 'nonwritten-evidence-and-imperial-labor',
     title: '非文字证据与帝国劳动可见性',
     subtitle: '连接 Cusco、特诺奇蒂特兰、Fustat 与圣多明各，追问记录形式如何让制度劳动可见或沉默。',
@@ -889,6 +915,25 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     ],
     deliverables: ['五站红海—印度洋信用路线图', '信件/合约/口头担保比较表', '港口中介工作链', '季风与海上风险提示卡', '220 字来源幸存与信用论证'],
     tags: ['Cairo Geniza', 'Fustat', '红海贸易', '印度洋信用', '商人信件', '合约', '港口中介', '来源幸存'],
+  },
+  {
+    id: 'records-roads-conquest-route',
+    title: '记录、道路与征服路线：khipu、市场与档案沉默',
+    subtitle: '从 Cusco 的 khipu / Qhapaq Ñan 到特诺奇蒂特兰、Fustat 和圣多明各，比较道路、征服、书信和清单如何改变普通劳动的可见性。',
+    lensKey: 'source-credibility',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker'],
+    routeQuestion: '道路、征服和档案保存如何把普通人的劳动写进记录，同时让他们的声音仍然缺席？',
+    mapFocus: '路线从 Tawantinsuyu 的道路、仓储和 khipu 行政出发，连接美洲湖城市场/征服后叙述、Fustat 商人书信和加勒比糖园强制劳动档案，强调记录媒介与权力转折。',
+    classroomUse: '适合非文字证据、征服与档案沉默单元；学生应比较记录形式，而不是把文字/非文字做成高低等级。',
+    assignmentPrompt: '制作一张“记录—道路/征服—劳动可见性”路线图：每站标出媒介、权力转折、普通劳动和一条沉默。',
+    evidencePrompts: [
+      '在 Cusco 站，说明 khipu、仓储和道路系统如何支持行政调度，但不等同于完整个人自述。',
+      '在特诺奇蒂特兰站，比较市场/贡赋证据和征服后文本如何同时保存与重塑城市经验。',
+      '在 Fustat 与圣多明各站，说明书信、账目、法律或清单为什么能让某些关系可见，也会把普通劳动者压成类别。',
+      '为每站写一句“这条证据最能证明……”和一句“它仍然沉默了……”。',
+    ],
+    deliverables: ['四站记录与道路路线图', '征服/保存转折注释', '非文字/文字证据边界卡', 'archive silence 论证段落'],
+    tags: ['khipu', 'Qhapaq Ñan', 'conquest', 'nonwritten records', 'archive silence', 'roads', 'imperial labor'],
   },
   {
     id: 'nonwritten-records-imperial-labor-route',

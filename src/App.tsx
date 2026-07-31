@@ -58,6 +58,7 @@ const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
+const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -557,7 +558,7 @@ type SubpageNavItem<T extends string> = {
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'sessions' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'sessions' | 'modules' | 'portfolio'
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
@@ -579,6 +580,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
+  { id: 'modules', label: '单元模块', eyebrow: 'Modules', description: '6 个跨页学习单元、步骤进度与导出', hash: 'task-modules' },
   { id: 'portfolio', label: '作品档案', eyebrow: 'Portfolio', description: '学习草稿、完成记录与导出', hash: 'portfolio' },
 ]
 
@@ -600,6 +602,36 @@ type GuidedSessionRoute = {
 }
 
 type GuidedSessionProgressState = Record<string, string[]>
+
+type TaskModuleAction =
+  | { type: 'scenario', scenarioId: string, hash?: ScenarioSectionId }
+  | { type: 'atlas', hash: string, inquiryPathId?: string, routeId?: string }
+  | { type: 'labs', lab: LabsSubpage, inquiryId?: string }
+  | { type: 'evidence' }
+  | { type: 'synthesis', presetId: string }
+
+type TaskModuleStep = {
+  id: string
+  title: string
+  minutes: number
+  actionLabel: string
+  description: string
+  action: TaskModuleAction
+}
+
+type TaskModule = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  tags: string[]
+  totalMinutes: number
+  drivingQuestion: string
+  steps: TaskModuleStep[]
+  finalDeliverable: string
+}
+
+type TaskModuleProgressState = Record<string, string[]>
 
 type LibraryTask = {
   id: string
@@ -647,6 +679,112 @@ type SourceAtlasEntry = {
   source: Scenario['sources'][number]
   searchText: string
 }
+
+
+const taskModules: TaskModule[] = [
+  {
+    id: 'khipu-roads-archive-silence',
+    title: 'Khipu / Roads / Archive Silence · 结绳、道路与档案沉默',
+    subtitle: '从非文字记录出发，比较帝国如何让劳动可见、又让普通人的解释权沉默。',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker'],
+    tags: ['khipu', 'roads', 'nonwritten records', 'archive silence', 'imperial labor'],
+    totalMinutes: 120,
+    drivingQuestion: 'khipu、道路、仓储、殖民编年、书信和清单怎样记录制度劳动，同时限制我们听见普通人的声音？',
+    steps: [
+      { id: 'inca-scene', title: '进入 Cusco khipu 与道路现场', minutes: 20, actionLabel: '打开 Inca Scene Reader', description: '读取 khipu runner 的 scene beats，标出道路、仓储、mit’a 与记录劳动。', action: { type: 'scenario', scenarioId: 'inca-cusco-khipu-runner', hash: sectionIds.sceneReader } },
+      { id: 'records-route', title: '载入非文字记录路线', minutes: 25, actionLabel: '打开 Atlas route', description: '用路线图比较 Cusco、Tenochtitlan、Fustat、Saint-Domingue 的记录媒介。', action: { type: 'atlas', hash: 'time-space-atlas', routeId: 'nonwritten-records-imperial-labor-route' } },
+      { id: 'source-boundary', title: '检查来源边界', minutes: 20, actionLabel: '打开 Evidence Atlas', description: '把 khipu/考古、殖民文本、商人书信、种植园清单放入来源可信度判断。', action: { type: 'evidence' } },
+      { id: 'agency-silence', title: '谁发声，谁被记录', minutes: 25, actionLabel: '打开 Perspectives Lab', description: '使用“谁发声，谁被记录”探究，把可见记录与缺席声音分开。', action: { type: 'labs', lab: 'perspectives', inquiryId: 'who-speaks-who-is-recorded' } },
+      { id: 'synthesis-claim', title: '写出档案沉默判断', minutes: 30, actionLabel: '打开 Synthesis Studio', description: '把非文字证据、来源边界和历史意义合成谨慎论证。', action: { type: 'synthesis', presetId: 'archive-silence-significance' } },
+    ],
+    finalDeliverable: '一份“记录媒介—制度劳动—可见/沉默”证据图 + 230 字谨慎历史论证。',
+  },
+  {
+    id: 'commodity-empires-labor-discipline',
+    title: 'Commodity Empires / Labor Discipline · 商品帝国与劳动纪律',
+    subtitle: '把糖、棉、港口和工厂时间写成穿过身体、制度与档案的历史过程。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador'],
+    tags: ['commodity empires', 'labor discipline', 'sugar', 'cotton', 'coercion'],
+    totalMinutes: 135,
+    drivingQuestion: '糖与棉怎样把远方市场、强制劳动、工厂时间、殖民监管和港口中介连接成劳动纪律？',
+    steps: [
+      { id: 'plantation-entry', title: '从圣多明各劳动现场开始', minutes: 20, actionLabel: '打开糖园场景', description: '读取糖园劳动者的场景与来源，记录强制、暴力和来源沉默。', action: { type: 'scenario', scenarioId: 'saint-domingue-sugar-worker', hash: sectionIds.sceneReader } },
+      { id: 'commodity-route', title: '追踪糖与棉的帝国路线', minutes: 25, actionLabel: '打开 Atlas route', description: '比较圣多明各、曼彻斯特、孟买、广州的商品—劳动—制度链。', action: { type: 'atlas', hash: 'time-space-atlas', routeId: 'sugar-cotton-empire-route' } },
+      { id: 'causal-chain', title: '拆解劳动纪律因果链', minutes: 30, actionLabel: '打开 Causation Lab', description: '用背景、触发、制度约束和长期变化解释商品帝国如何重组劳动。', action: { type: 'labs', lab: 'causation', inquiryId: 'commodity-empires-labor-discipline' } },
+      { id: 'period-shift', title: '判断劳动时间转折', minutes: 25, actionLabel: '打开 Periodization Lab', description: '比较种植园强制、工厂时间、殖民城市和口岸规则中的连续与转折。', action: { type: 'labs', lab: 'periodization', inquiryId: 'commodity-chains-labor-time-periods' } },
+      { id: 'commodity-synthesis', title: '综合商品链与劳动论证', minutes: 35, actionLabel: '打开 Synthesis Studio', description: '选择已有证据，写出商品链如何改变劳动关系的综合主张。', action: { type: 'synthesis', presetId: 'commodity-chains-labor' } },
+    ],
+    finalDeliverable: '四站商品帝国证据地图 + 强制/纪律/监管比较表 + 一段综合历史论证。',
+  },
+  {
+    id: 'monsoon-ports-credit-intermediaries',
+    title: 'Monsoon Ports / Credit / Intermediaries · 季风港口、信用与中介',
+    subtitle: '把季风、信件、合约、名声、语言和港口权力拆成可执行的交易链。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    tags: ['monsoon ports', 'credit', 'intermediaries', 'letters', 'contracts'],
+    totalMinutes: 125,
+    drivingQuestion: '远距离贸易为什么依赖季风时间、信用文书、语言中介、港口名声和国家权力共同维持？',
+    steps: [
+      { id: 'geniza-entry', title: '读取 Fustat 信件学徒现场', minutes: 20, actionLabel: '打开 Geniza 场景', description: '从书信、合约、委托代理和幸存档案进入信用问题。', action: { type: 'scenario', scenarioId: 'fustat-geniza-merchant-apprentice', hash: sectionIds.sceneReader } },
+      { id: 'credit-route', title: '追踪红海—印度洋信用路线', minutes: 25, actionLabel: '打开 Atlas route', description: '把 Fustat、Kilwa、Baghdad、Malacca、Bombay 的信用和港口风险放到地图上。', action: { type: 'atlas', hash: 'time-space-atlas', routeId: 'red-sea-indian-ocean-credit-route' } },
+      { id: 'monsoon-context', title: '搭建季风港口尺度梯', minutes: 25, actionLabel: '打开 Context Lab', description: '用地方码头、区域季风、帝国规则和来源情境解释中介风险。', action: { type: 'labs', lab: 'context', inquiryId: 'monsoon-ports-intermediaries' } },
+      { id: 'port-causation', title: '分析港口信用因果机制', minutes: 25, actionLabel: '打开 Causation Lab', description: '区分信用工具、季风延误、语言中介和国家权力各自的作用。', action: { type: 'labs', lab: 'causation', inquiryId: 'port-credit-distant-trade' } },
+      { id: 'markets-power-writing', title: '写出市场、权力与风险主张', minutes: 30, actionLabel: '打开 Synthesis Studio', description: '把港口中介写成市场权力关系，而不是浪漫贸易路线。', action: { type: 'synthesis', presetId: 'markets-power-risk' } },
+    ],
+    finalDeliverable: '一张港口信用工作链 + 一段说明“信任如何变成可执行交易”的证据论证。',
+  },
+  {
+    id: 'knowledge-worlds-access-thresholds',
+    title: 'Knowledge Worlds / Access Thresholds · 知识世界与进入门槛',
+    subtitle: '比较纸张、手稿、考试、师承、书信和语言如何扩大知识，也制造门槛。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice'],
+    tags: ['knowledge worlds', 'access thresholds', 'paper', 'manuscripts', 'education'],
+    totalMinutes: 115,
+    drivingQuestion: '知识能被谁学习、复制、保存和移动，为什么取决于媒介、身份、制度和档案幸存？',
+    steps: [
+      { id: 'baghdad-entry', title: '进入巴格达纸本知识现场', minutes: 20, actionLabel: '打开巴格达场景', description: '寻找纸张、赞助、抄写与商业知识如何塑造学习机会。', action: { type: 'scenario', scenarioId: 'abbasid-baghdad-scribe', hash: sectionIds.sceneReader } },
+      { id: 'knowledge-route', title: '比较知识城市路线', minutes: 20, actionLabel: '打开 Atlas route', description: '把巴格达、廷巴克图、江南放进媒介、城市和门槛路线。', action: { type: 'atlas', hash: 'time-space-atlas', routeId: 'knowledge-cities-route' } },
+      { id: 'knowledge-context', title: '情境化知识城市与媒介门槛', minutes: 25, actionLabel: '打开 Context Lab', description: '从 local practice 连接到区域知识网络和来源可见性。', action: { type: 'labs', lab: 'context', inquiryId: 'knowledge-cities-media-thresholds' } },
+      { id: 'knowledge-agency', title: '判断进入知识世界的行动空间', minutes: 25, actionLabel: '打开 Perspectives Lab', description: '比较学习、抄写、通信和考试中的能动性与限制。', action: { type: 'labs', lab: 'perspectives', inquiryId: 'thresholds-into-knowledge-worlds' } },
+      { id: 'knowledge-synthesis', title: '写出知识可及性综合论证', minutes: 25, actionLabel: '打开 Synthesis Studio', description: '把媒介、制度、身份和保存条件合成关于知识门槛的主张。', action: { type: 'synthesis', presetId: 'knowledge-access' } },
+    ],
+    finalDeliverable: '三到四站知识流动图 + 一段“技术是否带来知识公平”的谨慎回答。',
+  },
+  {
+    id: 'cities-markets-state-rules',
+    title: 'Cities / Markets / State Rules · 城市、市场与国家规则',
+    subtitle: '把城市交换从“自由市场”改写成税、监管、信用、贡赋和身份边界的日常。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'malacca-monsoon-port-broker'],
+    tags: ['cities', 'markets', 'state rules', 'tax', 'credit'],
+    totalMinutes: 120,
+    drivingQuestion: '城市市场给普通人带来的机会，怎样被国家规则、税赋、信用、身份和空间秩序重新塑形？',
+    steps: [
+      { id: 'market-entry', title: '从城市市场日常进入', minutes: 20, actionLabel: '打开长安市场场景', description: '寻找商品、规则、价格、信用和道路消息之间的关系。', action: { type: 'scenario', scenarioId: 'tang-changan-merchant', hash: sectionIds.sceneReader } },
+      { id: 'market-route', title: '打开市场走廊路线', minutes: 20, actionLabel: '打开 Atlas route', description: '比较长安、汴京、广州、特诺奇蒂特兰的交易规则和制度边界。', action: { type: 'atlas', hash: 'time-space-atlas', routeId: 'market-corridors-route' } },
+      { id: 'market-causation', title: '分析制度约束与市场变化', minutes: 25, actionLabel: '打开 Causation Lab', description: '判断变化来自规则、信用、身份、地理条件还是劳动义务。', action: { type: 'labs', lab: 'causation', inquiryId: 'institutional-constraints-markets' } },
+      { id: 'market-significance', title: '判断市场规则的制度遗产', minutes: 25, actionLabel: '打开 Significance Lab', description: '说明税、行会、通商规则、信用和身份边界为何留下长期意义。', action: { type: 'labs', lab: 'significance', inquiryId: 'market-rules-institutional-legacy' } },
+      { id: 'market-synthesis', title: '写出市场、权力与风险综合论证', minutes: 30, actionLabel: '打开 Synthesis Studio', description: '回应“市场自由”解释，写出有规则、有权力、有风险的市场主张。', action: { type: 'synthesis', presetId: 'markets-power-risk' } },
+    ],
+    finalDeliverable: '四站“商品/服务—规则—风险—普通人策略”证据链 + 市场权力综合段落。',
+  },
+  {
+    id: 'crisis-news-safety-public-memory',
+    title: 'Crisis News / Safety / Public Memory · 危机消息、安全与公共记忆',
+    subtitle: '区分当时人的有限消息、身体安全判断，以及后世公共记忆如何塑造意义。',
+    scenarioIds: ['wwii-london-civilian', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'saint-domingue-sugar-worker', 'colonial-bombay-mill-worker'],
+    tags: ['crisis news', 'safety', 'public memory', 'risk', 'uncertainty'],
+    totalMinutes: 125,
+    drivingQuestion: '当战争、征服、起义或市场危机消息进入普通生活，人们如何判断安全，后世又如何记忆这些判断？',
+    steps: [
+      { id: 'london-entry', title: '进入战时伦敦安全判断现场', minutes: 20, actionLabel: '打开伦敦场景', description: '读取空袭警报、家庭责任、公共安全命令和不确定消息。', action: { type: 'scenario', scenarioId: 'wwii-london-civilian', hash: sectionIds.sceneReader } },
+      { id: 'crisis-route', title: '追踪危机新闻路线', minutes: 20, actionLabel: '打开 Atlas route', description: '比较传闻、警报、征服消息、口岸压力如何抵达普通人的一天。', action: { type: 'atlas', hash: 'time-space-atlas', routeId: 'crisis-news-route' } },
+      { id: 'crisis-agency', title: '分析危机中的安全判断', minutes: 25, actionLabel: '打开 Perspectives Lab', description: '把有限消息、知识边界、风险利害和行动选择分开。', action: { type: 'labs', lab: 'perspectives', inquiryId: 'safety-judgments-in-crisis' } },
+      { id: 'crisis-memory', title: '判断危机如何成为公共记忆', minutes: 25, actionLabel: '打开 Significance Lab', description: '连接当时影响、长期记忆、争议意义和来源保存边界。', action: { type: 'labs', lab: 'significance', inquiryId: 'crisis-public-memory' } },
+      { id: 'crisis-synthesis', title: '写出危机、记忆与判断论证', minutes: 35, actionLabel: '打开 Synthesis Studio', description: '避免后见之明，用证据说明危机判断和公共记忆的关系。', action: { type: 'synthesis', presetId: 'crisis-memory-judgment' } },
+    ],
+    finalDeliverable: '一组“消息—判断—行动—后果—记忆”风险链 + 220 字公共记忆论证。',
+  },
+]
 
 const corroborationMethodCards = [
   {
@@ -1549,6 +1687,25 @@ function parseGuidedSessionProgressState(rawState: string | null) {
   }
 }
 
+
+function parseTaskModuleProgressState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as TaskModuleProgressState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).filter((entry): entry is [string, string[]] =>
+        Array.isArray(entry[1]) && entry[1].every((stepId) => typeof stepId === 'string'),
+      ),
+    )
+  } catch {
+    return {} as TaskModuleProgressState
+  }
+}
+
 function getSafeStorage(kind: 'localStorage' | 'sessionStorage') {
   if (typeof window === 'undefined') {
     return null
@@ -1877,6 +2034,31 @@ function persistGuidedSessionProgressState(state: GuidedSessionProgressState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(guidedSessionProgressStorageKey, serializedState)
+}
+
+
+function loadTaskModuleProgressState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseTaskModuleProgressState(localStorage?.getItem(taskModuleProgressStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseTaskModuleProgressState(sessionStorage?.getItem(taskModuleProgressStorageKey) ?? null)
+}
+
+function persistTaskModuleProgressState(state: TaskModuleProgressState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(taskModuleProgressStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(taskModuleProgressStorageKey, serializedState)
 }
 
 
@@ -3561,6 +3743,7 @@ function formatLearningArchive(
   contextDraftState: ContextDraftState,
   significanceDraftState: SignificanceDraftState,
   synthesisDraftState: SynthesisDraftState,
+  taskModuleProgressState: TaskModuleProgressState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
@@ -3570,6 +3753,7 @@ function formatLearningArchive(
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
+  const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
@@ -3593,6 +3777,7 @@ function formatLearningArchive(
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
+    `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
     '',
   ]
 
@@ -3626,6 +3811,22 @@ function formatLearningArchive(
   })
 
   const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
+
+  if (taskModuleStats.details.length > 0) {
+    lines.push('Tasks Learning Modules / 单元模块：')
+    taskModuleStats.details.forEach(({ module, completedSteps, totalSteps, isComplete }) => {
+      const checkedStepIds = taskModuleProgressState[module.id] ?? []
+
+      lines.push(
+        `  - ${module.title}（${isComplete ? '已完成' : '进行中'}｜${completedSteps}/${totalSteps} steps｜${module.totalMinutes} 分钟）`,
+        `    核心问题：${module.drivingQuestion}`,
+        `    场景：${module.scenarioIds.map((id) => getScenarioById(id)?.title ?? id).join('、')}`,
+        `    已完成步骤：${module.steps.filter((step) => checkedStepIds.includes(step.id)).map((step) => step.title).join('；') || '尚未勾选'}`,
+        `    最终交付物：${module.finalDeliverable}`,
+      )
+    })
+    lines.push('')
+  }
 
   if (workspaceEntries.length > 0) {
     lines.push('跨场景工作区：')
@@ -3837,8 +4038,8 @@ function formatLearningArchive(
     lines.push('')
   }
 
-  if (lines.length <= 14) {
-    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿或完成记录。')
+  if (lines.length <= 15) {
+    lines.push('尚未保存任何任务草稿、跨场景草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -4136,6 +4337,80 @@ function buildScenarioUrl(scenarioId: string, hash: ScenarioSectionId = defaultS
   url.hash = hash
 
   return `${url.pathname}${url.search}${url.hash}`
+}
+
+
+function getTaskModuleCompletedDetails(progressState: TaskModuleProgressState) {
+  return taskModules
+    .map((module) => {
+      const checkedStepIds = progressState[module.id] ?? []
+      const completedSteps = module.steps.filter((step) => checkedStepIds.includes(step.id)).length
+
+      return {
+        module,
+        completedSteps,
+        totalSteps: module.steps.length,
+        isComplete: completedSteps === module.steps.length,
+        hasProgress: completedSteps > 0,
+      }
+    })
+    .filter((detail) => detail.hasProgress)
+}
+
+function getTaskModuleProgressStats(progressState: TaskModuleProgressState) {
+  const details = getTaskModuleCompletedDetails(progressState)
+
+  return {
+    startedCount: details.length,
+    completedCount: details.filter((detail) => detail.isComplete).length,
+    checkedStepCount: details.reduce((count, detail) => count + detail.completedSteps, 0),
+    totalStepCount: taskModules.reduce((count, module) => count + module.steps.length, 0),
+    details,
+  }
+}
+
+function getTaskModuleActionTargetLabel(action: TaskModuleAction) {
+  if (action.type === 'scenario') {
+    return `Scenario #${action.hash ?? defaultScenarioSectionId}`
+  }
+
+  if (action.type === 'atlas') {
+    return `Atlas #${action.hash}`
+  }
+
+  if (action.type === 'labs') {
+    return `Labs / ${labsSubpages.find((item) => item.id === action.lab)?.label ?? action.lab}`
+  }
+
+  if (action.type === 'evidence') {
+    return 'Evidence Atlas'
+  }
+
+  return 'Synthesis Studio'
+}
+
+function formatTaskModuleSheet(module: TaskModule, checkedStepIds: string[] = []) {
+  const moduleScenarios = module.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const completedSteps = module.steps.filter((step) => checkedStepIds.includes(step.id)).length
+
+  return [
+    `TimeAtlas Task Module / 单元模块：${module.title}`,
+    module.subtitle,
+    `总时长：${module.totalMinutes} 分钟`,
+    `进度：${completedSteps}/${module.steps.length} steps`,
+    `Driving question：${module.drivingQuestion}`,
+    '',
+    '场景路径：',
+    ...(moduleScenarios.length ? moduleScenarios.map((scenario) => `- ${scenario.title}（${scenario.era}｜${scenario.location}）`) : ['- 尚未匹配场景']),
+    '',
+    '模块步骤：',
+    ...module.steps.map((step, index) => `- [${checkedStepIds.includes(step.id) ? 'x' : ' '}] ${index + 1}. ${step.title}（${step.minutes} 分钟｜${getTaskModuleActionTargetLabel(step.action)}）：${step.description}`),
+    '',
+    '标签：',
+    ...module.tags.map((tag) => `- ${tag}`),
+    '',
+    `最终交付物：${module.finalDeliverable}`,
+  ].join('\n')
 }
 
 function formatGenericLibraryTaskSheet(task: LibraryTask) {
@@ -4745,6 +5020,9 @@ function App() {
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
   )
+  const [taskModuleProgressState, setTaskModuleProgressState] = useState<TaskModuleProgressState>(
+    loadTaskModuleProgressState,
+  )
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
   const selectedScenario = useMemo(
@@ -4782,6 +5060,7 @@ function App() {
     [completedMissionIdsByScenario],
   )
   const workspaceStats = useMemo(() => getWorkspaceStats(workspaceState), [workspaceState])
+  const taskModuleStats = useMemo(() => getTaskModuleProgressStats(taskModuleProgressState), [taskModuleProgressState])
   const missionWorkCountByScenario = useMemo(
     () =>
       Object.fromEntries(
@@ -4933,6 +5212,19 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [guidedSessionProgressState])
+
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistTaskModuleProgressState(taskModuleProgressState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [taskModuleProgressState])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -5227,6 +5519,77 @@ function App() {
     scrollToSection(sectionIds.synthesisStudio, prefersReducedMotion)
   }
 
+
+  function launchTaskModuleAction(action: TaskModuleAction) {
+    if (action.type === 'scenario') {
+      selectScenario(action.scenarioId, action.hash ?? defaultScenarioSectionId)
+      return
+    }
+
+    if (action.type === 'atlas') {
+      if (action.inquiryPathId) {
+        const path = atlasInquiryPaths.find((candidate) => candidate.id === action.inquiryPathId)
+        if (path) {
+          loadCompareFromInquiryPath(path)
+          return
+        }
+      }
+
+      if (action.routeId) {
+        const route = atlasMapRoutes.find((candidate) => candidate.id === action.routeId)
+        if (route) {
+          loadCompareFromInquiryPath(route)
+          return
+        }
+      }
+
+      navigateToPage('atlas', action.hash)
+      return
+    }
+
+    if (action.type === 'labs') {
+      if (action.lab === 'causation' && action.inquiryId) {
+        loadCausationInquiry(action.inquiryId)
+        return
+      }
+
+      if (action.lab === 'periodization' && action.inquiryId) {
+        loadPeriodizationInquiry(action.inquiryId)
+        return
+      }
+
+      if (action.lab === 'perspectives' && action.inquiryId) {
+        loadPerspectivesInquiry(action.inquiryId)
+        return
+      }
+
+      if (action.lab === 'context' && action.inquiryId) {
+        loadContextInquiry(action.inquiryId)
+        return
+      }
+
+      if (action.lab === 'significance' && action.inquiryId) {
+        loadSignificanceInquiry(action.inquiryId)
+        return
+      }
+
+      if (action.lab === 'synthesis') {
+        loadSynthesisPreset(action.inquiryId ?? synthesisInquiryPresets[0]?.id ?? '')
+        return
+      }
+
+      navigateToPage('labs', getHashForLabsSubpage(action.lab))
+      return
+    }
+
+    if (action.type === 'evidence') {
+      navigateToPage('evidence', 'source-atlas')
+      return
+    }
+
+    loadSynthesisPreset(action.presetId)
+  }
+
   function selectScenarioTab(tab: ScenarioExperienceTab) {
     setSelectedScenarioTab(tab)
 
@@ -5466,12 +5829,21 @@ function App() {
                 onOpenScenario={selectScenario}
               />
             ) : null}
+            {activeTasksSubpage === 'modules' ? (
+              <TaskModulesPanel
+                progressState={taskModuleProgressState}
+                onUpdateProgressState={setTaskModuleProgressState}
+                onLaunchAction={launchTaskModuleAction}
+              />
+            ) : null}
             {activeTasksSubpage === 'portfolio' ? (
               <PortfolioPanel
                 completedMissionIdsByScenario={completedMissionIdsByScenario}
                 missionWorkState={missionWorkState}
                 workspaceState={workspaceState}
                 workspaceStats={workspaceStats}
+                taskModuleStats={taskModuleStats}
+                taskModuleProgressState={taskModuleProgressState}
                 corroborationDraftState={corroborationDraftState}
                 causationDraftState={causationDraftState}
                 periodizationDraftState={periodizationDraftState}
@@ -6219,7 +6591,7 @@ function TimeSpaceAtlasPanel({
 }: {
   selectedScenarioId: string
   workspaceState: WorkspaceState
-  onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
+  onUpdateWorkspaceState: Dispatch<SetStateAction<WorkspaceState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (route: AtlasMapRoute) => void
 }) {
@@ -9119,11 +9491,179 @@ function SynthesisWritingStudioPanel({
   )
 }
 
+
+function TaskModulesPanel({
+  progressState,
+  onUpdateProgressState,
+  onLaunchAction,
+}: {
+  progressState: TaskModuleProgressState
+  onUpdateProgressState: Dispatch<SetStateAction<TaskModuleProgressState>>
+  onLaunchAction: (action: TaskModuleAction) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const stats = getTaskModuleProgressStats(progressState)
+
+  function toggleStep(moduleId: string, stepId: string) {
+    onUpdateProgressState((currentState) => {
+      const currentModuleProgress = currentState[moduleId] ?? []
+      const nextModuleProgress = currentModuleProgress.includes(stepId)
+        ? currentModuleProgress.filter((candidate) => candidate !== stepId)
+        : [...currentModuleProgress, stepId]
+
+      return {
+        ...currentState,
+        [moduleId]: nextModuleProgress,
+      }
+    })
+  }
+
+  async function copyModule(module: TaskModule) {
+    try {
+      await copyTextToClipboard(formatTaskModuleSheet(module, progressState[module.id] ?? []))
+      setCopyStatus(module.id)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="task-modules" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="task-modules-title">
+      <div className="rounded-[2rem] border border-emerald-200/15 bg-emerald-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-emerald-100">
+          <ClipboardList size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">tasks learning modules / 单元模块</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="task-modules-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              单元模块 / Learning Modules
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              6 个跨页面 learning modules 串联 Scenario、Atlas、Evidence、Labs 与 Synthesis。勾选进度优先保存在 localStorage，受限时回退 sessionStorage。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-emerald-200/20 bg-emerald-200/10 px-4 py-3 text-sm text-emerald-100">
+            {stats.startedCount}/{taskModules.length} started · {stats.completedCount} completed · {stats.checkedStepCount}/{stats.totalStepCount} steps
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          {taskModules.map((module) => {
+            const checkedStepIds = progressState[module.id] ?? []
+            const completedSteps = module.steps.filter((step) => checkedStepIds.includes(step.id)).length
+            const percent = Math.round((completedSteps / module.steps.length) * 100)
+            const moduleScenarios = module.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+            return (
+              <article key={module.id} className="flex min-h-full flex-col overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+                <div className="h-1.5 bg-gradient-to-r from-emerald-300 via-amber-300 to-fuchsia-300" style={{ width: `${Math.max(percent, 4)}%` }} />
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                        <span className="rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-3 py-1 text-emerald-100">{module.totalMinutes} min</span>
+                        <span>{completedSteps}/{module.steps.length} steps</span>
+                        <span>{module.scenarioIds.length} scenarios</span>
+                      </div>
+                      <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">{module.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-stone-400">{module.subtitle}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onLaunchAction(module.steps[0].action)}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
+                    >
+                      开始模块
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-3xl border border-emerald-200/15 bg-emerald-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                    <span className="font-semibold text-emerald-100">Driving question：</span>{module.drivingQuestion}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {module.tags.map((tag) => <Tag key={`${module.id}-${tag}`}>{tag}</Tag>)}
+                  </div>
+
+                  <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.025] p-4">
+                    <h4 className="font-semibold text-stone-50">Scenario path</h4>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {moduleScenarios.map((scenario) => (
+                        <button key={scenario.id} type="button" onClick={() => onLaunchAction({ type: 'scenario', scenarioId: scenario.id, hash: sectionIds.sceneReader })} className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-semibold text-stone-300 transition hover:border-emerald-200/30 hover:text-emerald-100">
+                          {scenario.title}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {module.steps.map((step, index) => {
+                      const isChecked = checkedStepIds.includes(step.id)
+
+                      return (
+                        <label key={`${module.id}-${step.id}`} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400 transition hover:border-emerald-100/25">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleStep(module.id, step.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-emerald-300 focus:ring-emerald-200"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold text-stone-100">{index + 1}. {step.title} · {step.minutes}m</span>
+                            <span className="block">{step.description}</span>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault()
+                                onLaunchAction(step.action)
+                              }}
+                              className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.12]"
+                            >
+                              {step.actionLabel}
+                              <ArrowRight size={13} />
+                            </button>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-4 rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                    <span className="font-semibold text-teal-100">最终交付物：</span>{module.finalDeliverable}
+                  </div>
+
+                  <div className="mt-auto flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-stone-500" aria-live="polite">
+                      {copyStatus === module.id ? '模块学习单已复制。' : copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : '复制会包含步骤勾选、跳转目标、场景路径与交付物。'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void copyModule(module)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"
+                    >
+                      {copyStatus === module.id ? <Check size={18} /> : <Copy size={18} />}
+                      {copyStatus === module.id ? '模块学习单已复制' : '复制 / 导出模块学习单'}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
   workspaceState,
   workspaceStats,
+  taskModuleStats,
+  taskModuleProgressState,
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
@@ -9136,6 +9676,8 @@ function PortfolioPanel({
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
   workspaceStats: WorkspaceStats
+  taskModuleStats: ReturnType<typeof getTaskModuleProgressStats>
+  taskModuleProgressState: TaskModuleProgressState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
@@ -9167,7 +9709,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, taskModuleProgressState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -9213,6 +9755,9 @@ function PortfolioPanel({
               { label: '情境化草稿', value: contextDraftCount },
               { label: '意义草稿', value: significanceDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
+              { label: '模块开始', value: taskModuleStats.startedCount },
+              { label: '模块完成', value: taskModuleStats.completedCount },
+              { label: '模块步骤', value: taskModuleStats.checkedStepCount },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -9224,12 +9769,18 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {workspaceStats.recentEntries.map(({ key, title, category, entry }) => (
                   <div key={key} className="rounded-2xl border border-orange-200/15 bg-orange-100/[0.045] p-3 text-sm leading-6 text-stone-400">
                     <div className="font-medium text-stone-100">{title}</div>
                     <div>{category} · {entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未记录时间'} · {entry.completed ? '已完成' : '草稿'}</div>
+                  </div>
+                ))}
+                {taskModuleStats.details.slice(0, 3).map(({ module, completedSteps, totalSteps, isComplete }) => (
+                  <div key={module.id} className="rounded-2xl border border-emerald-200/15 bg-emerald-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                    <div className="font-medium text-stone-100">{module.title}</div>
+                    <div>单元模块 · {isComplete ? '已完成' : '进行中'} · {completedSteps}/{totalSteps} steps</div>
                   </div>
                 ))}
                 {recentEntries.map(([key, work]) => {
@@ -9714,7 +10265,7 @@ function GuidedSessionPanel({
 }: {
   selectedScenarioId: string
   progressState: GuidedSessionProgressState
-  onUpdateProgressState: React.Dispatch<React.SetStateAction<GuidedSessionProgressState>>
+  onUpdateProgressState: Dispatch<SetStateAction<GuidedSessionProgressState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
 }) {
   const [durationFilter, setDurationFilter] = useState<'all' | GuidedSessionRoute['minutes']>('all')
@@ -9925,7 +10476,7 @@ function AtlasMissionsPanel({
   onUpdateWorkspaceState,
 }: {
   workspaceState: WorkspaceState
-  onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
+  onUpdateWorkspaceState: Dispatch<SetStateAction<WorkspaceState>>
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const completedCount = atlasMissions.filter((mission) => workspaceState.atlasMissions[mission.id]?.completed).length
@@ -10070,7 +10621,7 @@ function AtlasInquiryPathsPanel({
   onLoadCompare,
 }: {
   workspaceState: WorkspaceState
-  onUpdateWorkspaceState: React.Dispatch<React.SetStateAction<WorkspaceState>>
+  onUpdateWorkspaceState: Dispatch<SetStateAction<WorkspaceState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
 }) {
@@ -10620,8 +11171,8 @@ function ScenarioExperience({
   missionWorkState: MissionWorkState
   argumentDraft: ArgumentDraft
   onToggleMission: (scenarioId: string, missionId: string) => void
-  onUpdateMissionWork: React.Dispatch<React.SetStateAction<MissionWorkState>>
-  onUpdateArgumentDraft: React.Dispatch<React.SetStateAction<ArgumentDraftState>>
+  onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
+  onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
   prefersReducedMotion: boolean | null
 }) {
   const scenarioMotion = prefersReducedMotion
@@ -11465,7 +12016,7 @@ function MissionBoard({
   completedMissionCount: number
   missionWorkState: MissionWorkState
   onToggleMission: (scenarioId: string, missionId: string) => void
-  onUpdateMissionWork: React.Dispatch<React.SetStateAction<MissionWorkState>>
+  onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
 }) {
   const [selectedMissionId, setSelectedMissionId] = useState(scenario.missions[0]?.id ?? '')
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | MissionTaskType>('all')
@@ -11916,7 +12467,7 @@ function ArgumentStudioPanel({
   selectedOption: DecisionOption | null
   missionWorkState: MissionWorkState
   argumentDraft: ArgumentDraft
-  onUpdateArgumentDraft: React.Dispatch<React.SetStateAction<ArgumentDraftState>>
+  onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [teacherPackStatus, setTeacherPackStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
