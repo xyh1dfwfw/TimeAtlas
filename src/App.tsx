@@ -548,7 +548,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'inquiry' | 'compare' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'lesson' | 'activities' | 'missions' | 'decision' | 'sources' | 'argument'
@@ -582,7 +582,9 @@ type SubpageNavItem<T extends string> = {
 
 type AtlasSubpage = 'routes' | 'missions' | 'pathways' | 'compare'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'debate' | 'sessions' | 'modules' | 'portfolio'
+type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
+type DebateDuration = 15 | 30 | 45
 
 const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
@@ -604,6 +606,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
+  { id: 'debate', label: '辩论工作台', eyebrow: 'Debate', description: '角色卡、证据卡、回合计划与可复制指南', hash: 'debate-studio' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
   { id: 'modules', label: '单元模块', eyebrow: 'Modules', description: '6 个跨页学习单元、步骤进度与导出', hash: 'task-modules' },
   { id: 'portfolio', label: '作品档案', eyebrow: 'Portfolio', description: '学习草稿、完成记录与导出', hash: 'portfolio' },
@@ -726,6 +729,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'mission', label: 'Scenario Missions' },
   { value: 'activity', label: 'Activity Packs' },
   { value: 'lesson', label: 'Lesson Pack' },
+  { value: 'debate', label: 'Debate Studio' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'causation', label: 'Causation Lab' },
@@ -4465,6 +4469,16 @@ function getTaskDiscoveryCollections(): TaskDiscoveryCollection[] {
       secondaryAction: 'copy-first',
     },
     {
+      id: 'classroom-discussion-role-debate',
+      label: 'Classroom Discussion · 角色辩论与听证',
+      reason: '聚合 Debate Studio、Lesson Pack debate flow 与 Activity Pack roleplay/debate，用角色卡和证据卡组织课堂讨论。',
+      audience: '课堂讨论、小组辩论、角色扮演、历史同理心训练',
+      duration: '15-45 分钟',
+      source: 'debate',
+      matcher: (task) => task.source === 'debate' || taskMatchesAny(task, ['debate', 'roleplay', 'discussion', 'hearing', 'cross-examination', '辩论', '角色', '讨论', '听证', '质询']),
+      secondaryAction: 'copy-first',
+    },
+    {
       id: 'labor-and-risk',
       label: 'Labor & Risk · 劳动、身体与风险',
       reason: '围绕工作节奏、纪律、安全、身体风险与协商空间组织任务。',
@@ -4793,6 +4807,259 @@ function formatLessonFlowSheet(scenario: Scenario, mode: LessonPackMode) {
   ].join('\n')
 }
 
+
+type DebateRoleCard = {
+  title: string
+  stance: string
+  brief: string
+  speakingMove: string
+}
+
+type DebateEvidenceCard = {
+  id: string
+  title: string
+  sourceLabel: string
+  claimUse: string
+  reliabilityNote: string
+  tags: string[]
+}
+
+type DebateRound = {
+  title: string
+  minutes: number
+  teacherMove: string
+  studentMove: string
+}
+
+const debateModeLabels: Record<DebateMode, string> = {
+  'decision-hearing': 'Decision Hearing / 决策听证',
+  'source-challenge': 'Source Challenge / 史料质询',
+  'cross-era-forum': 'Cross-era Forum / 跨时代论坛',
+}
+
+const debateModeDescriptions: Record<DebateMode, string> = {
+  'decision-hearing': '围绕历史岔路口选项组织立场陈述、交叉追问和限制条件判断。',
+  'source-challenge': '让学生先质询来源视角、可靠边界和缺席声音，再提出可辩护主张。',
+  'cross-era-forum': '把当前身份放入更大的时代问题中，练习跨场景比较与尺度转换。',
+}
+
+function buildDebateRoleCards(scenario: Scenario, mode: DebateMode): DebateRoleCard[] {
+  const lessonRoles = scenario.lessonPack.discussionRoles.map((role): DebateRoleCard => ({
+    title: role.role,
+    stance: mode === 'source-challenge' ? '史料质询者' : '课堂讨论角色',
+    brief: role.task,
+    speakingMove: mode === 'source-challenge'
+      ? '发言时必须指出一条来源能证明什么、不能证明什么。'
+      : '发言时先说明自己代表的利益、知识限制或风险。',
+  }))
+
+  const decisionRoles = scenario.decision.options.map((option): DebateRoleCard => ({
+    title: option.label,
+    stance: option.stance,
+    brief: option.description,
+    speakingMove: `用“如果选择 ${option.label}，短期会……但长期可能……”组织发言。`,
+  }))
+
+  if (mode === 'cross-era-forum') {
+    return [
+      ...lessonRoles.slice(0, 3),
+      {
+        title: `${scenario.identity} 的时代证人`,
+        stance: scenario.era,
+        brief: scenario.summary,
+        speakingMove: '把个人经验连接到制度、市场、风险或知识传播的长期变化。',
+      },
+      ...decisionRoles.slice(0, 2),
+    ]
+  }
+
+  return [...lessonRoles, ...decisionRoles]
+}
+
+function buildDebateEvidenceCards(scenario: Scenario): DebateEvidenceCard[] {
+  const sourceCards = scenario.sources.slice(0, 4).map((source, index): DebateEvidenceCard => ({
+    id: `source:${index}:${source.title}`,
+    title: source.title,
+    sourceLabel: `${sourceTypeLabels[source.sourceType]} · ${source.creator}`,
+    claimUse: source.excerpt,
+    reliabilityNote: source.reliabilityNote,
+    tags: source.evidenceTags,
+  }))
+
+  const sceneCards = scenario.sceneBeats.slice(0, 3).map((beat, index): DebateEvidenceCard => ({
+    id: `scene:${index}:${beat.title}`,
+    title: `${beat.timeLabel} · ${beat.title}`,
+    sourceLabel: 'Scene Reader 9.0',
+    claimUse: `${beat.historicalTension} ${beat.evidenceHook}`,
+    reliabilityNote: beat.learnerPrompt,
+    tags: ['scene beat', 'historical tension', ...beat.linkedSourceTitles.slice(0, 2)],
+  }))
+
+  const contextCards: DebateEvidenceCard[] = [
+    {
+      id: `real-history:${scenario.id}`,
+      title: '真实历史对照',
+      sourceLabel: 'Real history',
+      claimUse: scenario.realHistory,
+      reliabilityNote: '用于校正角色扮演中的过度想象；不能把结果倒推成当时每个人都知道。',
+      tags: ['real history', 'context', scenario.theme],
+    },
+    {
+      id: `interpretation:${scenario.id}`,
+      title: '解释边界',
+      sourceLabel: 'Interpretation note',
+      claimUse: scenario.interpretationNote,
+      reliabilityNote: scenario.sourceEvidenceUse,
+      tags: ['source limits', 'interpretation', scenario.region],
+    },
+  ]
+
+  return [...sourceCards, ...sceneCards, ...contextCards]
+}
+
+function buildDebateRounds(mode: DebateMode, duration: DebateDuration): DebateRound[] {
+  const plans: Record<DebateDuration, number[]> = {
+    15: [2, 3, 4, 4, 2],
+    30: [4, 6, 7, 8, 5],
+    45: [5, 9, 10, 12, 9],
+  }
+  const [setupMinutes, evidenceMinutes, exchangeMinutes, decisionMinutes, reflectionMinutes] = plans[duration]
+
+  const modeMoves: Record<DebateMode, { evidence: string; exchange: string; decision: string }> = {
+    'decision-hearing': {
+      evidence: '教师要求每个立场至少绑定一条来源或 scene beat，不许只讲现代价值判断。',
+      exchange: '学生用“约束—选择—后果”追问对方方案，记录最强反方理由。',
+      decision: '全班投票前先写下“我会怎么选，以及我不确定什么”。',
+    },
+    'source-challenge': {
+      evidence: '教师先分配来源卡，要求学生标注视角、可靠边界和缺席声音。',
+      exchange: '每次质询必须引用一条证据，并说明它支持、削弱或限制了哪种主张。',
+      decision: '小组提交“可辩护主张 + 来源限制”，而不是单纯胜负判断。',
+    },
+    'cross-era-forum': {
+      evidence: '教师把当前身份连接到跨时代问题：市场、劳动、风险、知识或档案沉默。',
+      exchange: '学生代表不同角色解释同一历史压力如何在不同位置上被感受。',
+      decision: '论坛用一个比较句收束：这个案例如何改变我们对更大历史主题的理解？',
+    },
+  }
+
+  return [
+    {
+      title: '开场定位 / Frame the question',
+      minutes: setupMinutes,
+      teacherMove: '说明场景、身份和辩论规则：必须引用证据，必须承认限制。',
+      studentMove: '选择或领取角色，写下一句初始立场。',
+    },
+    {
+      title: '证据准备 / Evidence prep',
+      minutes: evidenceMinutes,
+      teacherMove: modeMoves[mode].evidence,
+      studentMove: '从证据卡中选择 2 条最能支持自己角色的材料，并记录一条风险或反证。',
+    },
+    {
+      title: '交叉质询 / Cross-examination',
+      minutes: exchangeMinutes,
+      teacherMove: modeMoves[mode].exchange,
+      studentMove: '轮流用证据发问、回应和修正立场。',
+    },
+    {
+      title: '立场裁决 / Deliberation',
+      minutes: decisionMinutes,
+      teacherMove: modeMoves[mode].decision,
+      studentMove: '形成小组结论：主张、证据、限制条件、仍需什么来源。',
+    },
+    {
+      title: '出口反思 / Exit reflection',
+      minutes: reflectionMinutes,
+      teacherMove: '收束到真实历史对照，提醒学生区分历史同理心与当下投射。',
+      studentMove: '完成一句 exit ticket：我改变了什么判断？哪条证据最关键？',
+    },
+  ]
+}
+
+function formatDebateStudentWorksheet(scenario: Scenario, mode: DebateMode, duration: DebateDuration) {
+  const roles = buildDebateRoleCards(scenario, mode)
+  const evidenceCards = buildDebateEvidenceCards(scenario)
+  const rounds = buildDebateRounds(mode, duration)
+
+  return [
+    `TimeAtlas Debate Studio / 学生辩论工作纸：${scenario.title}`,
+    `模式：${debateModeLabels[mode]}`,
+    `时长：${duration} 分钟`,
+    `辩题：${scenario.decision.prompt}`,
+    `历史情境：${scenario.decision.context}`,
+    '',
+    '我的角色：________________',
+    '初始立场：________________',
+    '我必须承认的限制条件：________________',
+    '',
+    '可选角色卡：',
+    ...roles.map((role, index) => `${index + 1}. ${role.title}｜${role.stance}：${role.brief}（发言动作：${role.speakingMove}）`),
+    '',
+    '证据卡（选择至少 2 条）：',
+    ...evidenceCards.map((card, index) => `${index + 1}. ${card.title}｜${card.sourceLabel}：${card.claimUse}｜边界：${card.reliabilityNote}`),
+    '',
+    '回合计划：',
+    ...rounds.map((round, index) => `${index + 1}. ${round.title}（${round.minutes} 分钟）：${round.studentMove}`),
+    '',
+    '最终发言结构：',
+    '1. 我的主张是……',
+    '2. 最关键证据是……它能证明……',
+    '3. 这条证据/我的角色看不见……',
+    '4. 听完质询后，我仍然认为/我修正为……',
+  ].join('\n')
+}
+
+function formatDebateTeacherGuide(scenario: Scenario, mode: DebateMode, duration: DebateDuration) {
+  const rounds = buildDebateRounds(mode, duration)
+  const roleCards = buildDebateRoleCards(scenario, mode)
+  const evidenceCards = buildDebateEvidenceCards(scenario)
+
+  return [
+    `TimeAtlas Debate Studio / 教师指南：${scenario.title}`,
+    `模式：${debateModeLabels[mode]}｜${duration} 分钟`,
+    `适用问题：${scenario.lessonPack.inquiryQuestion}`,
+    '',
+    '教师目标：',
+    `- ${debateModeDescriptions[mode]}`,
+    '- 让学生用证据辩论，而不是表演式站队。',
+    '- 每轮都追问：这条来源能证明什么？不能证明什么？',
+    '',
+    '快速准备：',
+    ...scenario.lessonPack.quickStart.map((step, index) => `${index + 1}. ${step}`),
+    '',
+    '角色配置：',
+    ...roleCards.map((role) => `- ${role.title}｜${role.stance}：${role.brief}`),
+    '',
+    '证据配置：',
+    ...evidenceCards.map((card) => `- ${card.title}｜${card.sourceLabel}｜${card.tags.slice(0, 4).join('、')}`),
+    '',
+    '课堂回合：',
+    ...rounds.map((round, index) => `${index + 1}. ${round.title}（${round.minutes}m）\n   教师动作：${round.teacherMove}\n   学生动作：${round.studentMove}`),
+    '',
+    '评价关注：',
+    '- 是否把角色立场放回当时的知识、风险和制度限制中。',
+    '- 是否至少引用两条证据并说明可靠边界。',
+    '- 是否能复述一个强反方理由，而不是只重复己方结论。',
+    '- 是否用真实历史对照修正过度想象或当下主义。',
+    '',
+    'Exit tickets：',
+    ...scenario.lessonPack.exitTickets.map((ticket, index) => `${index + 1}. ${ticket}`),
+  ].join('\n')
+}
+
+function formatDebateLibraryTaskSheet(scenario: Scenario, mode: DebateMode, duration: DebateDuration) {
+  return [
+    `TimeAtlas Debate Workflow：${scenario.title}`,
+    `模式：${debateModeLabels[mode]}`,
+    `时长：${duration} 分钟`,
+    `辩题：${scenario.decision.prompt}`,
+    `交付物：角色立场卡、2 条证据引用、交叉质询记录、出口判断`,
+    '',
+    formatDebateStudentWorksheet(scenario, mode, duration),
+  ].join('\n')
+}
+
 function buildGuidedSessionRoutes() {
   return scenarios.flatMap((scenario, scenarioIndex): GuidedSessionRoute[] => {
     const quickMission = scenario.missions[0]
@@ -4927,6 +5194,7 @@ function buildTaskLibraryTasks({
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
+  onOpenDebateStudio,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompare: (path: AtlasInquiryPath) => void
@@ -4937,6 +5205,7 @@ function buildTaskLibraryTasks({
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
+  onOpenDebateStudio?: (scenarioId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
 
@@ -5021,6 +5290,39 @@ function buildTaskLibraryTasks({
       }
 
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, ...tags, ...flow.steps, ...scenario.lessonPack.quickStart, ...scenario.lessonPack.exitTickets].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
+
+    ;(['decision-hearing', 'source-challenge', 'cross-era-forum'] as DebateMode[]).forEach((mode) => {
+      const durationMinutes: DebateDuration = mode === 'decision-hearing' ? 30 : mode === 'source-challenge' ? 45 : 30
+      const durationBand = getDurationBand(durationMinutes)
+      const roleCards = buildDebateRoleCards(scenario, mode)
+      const evidenceCards = buildDebateEvidenceCards(scenario)
+      const tags = ['Debate Studio', debateModeLabels[mode], 'role debate', 'classroom discussion', scenario.region, scenario.theme]
+      const task: LibraryTask = {
+        id: `debate:${scenario.id}:${mode}`,
+        title: `${scenario.title} · ${debateModeLabels[mode]}`,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: '课堂辩论',
+        source: 'debate',
+        sourceLabel: 'Debate Studio',
+        durationMinutes,
+        durationBand,
+        summary: scenario.decision.prompt,
+        deliverable: '角色立场卡、证据引用、交叉质询记录与出口判断',
+        tags,
+        sourceBased: true,
+        searchText: '',
+        primaryActionLabel: onOpenDebateStudio ? '打开辩论工作台' : '打开场景课堂包',
+        secondaryActionLabel: '打开场景课堂包',
+        onPrimaryAction: () => onOpenDebateStudio ? onOpenDebateStudio(scenario.id) : onOpenScenario(scenario.id, sectionIds.lessonPack),
+        onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.lessonPack),
+        formatSheet: () => formatDebateLibraryTaskSheet(scenario, mode, durationMinutes),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, ...tags, ...roleCards.map((role) => `${role.title} ${role.stance} ${role.brief}`), ...evidenceCards.map((card) => `${card.title} ${card.claimUse} ${card.reliabilityNote}`)].join(' ').toLowerCase()
       tasks.push(task)
     })
   })
@@ -5473,7 +5775,7 @@ function App() {
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset })
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenDebateStudio: openDebateStudio })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -5773,6 +6075,23 @@ function App() {
     setActiveTasksSubpage('library')
 
     const hash = getHashForTasksSubpage('library')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openDebateStudio(scenarioId: string = selectedScenario.id) {
+    if (getScenarioById(scenarioId)) {
+      setSelectedScenarioId(scenarioId)
+    }
+
+    setActivePage('tasks')
+    setActiveTasksSubpage('debate')
+
+    const hash = getHashForTasksSubpage('debate')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -6092,6 +6411,7 @@ function App() {
             onUpdateMissionWork={setMissionWorkState}
             onUpdateArgumentDraft={setArgumentDraftState}
             prefersReducedMotion={prefersReducedMotion}
+            onOpenDebateStudio={openDebateStudio}
           />
         ) : null}
 
@@ -6252,6 +6572,7 @@ function App() {
                 onLoadContextInquiry={loadContextInquiry}
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
                 onLoadSynthesisPreset={loadSynthesisPreset}
+                onOpenDebateStudio={openDebateStudio}
               />
             ) : null}
             {activeTasksSubpage === 'library' ? (
@@ -6267,6 +6588,7 @@ function App() {
                 onLoadContextInquiry={loadContextInquiry}
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
                 onLoadSynthesisPreset={loadSynthesisPreset}
+                onOpenDebateStudio={openDebateStudio}
               />
             ) : null}
             {activeTasksSubpage === 'builder' ? (
@@ -6275,6 +6597,9 @@ function App() {
                 onUpdateDraft={setAssignmentBuilderDraft}
                 libraryTasks={assignmentLibraryTasks}
               />
+            ) : null}
+            {activeTasksSubpage === 'debate' ? (
+              <DebateStudioPanel initialScenarioId={selectedScenario.id} />
             ) : null}
             {activeTasksSubpage === 'sessions' ? (
               <GuidedSessionPanel
@@ -10308,6 +10633,7 @@ function TaskDiscoveryPanel({
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
+  onOpenDebateStudio,
 }: {
   onOpenLibraryPreset: (preset: TaskLibraryPreset) => void
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
@@ -10319,11 +10645,12 @@ function TaskDiscoveryPanel({
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
+  onOpenDebateStudio: (scenarioId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -10478,6 +10805,191 @@ function TaskDiscoveryPanel({
         <p className="mt-3 text-sm text-stone-500" aria-live="polite">
           {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '集合不会创建新 scenario schema；它只复用现有任务库、Atlas route 与 Labs/Synthesis 入口。'}
         </p>
+      </div>
+    </section>
+  )
+}
+
+
+function DebateStudioPanel({ initialScenarioId }: { initialScenarioId: string }) {
+  const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId)
+  const [selectedMode, setSelectedMode] = useState<DebateMode>('decision-hearing')
+  const [selectedDuration, setSelectedDuration] = useState<DebateDuration>(30)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'failed'>('idle')
+
+  useEffect(() => {
+    setSelectedScenarioId(initialScenarioId)
+    setCopyStatus('idle')
+  }, [initialScenarioId])
+
+  const scenario = getScenarioById(selectedScenarioId) ?? scenarios[0]
+  const roleCards = buildDebateRoleCards(scenario, selectedMode)
+  const evidenceCards = buildDebateEvidenceCards(scenario)
+  const roundPlan = buildDebateRounds(selectedMode, selectedDuration)
+  const totalRoundMinutes = roundPlan.reduce((total, round) => total + round.minutes, 0)
+  const sourceCount = evidenceCards.filter((card) => card.id.startsWith('source:')).length
+  const sceneCount = evidenceCards.filter((card) => card.id.startsWith('scene:')).length
+
+  async function copyDebate(kind: 'student' | 'teacher') {
+    try {
+      await copyTextToClipboard(kind === 'student'
+        ? formatDebateStudentWorksheet(scenario, selectedMode, selectedDuration)
+        : formatDebateTeacherGuide(scenario, selectedMode, selectedDuration))
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section id="debate-studio" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="debate-studio-title">
+      <div className="rounded-[2rem] border border-fuchsia-200/15 bg-fuchsia-100/[0.04] p-5">
+        <div className="mb-4 flex items-center gap-3 text-fuchsia-100">
+          <Users size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">tasks debate & roleplay studio</span>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+          <div>
+            <h2 id="debate-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Debate & Roleplay Studio / 辩论工作台
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              从现有 lessonPack discussion roles、历史岔路选项、sources、scene beats、真实历史与解释边界生成紧凑辩论流程；不新增 scenario schema。
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: '角色卡', value: roleCards.length },
+              { label: '证据卡', value: evidenceCards.length },
+              { label: '来源', value: sourceCount },
+              { label: '回合分钟', value: totalRoundMinutes },
+            ].map((item) => (
+              <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
+                <div className="text-2xl font-semibold text-fuchsia-100">{item.value}</div>
+                <div className="mt-1 text-xs text-stone-500">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-4">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">1. 设置辩论 / Setup</h3>
+              <div className="mt-4 grid gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">场景</span>
+                  <select
+                    value={scenario.id}
+                    onChange={(event) => setSelectedScenarioId(event.target.value)}
+                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-fuchsia-200/60"
+                  >
+                    {scenarios.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.title}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">模式</span>
+                  <select
+                    value={selectedMode}
+                    onChange={(event) => setSelectedMode(event.target.value as DebateMode)}
+                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-fuchsia-200/60"
+                  >
+                    {(Object.keys(debateModeLabels) as DebateMode[]).map((mode) => <option key={mode} value={mode}>{debateModeLabels[mode]}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">时长</span>
+                  <select
+                    value={selectedDuration}
+                    onChange={(event) => setSelectedDuration(Number(event.target.value) as DebateDuration)}
+                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-fuchsia-200/60"
+                  >
+                    <option value={15}>15 分钟</option>
+                    <option value={30}>30 分钟</option>
+                    <option value={45}>45 分钟</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-4">
+              <h3 className="text-xl font-semibold text-amber-100">2. Debate prompt</h3>
+              <p className="mt-3 text-lg leading-8 text-stone-100">{scenario.decision.prompt}</p>
+              <p className="mt-3 text-sm leading-6 text-stone-400">{scenario.decision.context}</p>
+              <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-400">
+                <span className="font-semibold text-fuchsia-100">模式目标：</span>{debateModeDescriptions[selectedMode]}
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">3. 复制 / Export</h3>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <button type="button" onClick={() => void copyDebate('student')} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+                  {copyStatus === 'student' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'student' ? '学生工作纸已复制' : '复制学生工作纸'}
+                </button>
+                <button type="button" onClick={() => void copyDebate('teacher')} className="inline-flex items-center justify-center gap-2 rounded-full border border-fuchsia-200/25 bg-fuchsia-100/[0.08] px-4 py-2 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-100/[0.14]">
+                  {copyStatus === 'teacher' ? <Check size={16} /> : <Copy size={16} />}
+                  {copyStatus === 'teacher' ? '教师指南已复制' : '复制教师指南'}
+                </button>
+              </div>
+              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : `${selectedDuration} 分钟 · ${roleCards.length} 张角色卡 · ${evidenceCards.length} 张证据卡（${sceneCount} scene beats）`}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">Role cards / 角色卡</h3>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {roleCards.map((role) => (
+                  <article key={`${role.title}-${role.stance}`} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-fuchsia-100">{role.stance}</div>
+                    <h4 className="mt-2 font-semibold text-stone-50">{role.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{role.brief}</p>
+                    <p className="mt-2 text-xs leading-5 text-stone-500">{role.speakingMove}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-teal-200/15 bg-teal-100/[0.04] p-4">
+              <h3 className="text-xl font-semibold text-teal-100">Evidence cards / 证据卡</h3>
+              <div className="mt-4 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                {evidenceCards.map((card) => (
+                  <article key={card.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{card.sourceLabel}</div>
+                    <h4 className="mt-2 font-semibold leading-6 text-stone-50">{card.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-stone-300">{card.claimUse}</p>
+                    <p className="mt-2 text-xs leading-5 text-stone-500">边界：{card.reliabilityNote}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {card.tags.slice(0, 5).map((tag) => <Tag key={`${card.id}-${tag}`}>{tag}</Tag>)}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+              <h3 className="text-xl font-semibold text-stone-50">Round plan / 回合计划</h3>
+              <div className="mt-4 space-y-3">
+                {roundPlan.map((round, index) => (
+                  <article key={round.title} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span className="rounded-full border border-fuchsia-200/20 bg-fuchsia-100/[0.06] px-3 py-1 text-fuchsia-100">Round {index + 1}</span>
+                      <span>{round.minutes}m</span>
+                    </div>
+                    <h4 className="mt-2 font-semibold text-stone-50">{round.title}</h4>
+                    <p className="mt-2 text-sm leading-6 text-stone-400"><span className="font-semibold text-amber-100">Teacher：</span>{round.teacherMove}</p>
+                    <p className="mt-1 text-sm leading-6 text-stone-400"><span className="font-semibold text-teal-100">Students：</span>{round.studentMove}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -10796,6 +11308,7 @@ function TaskLibraryPanel({
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
   onLoadSynthesisPreset,
+  onOpenDebateStudio,
 }: {
   preset: TaskLibraryPreset | null
   onClearPreset: () => void
@@ -10808,6 +11321,7 @@ function TaskLibraryPanel({
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
+  onOpenDebateStudio: (scenarioId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -10817,8 +11331,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenDebateStudio],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -12146,6 +12660,7 @@ function ScenarioExperience({
   onUpdateMissionWork,
   onUpdateArgumentDraft,
   prefersReducedMotion,
+  onOpenDebateStudio,
 }: {
   scenario: Scenario
   selectedTab: ScenarioExperienceTab
@@ -12160,6 +12675,7 @@ function ScenarioExperience({
   onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
   onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
   prefersReducedMotion: boolean | null
+  onOpenDebateStudio: (scenarioId: string) => void
 }) {
   const scenarioMotion = prefersReducedMotion
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
@@ -12258,6 +12774,7 @@ function ScenarioExperience({
               selectedOption={selectedOption}
               onSelectOption={onSelectOption}
               prefersReducedMotion={prefersReducedMotion}
+              onOpenDebateStudio={onOpenDebateStudio}
             />
           ) : null}
           {selectedTab === 'sources' ? <SourcesPanel scenario={scenario} /> : null}
@@ -13850,11 +14367,13 @@ function DecisionPanel({
   selectedOption,
   onSelectOption,
   prefersReducedMotion,
+  onOpenDebateStudio,
 }: {
   scenario: Scenario
   selectedOption: DecisionOption | null
   onSelectOption: (id: string) => void
   prefersReducedMotion: boolean | null
+  onOpenDebateStudio: (scenarioId: string) => void
 }) {
   const outcomeMotion = prefersReducedMotion
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
@@ -13869,8 +14388,20 @@ function DecisionPanel({
         <ShieldAlert size={20} />
         <span className="text-sm uppercase tracking-[0.3em]">历史岔路口</span>
       </div>
-      <h2 className="text-3xl font-semibold tracking-tight text-stone-50">{scenario.decision.prompt}</h2>
-      <p className="mt-4 leading-8 text-stone-300">{scenario.decision.context}</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-3xl font-semibold tracking-tight text-stone-50">{scenario.decision.prompt}</h2>
+          <p className="mt-4 leading-8 text-stone-300">{scenario.decision.context}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenDebateStudio(scenario.id)}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-5 py-3 font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"
+        >
+          <Users size={18} />
+          Launch Debate
+        </button>
+      </div>
 
       <div className="mt-6 grid gap-3" role="group" aria-label="选择你的行动">
         {scenario.decision.options.map((option) => {
