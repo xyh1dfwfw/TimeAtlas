@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react'
+import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowRight,
@@ -76,6 +76,41 @@ const sectionIds = {
   synthesisStudio: 'synthesis-writing-studio',
   compareLab: 'compare-lab',
 } as const
+
+const pageIds = [
+  'home',
+  'scenario',
+  'atlas',
+  'evidence',
+  'causation',
+  'periodization',
+  'perspectives',
+  'context',
+  'significance',
+  'synthesis',
+  'tasks',
+  'about',
+] as const
+
+type PageId = typeof pageIds[number]
+
+const pageLabels: Record<PageId, { label: string; eyebrow: string; description: string }> = {
+  home: { label: '首页', eyebrow: 'Start', description: '身份选择、项目概览与时间地图' },
+  scenario: { label: '场景体验', eyebrow: 'Scenario', description: '进入一个历史身份的一天、任务与来源层' },
+  atlas: { label: '时空路线', eyebrow: 'Atlas', description: '地图路线、跨场景挑战、探究路径与比较实验室' },
+  evidence: { label: '史料证据', eyebrow: 'Evidence', description: '全站史料地图、证据篮与互证工作台' },
+  causation: { label: '因果变化', eyebrow: 'Causation', description: '因果链、触发、约束、后果与不确定性' },
+  periodization: { label: '连续分期', eyebrow: 'Periodization', description: '时间证据轨、转折点与历史分期' },
+  perspectives: { label: '多视角', eyebrow: 'Agency', description: '选择边界、能动性与反当下主义' },
+  context: { label: '情境尺度', eyebrow: 'Context', description: '地方、区域、全球尺度与来源情境' },
+  significance: { label: '历史意义', eyebrow: 'Memory', description: '重要性、记忆、争议与档案沉默' },
+  synthesis: { label: '综合写作', eyebrow: 'Writing', description: '把所有草稿汇总成综合历史论证' },
+  tasks: { label: '任务档案', eyebrow: 'Tasks', description: '任务库、学习路径、作品集与导出' },
+  about: { label: '项目理念', eyebrow: 'About', description: 'TimeAtlas 的设计思路与学习目标' },
+}
+
+const primaryPages: PageId[] = ['home', 'scenario', 'atlas', 'evidence', 'tasks']
+const labPages: PageId[] = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'synthesis']
 
 const optionCounts = scenarios.map((scenario) => scenario.decision.options.length)
 const minOptionCount = Math.min(...optionCounts)
@@ -3798,12 +3833,69 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
   return defaultScenarioSectionId
 }
 
-function buildScenarioUrl(scenarioId: string, hash: ScenarioSectionId = defaultScenarioSectionId) {
+function getPageFromValue(value: string | null): PageId | null {
+  return pageIds.includes(value as PageId) ? value as PageId : null
+}
+
+function inferPageFromHash(hash: string): PageId {
+  const normalizedHash = hash.replace(/^#/, '')
+
+  const scenarioHashes = [
+    sectionIds.sceneReader,
+    sectionIds.lessonPack,
+    sectionIds.activityPacks,
+    sectionIds.missionBoard,
+    sectionIds.decisionPanel,
+    sectionIds.argumentStudio,
+    sectionIds.sourceReader,
+    sectionIds.experience,
+  ] as string[]
+
+  if (scenarioHashes.includes(normalizedHash)) {
+    return 'scenario'
+  }
+
+  if (normalizedHash === 'source-atlas') return 'evidence'
+  if (normalizedHash === sectionIds.causationLab) return 'causation'
+  if (normalizedHash === sectionIds.periodizationLab) return 'periodization'
+  if (normalizedHash === sectionIds.perspectivesLab) return 'perspectives'
+  if (normalizedHash === sectionIds.contextLab) return 'context'
+  if (normalizedHash === sectionIds.significanceLab) return 'significance'
+  if (normalizedHash === sectionIds.synthesisStudio) return 'synthesis'
+  if (['time-space-atlas', 'atlas-missions', 'atlas-inquiry-paths', sectionIds.compareLab].includes(normalizedHash)) return 'atlas'
+  if (['portfolio', 'task-library', 'guided-session-builder'].includes(normalizedHash)) return 'tasks'
+  if (normalizedHash === 'about') return 'about'
+
+  return 'home'
+}
+
+function getInitialPage() {
   if (typeof window === 'undefined') {
-    return `?scenario=${scenarioId}#${hash}`
+    return 'home' as PageId
+  }
+
+  return getPageFromValue(new URLSearchParams(window.location.search).get('page')) ?? inferPageFromHash(window.location.hash)
+}
+
+function buildPageUrl(page: PageId, hash?: string) {
+  if (typeof window === 'undefined') {
+    return `?page=${page}${hash ? `#${hash}` : ''}`
   }
 
   const url = new URL(window.location.href)
+  url.searchParams.set('page', page)
+  url.hash = hash ?? ''
+
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+function buildScenarioUrl(scenarioId: string, hash: ScenarioSectionId = defaultScenarioSectionId) {
+  if (typeof window === 'undefined') {
+    return `?page=scenario&scenario=${scenarioId}#${hash}`
+  }
+
+  const url = new URL(window.location.href)
+  url.searchParams.set('page', 'scenario')
   url.searchParams.set('scenario', scenarioId)
   url.searchParams.delete('option')
   url.hash = hash
@@ -4380,6 +4472,7 @@ function App() {
   const prefersReducedMotion = useReducedMotion()
   const initialSelection = useMemo(getInitialSelection, [])
   const initialCompareSelection = useMemo(getInitialCompareSelection, [])
+  const [activePage, setActivePage] = useState<PageId>(getInitialPage)
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialSelection.scenarioId)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(initialSelection.optionId)
   const [compareScenarioAId, setCompareScenarioAId] = useState(initialCompareSelection.compareAId)
@@ -4609,6 +4702,7 @@ function App() {
     }
 
     const params = new URLSearchParams(window.location.search)
+    params.set('page', activePage)
     params.set('scenario', selectedScenario.id)
     params.set('compareA', compareScenarioA.id)
     params.set('compareB', compareScenarioB.id)
@@ -4626,7 +4720,21 @@ function App() {
     if (nextUrl !== currentUrl) {
       window.history.replaceState(null, '', nextUrl)
     }
-  }, [compareScenarioA, compareScenarioB, selectedLens, selectedOption, selectedScenario])
+  }, [activePage, compareScenarioA, compareScenarioB, selectedLens, selectedOption, selectedScenario])
+
+  function navigateToPage(page: PageId, hash?: string) {
+    setActivePage(page)
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl(page, hash))
+    }
+
+    if (hash) {
+      scrollToSection(hash as ScenarioSectionId, prefersReducedMotion)
+    } else if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' }))
+    }
+  }
 
   function selectScenario(id: string, hash: ScenarioSectionId = defaultScenarioSectionId) {
     if (!getScenarioById(id)) {
@@ -4635,6 +4743,7 @@ function App() {
 
     setSelectedScenarioId(id)
     setSelectedOptionId(null)
+    setActivePage('scenario')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildScenarioUrl(id, hash))
@@ -4682,6 +4791,7 @@ function App() {
     setCompareScenarioAId(firstScenarioId)
     setCompareScenarioBId(secondScenarioId)
     setSelectedLensKey(path.lensKey)
+    setActivePage('atlas')
 
     window.requestAnimationFrame(() => {
       document.getElementById(sectionIds.compareLab)?.scrollIntoView({
@@ -4693,6 +4803,7 @@ function App() {
 
   function loadCompareLens(lens: CompareLens) {
     setSelectedLensKey(lens.key)
+    setActivePage('atlas')
 
     window.requestAnimationFrame(() => {
       document.getElementById(sectionIds.compareLab)?.scrollIntoView({
@@ -4708,6 +4819,7 @@ function App() {
     }
 
     setSelectedCausationInquiryId(inquiryId)
+    setActivePage('causation')
     scrollToSection(sectionIds.causationLab, prefersReducedMotion)
   }
 
@@ -4717,6 +4829,7 @@ function App() {
     }
 
     setSelectedPeriodizationInquiryId(inquiryId)
+    setActivePage('periodization')
     scrollToSection(sectionIds.periodizationLab, prefersReducedMotion)
   }
 
@@ -4726,6 +4839,7 @@ function App() {
     }
 
     setSelectedPerspectivesInquiryId(inquiryId)
+    setActivePage('perspectives')
     scrollToSection(sectionIds.perspectivesLab, prefersReducedMotion)
   }
 
@@ -4735,6 +4849,7 @@ function App() {
     }
 
     setSelectedContextInquiryId(inquiryId)
+    setActivePage('context')
     scrollToSection(sectionIds.contextLab, prefersReducedMotion)
   }
 
@@ -4744,6 +4859,7 @@ function App() {
     }
 
     setSelectedSignificanceInquiryId(inquiryId)
+    setActivePage('significance')
     scrollToSection(sectionIds.significanceLab, prefersReducedMotion)
   }
 
@@ -4753,6 +4869,7 @@ function App() {
     }
 
     setSelectedSynthesisPresetId(presetId)
+    setActivePage('synthesis')
     scrollToSection(sectionIds.synthesisStudio, prefersReducedMotion)
   }
 
@@ -4761,147 +4878,304 @@ function App() {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
       <div className="fixed inset-0 -z-10 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <Hero prefersReducedMotion={prefersReducedMotion} />
-      <ScenarioGallery
-        selectedScenarioId={selectedScenarioId}
-        completedMissionIdsByScenario={completedMissionIdsByScenario}
-        missionWorkCountByScenario={missionWorkCountByScenario}
-        onSelect={selectScenario}
-      />
-      <AtlasOverview
-        selectedScenarioId={selectedScenarioId}
-        totalCompletedMissionCount={totalCompletedMissionCount}
-        missionWorkCountByScenario={missionWorkCountByScenario}
-        onSelect={selectScenario}
-      />
-      <TimeSpaceAtlasPanel
-        selectedScenarioId={selectedScenarioId}
-        workspaceState={workspaceState}
-        onUpdateWorkspaceState={setWorkspaceState}
-        onOpenScenario={selectScenario}
-        onLoadCompare={loadCompareFromInquiryPath}
-      />
-      <SourceAtlasPanel
-        corroborationDraftState={corroborationDraftState}
-        onUpdateCorroborationDraftState={setCorroborationDraftState}
-        onOpenScenario={selectScenario}
-        onLoadCompareLens={loadCompareLens}
-      />
-      <CausationLabPanel
-        selectedInquiryId={selectedCausationInquiryId}
-        evidenceByInquiry={causationEvidenceByInquiry}
-        draftState={causationDraftState}
-        onSelectInquiry={setSelectedCausationInquiryId}
-        onUpdateDraftState={setCausationDraftState}
-        onOpenScenario={selectScenario}
-      />
-      <PeriodizationLabPanel
-        selectedInquiryId={selectedPeriodizationInquiryId}
-        evidenceByInquiry={periodizationEvidenceByInquiry}
-        draftState={periodizationDraftState}
-        onSelectInquiry={setSelectedPeriodizationInquiryId}
-        onUpdateDraftState={setPeriodizationDraftState}
-        onOpenScenario={selectScenario}
-      />
-      <PerspectivesAgencyLabPanel
-        selectedInquiryId={selectedPerspectivesInquiryId}
-        evidenceByInquiry={perspectivesEvidenceByInquiry}
-        draftState={perspectivesDraftState}
-        onSelectInquiry={setSelectedPerspectivesInquiryId}
-        onUpdateDraftState={setPerspectivesDraftState}
-        onOpenScenario={selectScenario}
-      />
-      <ContextScaleLabPanel
-        selectedInquiryId={selectedContextInquiryId}
-        evidenceByInquiry={contextEvidenceByInquiry}
-        draftState={contextDraftState}
-        onSelectInquiry={setSelectedContextInquiryId}
-        onUpdateDraftState={setContextDraftState}
-        onOpenScenario={selectScenario}
-      />
-      <SignificanceMemoryLabPanel
-        selectedInquiryId={selectedSignificanceInquiryId}
-        evidenceByInquiry={significanceEvidenceByInquiry}
-        draftState={significanceDraftState}
-        onSelectInquiry={setSelectedSignificanceInquiryId}
-        onUpdateDraftState={setSignificanceDraftState}
-        onOpenScenario={selectScenario}
-      />
-      <SynthesisWritingStudioPanel
-        selectedPresetId={selectedSynthesisPresetId}
-        evidencePool={synthesisEvidencePool}
-        draftState={synthesisDraftState}
-        onSelectPreset={setSelectedSynthesisPresetId}
-        onUpdateDraftState={setSynthesisDraftState}
-        onOpenScenario={selectScenario}
-      />
-      <PortfolioPanel
-        completedMissionIdsByScenario={completedMissionIdsByScenario}
-        missionWorkState={missionWorkState}
-        workspaceState={workspaceState}
-        workspaceStats={workspaceStats}
-        corroborationDraftState={corroborationDraftState}
-        causationDraftState={causationDraftState}
-        periodizationDraftState={periodizationDraftState}
-        perspectivesDraftState={perspectivesDraftState}
-        contextDraftState={contextDraftState}
-        significanceDraftState={significanceDraftState}
-        synthesisDraftState={synthesisDraftState}
-      />
-      <TaskLibraryPanel
-        onOpenScenario={selectScenario}
-        onLoadCompare={loadCompareFromInquiryPath}
-        onLoadCompareLens={loadCompareLens}
-        onLoadCausationInquiry={loadCausationInquiry}
-        onLoadPeriodizationInquiry={loadPeriodizationInquiry}
-        onLoadPerspectivesInquiry={loadPerspectivesInquiry}
-        onLoadContextInquiry={loadContextInquiry}
-        onLoadSignificanceInquiry={loadSignificanceInquiry}
-        onLoadSynthesisPreset={loadSynthesisPreset}
-      />
-      <GuidedSessionPanel
-        selectedScenarioId={selectedScenario.id}
-        progressState={guidedSessionProgressState}
-        onUpdateProgressState={setGuidedSessionProgressState}
-        onOpenScenario={selectScenario}
-      />
-      <AtlasMissionsPanel
-        workspaceState={workspaceState}
-        onUpdateWorkspaceState={setWorkspaceState}
-      />
-      <AtlasInquiryPathsPanel
-        workspaceState={workspaceState}
-        onUpdateWorkspaceState={setWorkspaceState}
-        onOpenScenario={selectScenario}
-        onLoadCompare={loadCompareFromInquiryPath}
-      />
-      <CompareLabPanel
-        scenarioA={compareScenarioA}
-        scenarioB={compareScenarioB}
-        selectedLens={selectedLens}
-        onSelectScenarioA={selectCompareScenarioA}
-        onSelectScenarioB={selectCompareScenarioB}
-        onSelectLens={setSelectedLensKey}
-      />
-      <ScenarioExperience
-        scenario={selectedScenario}
-        selectedOption={selectedOption}
-        onSelectOption={setSelectedOptionId}
-        completedMissionIds={completedMissionIds}
-        completedMissionCount={completedMissionCount}
-        missionWorkState={missionWorkState}
-        argumentDraft={argumentDraftState[selectedScenario.id] ?? getEmptyArgumentDraft()}
-        onToggleMission={toggleMission}
-        onUpdateMissionWork={setMissionWorkState}
-        onUpdateArgumentDraft={setArgumentDraftState}
-        prefersReducedMotion={prefersReducedMotion}
-      />
-      <About />
+      <AppShell activePage={activePage} onNavigate={navigateToPage}>
+        {activePage === 'home' ? (
+          <>
+            <Hero
+              prefersReducedMotion={prefersReducedMotion}
+              onStart={() => navigateToPage('home', 'gallery')}
+              onOpenAtlas={() => navigateToPage('atlas', 'atlas-inquiry-paths')}
+              onOpenAbout={() => navigateToPage('about', 'about')}
+            />
+            <ScenarioGallery
+              selectedScenarioId={selectedScenarioId}
+              completedMissionIdsByScenario={completedMissionIdsByScenario}
+              missionWorkCountByScenario={missionWorkCountByScenario}
+              onSelect={selectScenario}
+            />
+            <AtlasOverview
+              selectedScenarioId={selectedScenarioId}
+              totalCompletedMissionCount={totalCompletedMissionCount}
+              missionWorkCountByScenario={missionWorkCountByScenario}
+              onSelect={selectScenario}
+            />
+          </>
+        ) : null}
+
+        {activePage === 'scenario' ? (
+          <ScenarioExperience
+            scenario={selectedScenario}
+            selectedOption={selectedOption}
+            onSelectOption={setSelectedOptionId}
+            completedMissionIds={completedMissionIds}
+            completedMissionCount={completedMissionCount}
+            missionWorkState={missionWorkState}
+            argumentDraft={argumentDraftState[selectedScenario.id] ?? getEmptyArgumentDraft()}
+            onToggleMission={toggleMission}
+            onUpdateMissionWork={setMissionWorkState}
+            onUpdateArgumentDraft={setArgumentDraftState}
+            prefersReducedMotion={prefersReducedMotion}
+          />
+        ) : null}
+
+        {activePage === 'atlas' ? (
+          <>
+            <TimeSpaceAtlasPanel
+              selectedScenarioId={selectedScenarioId}
+              workspaceState={workspaceState}
+              onUpdateWorkspaceState={setWorkspaceState}
+              onOpenScenario={selectScenario}
+              onLoadCompare={loadCompareFromInquiryPath}
+            />
+            <AtlasMissionsPanel
+              workspaceState={workspaceState}
+              onUpdateWorkspaceState={setWorkspaceState}
+            />
+            <AtlasInquiryPathsPanel
+              workspaceState={workspaceState}
+              onUpdateWorkspaceState={setWorkspaceState}
+              onOpenScenario={selectScenario}
+              onLoadCompare={loadCompareFromInquiryPath}
+            />
+            <CompareLabPanel
+              scenarioA={compareScenarioA}
+              scenarioB={compareScenarioB}
+              selectedLens={selectedLens}
+              onSelectScenarioA={selectCompareScenarioA}
+              onSelectScenarioB={selectCompareScenarioB}
+              onSelectLens={setSelectedLensKey}
+            />
+          </>
+        ) : null}
+
+        {activePage === 'evidence' ? (
+          <SourceAtlasPanel
+            corroborationDraftState={corroborationDraftState}
+            onUpdateCorroborationDraftState={setCorroborationDraftState}
+            onOpenScenario={selectScenario}
+            onLoadCompareLens={loadCompareLens}
+          />
+        ) : null}
+
+        {activePage === 'causation' ? (
+          <CausationLabPanel
+            selectedInquiryId={selectedCausationInquiryId}
+            evidenceByInquiry={causationEvidenceByInquiry}
+            draftState={causationDraftState}
+            onSelectInquiry={setSelectedCausationInquiryId}
+            onUpdateDraftState={setCausationDraftState}
+            onOpenScenario={selectScenario}
+          />
+        ) : null}
+
+        {activePage === 'periodization' ? (
+          <PeriodizationLabPanel
+            selectedInquiryId={selectedPeriodizationInquiryId}
+            evidenceByInquiry={periodizationEvidenceByInquiry}
+            draftState={periodizationDraftState}
+            onSelectInquiry={setSelectedPeriodizationInquiryId}
+            onUpdateDraftState={setPeriodizationDraftState}
+            onOpenScenario={selectScenario}
+          />
+        ) : null}
+
+        {activePage === 'perspectives' ? (
+          <PerspectivesAgencyLabPanel
+            selectedInquiryId={selectedPerspectivesInquiryId}
+            evidenceByInquiry={perspectivesEvidenceByInquiry}
+            draftState={perspectivesDraftState}
+            onSelectInquiry={setSelectedPerspectivesInquiryId}
+            onUpdateDraftState={setPerspectivesDraftState}
+            onOpenScenario={selectScenario}
+          />
+        ) : null}
+
+        {activePage === 'context' ? (
+          <ContextScaleLabPanel
+            selectedInquiryId={selectedContextInquiryId}
+            evidenceByInquiry={contextEvidenceByInquiry}
+            draftState={contextDraftState}
+            onSelectInquiry={setSelectedContextInquiryId}
+            onUpdateDraftState={setContextDraftState}
+            onOpenScenario={selectScenario}
+          />
+        ) : null}
+
+        {activePage === 'significance' ? (
+          <SignificanceMemoryLabPanel
+            selectedInquiryId={selectedSignificanceInquiryId}
+            evidenceByInquiry={significanceEvidenceByInquiry}
+            draftState={significanceDraftState}
+            onSelectInquiry={setSelectedSignificanceInquiryId}
+            onUpdateDraftState={setSignificanceDraftState}
+            onOpenScenario={selectScenario}
+          />
+        ) : null}
+
+        {activePage === 'synthesis' ? (
+          <SynthesisWritingStudioPanel
+            selectedPresetId={selectedSynthesisPresetId}
+            evidencePool={synthesisEvidencePool}
+            draftState={synthesisDraftState}
+            onSelectPreset={setSelectedSynthesisPresetId}
+            onUpdateDraftState={setSynthesisDraftState}
+            onOpenScenario={selectScenario}
+          />
+        ) : null}
+
+        {activePage === 'tasks' ? (
+          <>
+            <TaskLibraryPanel
+              onOpenScenario={selectScenario}
+              onLoadCompare={loadCompareFromInquiryPath}
+              onLoadCompareLens={loadCompareLens}
+              onLoadCausationInquiry={loadCausationInquiry}
+              onLoadPeriodizationInquiry={loadPeriodizationInquiry}
+              onLoadPerspectivesInquiry={loadPerspectivesInquiry}
+              onLoadContextInquiry={loadContextInquiry}
+              onLoadSignificanceInquiry={loadSignificanceInquiry}
+              onLoadSynthesisPreset={loadSynthesisPreset}
+            />
+            <GuidedSessionPanel
+              selectedScenarioId={selectedScenario.id}
+              progressState={guidedSessionProgressState}
+              onUpdateProgressState={setGuidedSessionProgressState}
+              onOpenScenario={selectScenario}
+            />
+            <PortfolioPanel
+              completedMissionIdsByScenario={completedMissionIdsByScenario}
+              missionWorkState={missionWorkState}
+              workspaceState={workspaceState}
+              workspaceStats={workspaceStats}
+              corroborationDraftState={corroborationDraftState}
+              causationDraftState={causationDraftState}
+              periodizationDraftState={periodizationDraftState}
+              perspectivesDraftState={perspectivesDraftState}
+              contextDraftState={contextDraftState}
+              significanceDraftState={significanceDraftState}
+              synthesisDraftState={synthesisDraftState}
+            />
+          </>
+        ) : null}
+
+        {activePage === 'about' ? <About /> : null}
+      </AppShell>
     </main>
   )
 }
 
-function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }) {
+
+function AppShell({
+  activePage,
+  onNavigate,
+  children,
+}: {
+  activePage: PageId
+  onNavigate: (page: PageId, hash?: string) => void
+  children: ReactNode
+}) {
+  return (
+    <>
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0a08]/85 backdrop-blur-xl">
+        <nav className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-5 py-3 sm:px-8 lg:px-10" aria-label="TimeAtlas 页面导航">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <button
+              type="button"
+              onClick={() => onNavigate('home')}
+              className="inline-flex items-center gap-3 text-left"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-300 text-stone-950 shadow-lg shadow-amber-950/25">
+                <Compass size={20} />
+              </span>
+              <span>
+                <span className="block text-sm uppercase tracking-[0.28em] text-amber-100">TimeAtlas</span>
+                <span className="block text-xs text-stone-500">Interactive history workspace</span>
+              </span>
+            </button>
+
+            <div className="flex flex-wrap gap-2">
+              {primaryPages.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => onNavigate(page)}
+                  aria-current={activePage === page ? 'page' : undefined}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    activePage === page
+                      ? 'border-amber-200/50 bg-amber-200/15 text-amber-100'
+                      : 'border-white/10 bg-white/[0.03] text-stone-300 hover:border-amber-100/25 hover:bg-white/[0.06] hover:text-stone-100'
+                  }`}
+                >
+                  {pageLabels[page].label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => onNavigate('about')}
+                aria-current={activePage === 'about' ? 'page' : undefined}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  activePage === 'about'
+                    ? 'border-amber-200/50 bg-amber-200/15 text-amber-100'
+                    : 'border-white/10 bg-white/[0.03] text-stone-300 hover:border-amber-100/25 hover:bg-white/[0.06] hover:text-stone-100'
+                }`}
+              >
+                {pageLabels.about.label}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-[1.25rem] border border-white/10 bg-black/20 p-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="px-2">
+              <div className="text-xs uppercase tracking-[0.22em] text-stone-500">{pageLabels[activePage].eyebrow}</div>
+              <div className="text-sm text-stone-300">{pageLabels[activePage].description}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {labPages.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => onNavigate(page)}
+                  aria-current={activePage === page ? 'page' : undefined}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    activePage === page
+                      ? 'border-teal-200/45 bg-teal-100/[0.12] text-teal-100'
+                      : 'border-white/10 bg-white/[0.025] text-stone-400 hover:border-teal-100/25 hover:text-teal-100'
+                  }`}
+                >
+                  {pageLabels[page].label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activePage}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.24 }}
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
+    </>
+  )
+}
+
+function Hero({
+  prefersReducedMotion,
+  onStart,
+  onOpenAtlas,
+  onOpenAbout,
+}: {
+  prefersReducedMotion: boolean | null
+  onStart: () => void
+  onOpenAtlas: () => void
+  onOpenAbout: () => void
+}) {
   const introMotion = prefersReducedMotion
     ? { initial: false, animate: { opacity: 1 }, transition: { duration: 0 } }
     : { initial: { opacity: 0, y: 24 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7 } }
@@ -4937,26 +5211,29 @@ function Hero({ prefersReducedMotion }: { prefersReducedMotion: boolean | null }
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <a
-              href="#gallery"
+            <button
+              type="button"
+              onClick={onStart}
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-6 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
             >
               开始探索
               <ArrowRight className="transition group-hover:translate-x-1" size={18} />
-            </a>
-            <a
-              href="#atlas-inquiry-paths"
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAtlas}
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-6 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]"
             >
               探究路径
               <Route size={18} />
-            </a>
-            <a
-              href="#about"
+            </button>
+            <button
+              type="button"
+              onClick={onOpenAbout}
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 font-semibold text-stone-300 transition hover:bg-white/[0.06] hover:text-stone-100"
             >
               项目理念
-            </a>
+            </button>
           </div>
 
           <div className="grid max-w-xl grid-cols-2 gap-3 pt-4 sm:grid-cols-4">
@@ -11481,7 +11758,7 @@ function OutcomeCard({ title, text }: { title: string; text: string }) {
   )
 }
 
-function Tag({ children }: { children: React.ReactNode }) {
+function Tag({ children }: { children: ReactNode }) {
   return <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400">{children}</span>
 }
 
