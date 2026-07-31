@@ -56,6 +56,7 @@ const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
 const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
 const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
+const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
@@ -231,6 +232,27 @@ type CorroborationDraft = {
 
 type CorroborationDraftState = Record<string, CorroborationDraft>
 
+type CompareConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type CompareDraft = {
+  scenarioAId: string
+  scenarioBId: string
+  lensKey: CompareLens['key']
+  selectedEvidenceIdsA: string[]
+  selectedEvidenceIdsB: string[]
+  comparativeClaim: string
+  similarity: string
+  difference: string
+  evidenceBridge: string
+  sourceLimits: string
+  confidence: CompareConfidence
+  updatedAt?: string
+}
+
+type CompareDraftState = Record<string, CompareDraft>
+
+type CompareWorkspaceTab = 'assignment' | 'evidence' | 'brief'
+
 type CausationConfidence = 'high' | 'medium' | 'low' | 'uncertain'
 
 type CauseCategory = 'economic' | 'political-institutional' | 'environmental-geographic' | 'social-labor' | 'cultural-knowledge' | 'source-limitation'
@@ -400,6 +422,7 @@ type SynthesisEvidenceOrigin =
   | 'perspectives'
   | 'contextualization'
   | 'significance'
+  | 'compare'
   | 'mission-work'
   | 'workspace'
 
@@ -822,6 +845,7 @@ const perspectivesConfidenceLabels: Record<PerspectivesConfidence, string> = cor
 const contextConfidenceLabels: Record<ContextConfidence, string> = corroborationConfidenceLabels
 const significanceConfidenceLabels: Record<SignificanceConfidence, string> = corroborationConfidenceLabels
 const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
+const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
 
 const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
   'immediate-impact': 'immediate-impact / 当时影响',
@@ -1623,6 +1647,59 @@ function parsePerspectivesDraftState(rawState: string | null) {
 }
 
 
+function parseCompareDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as CompareDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<CompareDraft>
+        const scenarioAId = typeof draft.scenarioAId === 'string' ? draft.scenarioAId : ''
+        const scenarioBId = typeof draft.scenarioBId === 'string' ? draft.scenarioBId : ''
+        const lensKey = draft.lensKey && compareLenses.some((lens) => lens.key === draft.lensKey) ? draft.lensKey : defaultCompareLensKey
+        const selectedEvidenceIdsA = Array.isArray(draft.selectedEvidenceIdsA)
+          ? draft.selectedEvidenceIdsA.filter((item): item is string => typeof item === 'string')
+          : []
+        const selectedEvidenceIdsB = Array.isArray(draft.selectedEvidenceIdsB)
+          ? draft.selectedEvidenceIdsB.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in compareConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+        const normalizedKey = scenarioAId && scenarioBId ? getCompareDraftKey(scenarioAId, scenarioBId, lensKey) : key
+
+        return [[
+          normalizedKey,
+          {
+            scenarioAId,
+            scenarioBId,
+            lensKey,
+            selectedEvidenceIdsA,
+            selectedEvidenceIdsB,
+            comparativeClaim: typeof draft.comparativeClaim === 'string' ? draft.comparativeClaim : '',
+            similarity: typeof draft.similarity === 'string' ? draft.similarity : '',
+            difference: typeof draft.difference === 'string' ? draft.difference : '',
+            evidenceBridge: typeof draft.evidenceBridge === 'string' ? draft.evidenceBridge : '',
+            sourceLimits: typeof draft.sourceLimits === 'string' ? draft.sourceLimits : '',
+            confidence,
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies CompareDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as CompareDraftState
+  }
+}
+
 function parseSynthesisDraftState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -1988,6 +2065,30 @@ function persistPerspectivesDraftState(state: PerspectivesDraftState) {
 }
 
 
+function loadCompareDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseCompareDraftState(localStorage?.getItem(compareLabStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseCompareDraftState(sessionStorage?.getItem(compareLabStorageKey) ?? null)
+}
+
+function persistCompareDraftState(state: CompareDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(compareLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(compareLabStorageKey, serializedState)
+}
+
 function loadSynthesisDraftState() {
   const localStorage = getSafeStorage('localStorage')
   const sessionStorage = getSafeStorage('sessionStorage')
@@ -2205,6 +2306,43 @@ function getEmptyCorroborationDraft(sourceIds: string[] = []): CorroborationDraf
     absentVoices: '',
     confidence: 'uncertain',
   }
+}
+
+function getCompareDraftKey(scenarioAId: string, scenarioBId: string, lensKey: CompareLens['key']) {
+  return `${scenarioAId}::${scenarioBId}::${lensKey}`
+}
+
+function getEmptyCompareDraft(scenarioAId: string, scenarioBId: string, lensKey: CompareLens['key']): CompareDraft {
+  return {
+    scenarioAId,
+    scenarioBId,
+    lensKey,
+    selectedEvidenceIdsA: [],
+    selectedEvidenceIdsB: [],
+    comparativeClaim: '',
+    similarity: '',
+    difference: '',
+    evidenceBridge: '',
+    sourceLimits: '',
+    confidence: 'uncertain',
+  }
+}
+
+function hasCompareDraftActivity(draft: CompareDraft) {
+  return Boolean(
+    draft.selectedEvidenceIdsA.length
+      || draft.selectedEvidenceIdsB.length
+      || draft.comparativeClaim.trim()
+      || draft.similarity.trim()
+      || draft.difference.trim()
+      || draft.evidenceBridge.trim()
+      || draft.sourceLimits.trim()
+      || draft.confidence !== 'uncertain',
+  )
+}
+
+function getActiveCompareDrafts(compareDraftState: CompareDraftState) {
+  return Object.entries(compareDraftState).filter(([, draft]) => hasCompareDraftActivity(draft))
 }
 
 function hasCorroborationDraftActivity(draft: CorroborationDraft) {
@@ -3506,6 +3644,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     perspectives: 'Perspectives draft / 多视角草稿',
     contextualization: 'Context draft / 情境化草稿',
     significance: 'Significance draft / 意义草稿',
+    compare: 'Compare draft / 比较草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     workspace: 'Workspace entry / 跨场景工作区',
   }[origin]
@@ -3526,6 +3665,7 @@ function buildSynthesisEvidencePool({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  compareDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -3535,6 +3675,7 @@ function buildSynthesisEvidencePool({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  compareDraftState: CompareDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -3642,6 +3783,26 @@ function buildSynthesisEvidencePool({
     })
   })
 
+  getActiveCompareDrafts(compareDraftState).forEach(([key, draft]) => {
+    const scenarioA = getScenarioById(draft.scenarioAId)
+    const scenarioB = getScenarioById(draft.scenarioBId)
+    const lens = getCompareLensByKey(draft.lensKey)
+    const evidenceA = scenarioA ? getLensEvidenceSections(scenarioA, lens).filter((section) => draft.selectedEvidenceIdsA.includes(section.id)).map((section) => `${scenarioA.title}｜${section.label}`) : []
+    const evidenceB = scenarioB ? getLensEvidenceSections(scenarioB, lens).filter((section) => draft.selectedEvidenceIdsB.includes(section.id)).map((section) => `${scenarioB.title}｜${section.label}`) : []
+
+    entries.push({
+      id: makeSynthesisEvidenceId('compare', key),
+      origin: 'compare',
+      originLabel: getSynthesisOriginLabel('compare'),
+      title: `${lens.title}：${scenarioA?.title ?? draft.scenarioAId} × ${scenarioB?.title ?? draft.scenarioBId}`,
+      text: [`主张：${draft.comparativeClaim}`, `共同点：${draft.similarity}`, `差异：${draft.difference}`, `证据桥：${draft.evidenceBridge}`, `来源限制：${draft.sourceLimits}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['compare', lens.shortLabel, lens.key, scenarioA?.region, scenarioB?.region, ...evidenceA, ...evidenceB, draft.confidence].filter((tag): tag is string => Boolean(tag)),
+      scenarioTitle: [scenarioA?.title, scenarioB?.title].filter(Boolean).join(' × '),
+      inquiryTitle: lens.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
   Object.entries(missionWorkState).forEach(([key, work]) => {
     if (!work.notes.trim() && work.checkedEvidence.length === 0) return
     const [scenarioId, missionId] = key.split(':')
@@ -3743,6 +3904,7 @@ function formatLearningArchive(
   contextDraftState: ContextDraftState,
   significanceDraftState: SignificanceDraftState,
   synthesisDraftState: SynthesisDraftState,
+  compareDraftState: CompareDraftState,
   taskModuleProgressState: TaskModuleProgressState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
@@ -3753,13 +3915,14 @@ function formatLearningArchive(
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
+  const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -3777,6 +3940,7 @@ function formatLearningArchive(
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
+    `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
     '',
   ]
@@ -3981,6 +4145,35 @@ function formatLearningArchive(
         `    来源限制：${draft.sourceLimits.trim() || '尚未填写'}`,
         `    意义主张：${draft.significanceClaim.trim() || '尚未填写'}`,
         `    信心等级：${significanceConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (activeCompareDrafts.length > 0) {
+    lines.push('Compare Lab Workspace / 跨场景比较工作区：')
+    activeCompareDrafts.forEach(([, draft]) => {
+      const scenarioA = getScenarioById(draft.scenarioAId)
+      const scenarioB = getScenarioById(draft.scenarioBId)
+      const lens = getCompareLensByKey(draft.lensKey)
+      const selectedEvidenceA = scenarioA
+        ? getLensEvidenceSections(scenarioA, lens).filter((section) => draft.selectedEvidenceIdsA.includes(section.id)).map((section) => `${section.label}｜${section.text}`)
+        : []
+      const selectedEvidenceB = scenarioB
+        ? getLensEvidenceSections(scenarioB, lens).filter((section) => draft.selectedEvidenceIdsB.includes(section.id)).map((section) => `${section.label}｜${section.text}`)
+        : []
+
+      lines.push(
+        `  - ${lens.title}：${scenarioA?.title ?? draft.scenarioAId} × ${scenarioB?.title ?? draft.scenarioBId}`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    A 侧证据：${selectedEvidenceA.join('；') || '尚未勾选证据'}`,
+        `    B 侧证据：${selectedEvidenceB.join('；') || '尚未勾选证据'}`,
+        `    比较主张：${draft.comparativeClaim.trim() || '尚未填写'}`,
+        `    共同点：${draft.similarity.trim() || '尚未填写'}`,
+        `    差异：${draft.difference.trim() || '尚未填写'}`,
+        `    证据桥：${draft.evidenceBridge.trim() || '尚未填写'}`,
+        `    来源限制：${draft.sourceLimits.trim() || '尚未填写'}`,
+        `    信心等级：${compareConfidenceLabels[draft.confidence]}`,
       )
     })
     lines.push('')
@@ -4998,6 +5191,7 @@ function App() {
   const [compareScenarioAId, setCompareScenarioAId] = useState(initialCompareSelection.compareAId)
   const [compareScenarioBId, setCompareScenarioBId] = useState(initialCompareSelection.compareBId)
   const [selectedLensKey, setSelectedLensKey] = useState(initialCompareSelection.lensKey)
+  const [compareDraftState, setCompareDraftState] = useState<CompareDraftState>(loadCompareDraftState)
   const [completedMissionIdsByScenario, setCompletedMissionIdsByScenario] = useState<Record<string, string[]>>(
     loadMissionState,
   )
@@ -5051,7 +5245,7 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, missionWorkState, workspaceState])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, missionWorkState, workspaceState])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -5188,6 +5382,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [synthesisDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistCompareDraftState(compareDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [compareDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -5685,9 +5891,11 @@ function App() {
                 scenarioA={compareScenarioA}
                 scenarioB={compareScenarioB}
                 selectedLens={selectedLens}
+                draftState={compareDraftState}
                 onSelectScenarioA={selectCompareScenarioA}
                 onSelectScenarioB={selectCompareScenarioB}
                 onSelectLens={setSelectedLensKey}
+                onUpdateDraftState={setCompareDraftState}
               />
             ) : null}
           </>
@@ -5851,6 +6059,7 @@ function App() {
                 contextDraftState={contextDraftState}
                 significanceDraftState={significanceDraftState}
                 synthesisDraftState={synthesisDraftState}
+                compareDraftState={compareDraftState}
               />
             ) : null}
           </>
@@ -9671,6 +9880,7 @@ function PortfolioPanel({
   contextDraftState,
   significanceDraftState,
   synthesisDraftState,
+  compareDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -9685,6 +9895,7 @@ function PortfolioPanel({
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
   synthesisDraftState: SynthesisDraftState
+  compareDraftState: CompareDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -9696,6 +9907,7 @@ function PortfolioPanel({
   const contextDraftCount = getActiveContextDrafts(contextDraftState).length
   const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
+  const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
     const hasDraft = countScenarioMissionWork(scenario, missionWorkState) > 0
@@ -9706,10 +9918,13 @@ function PortfolioPanel({
     .filter(([, work]) => work.notes.trim() || work.checkedEvidence.length)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentCompareDrafts = getActiveCompareDrafts(compareDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, taskModuleProgressState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, compareDraftState, taskModuleProgressState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -9755,6 +9970,7 @@ function PortfolioPanel({
               { label: '情境化草稿', value: contextDraftCount },
               { label: '意义草稿', value: significanceDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
+              { label: '比较草稿', value: compareDraftCount },
               { label: '模块开始', value: taskModuleStats.startedCount },
               { label: '模块完成', value: taskModuleStats.completedCount },
               { label: '模块步骤', value: taskModuleStats.checkedStepCount },
@@ -9769,7 +9985,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentCompareDrafts.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {workspaceStats.recentEntries.map(({ key, title, category, entry }) => (
                   <div key={key} className="rounded-2xl border border-orange-200/15 bg-orange-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -9783,6 +9999,18 @@ function PortfolioPanel({
                     <div>单元模块 · {isComplete ? '已完成' : '进行中'} · {completedSteps}/{totalSteps} steps</div>
                   </div>
                 ))}
+                {recentCompareDrafts.map(([key, draft]) => {
+                  const scenarioA = getScenarioById(draft.scenarioAId)
+                  const scenarioB = getScenarioById(draft.scenarioBId)
+                  const lens = getCompareLensByKey(draft.lensKey)
+
+                  return (
+                    <div key={key} className="rounded-2xl border border-fuchsia-200/15 bg-fuchsia-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{lens.title}：{scenarioA?.title ?? draft.scenarioAId} × {scenarioB?.title ?? draft.scenarioBId}</div>
+                      <div>Compare Lab · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.selectedEvidenceIdsA.length + draft.selectedEvidenceIdsB.length} 条证据</div>
+                    </div>
+                  )
+                })}
                 {recentEntries.map(([key, work]) => {
                   const [scenarioId, missionId] = key.split(':')
                   const scenario = getScenarioById(scenarioId)
@@ -10943,7 +11171,40 @@ function getLensEvidenceSections(scenario: Scenario, lens: CompareLens) {
     ],
   }
 
-  return sectionsByLens[lens.key]
+  return sectionsByLens[lens.key].map((section, index) => ({
+    ...section,
+    id: `${scenario.id}:${lens.key}:${index}:${section.label.replace(/\s+/g, '-')}`,
+  }))
+}
+
+function formatCompareBrief(scenarioA: Scenario, scenarioB: Scenario, lens: CompareLens, draft: CompareDraft) {
+  const evidenceA = getLensEvidenceSections(scenarioA, lens).filter((section) => draft.selectedEvidenceIdsA.includes(section.id))
+  const evidenceB = getLensEvidenceSections(scenarioB, lens).filter((section) => draft.selectedEvidenceIdsB.includes(section.id))
+  const evidenceForExportA = evidenceA.length ? evidenceA : getLensEvidenceSections(scenarioA, lens).slice(0, 3)
+  const evidenceForExportB = evidenceB.length ? evidenceB : getLensEvidenceSections(scenarioB, lens).slice(0, 3)
+
+  return [
+    'TimeAtlas Compare Lab Workspace 1.0 / 跨场景比较工作区',
+    `生成时间：${new Date().toLocaleString()}`,
+    `比较对象：${scenarioA.title}（${scenarioA.era}，${scenarioA.location}） × ${scenarioB.title}（${scenarioB.era}，${scenarioB.location}）`,
+    `比较镜头：${lens.title}｜${lens.shortLabel}`,
+    `核心提示：${lens.prompt}`,
+    '',
+    '一、Selected evidence / 已选证据',
+    `${scenarioA.title}：`,
+    ...evidenceForExportA.map((section, index) => `${index + 1}. ${section.label}｜${section.text}`),
+    `${scenarioB.title}：`,
+    ...evidenceForExportB.map((section, index) => `${index + 1}. ${section.label}｜${section.text}`),
+    '',
+    '二、Compare brief / 比较简报',
+    `Comparative claim：${draft.comparativeClaim.trim() || '尚未填写'}`,
+    `Similarity：${draft.similarity.trim() || '尚未填写'}`,
+    `Difference：${draft.difference.trim() || '尚未填写'}`,
+    `Evidence bridge：${draft.evidenceBridge.trim() || '尚未填写'}`,
+    `Source limits：${draft.sourceLimits.trim() || '尚未填写'}`,
+    `Confidence：${compareConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
 }
 
 function formatCompareAssignment(scenarioA: Scenario, scenarioB: Scenario, lens: CompareLens) {
@@ -10973,25 +11234,84 @@ function CompareLabPanel({
   scenarioA,
   scenarioB,
   selectedLens,
+  draftState,
   onSelectScenarioA,
   onSelectScenarioB,
   onSelectLens,
+  onUpdateDraftState,
 }: {
   scenarioA: Scenario
   scenarioB: Scenario
   selectedLens: CompareLens
+  draftState: CompareDraftState
   onSelectScenarioA: (id: string) => void
   onSelectScenarioB: (id: string) => void
   onSelectLens: (key: CompareLens['key']) => void
+  onUpdateDraftState: Dispatch<SetStateAction<CompareDraftState>>
 }) {
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'assignment-copied' | 'brief-copied' | 'failed'>('idle')
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<CompareWorkspaceTab>('assignment')
+  const draftKey = getCompareDraftKey(scenarioA.id, scenarioB.id, selectedLens.key)
+  const currentDraft = draftState[draftKey] ?? getEmptyCompareDraft(scenarioA.id, scenarioB.id, selectedLens.key)
   const scenarioAEvidence = getLensEvidenceSections(scenarioA, selectedLens)
   const scenarioBEvidence = getLensEvidenceSections(scenarioB, selectedLens)
+  const selectedEvidenceCount = currentDraft.selectedEvidenceIdsA.length + currentDraft.selectedEvidenceIdsB.length
+  const workspaceTabs: { id: CompareWorkspaceTab, label: string, eyebrow: string }[] = [
+    { id: 'assignment', label: '作业单', eyebrow: 'Assignment' },
+    { id: 'evidence', label: '证据草稿', eyebrow: 'Evidence' },
+    { id: 'brief', label: '比较简报', eyebrow: 'Brief' },
+  ]
+
+  function updateDraft(updates: Partial<Omit<CompareDraft, 'updatedAt'>>) {
+    onUpdateDraftState((currentState) => {
+      const baseDraft = currentState[draftKey] ?? getEmptyCompareDraft(scenarioA.id, scenarioB.id, selectedLens.key)
+
+      return {
+        ...currentState,
+        [draftKey]: {
+          ...baseDraft,
+          scenarioAId: scenarioA.id,
+          scenarioBId: scenarioB.id,
+          lensKey: selectedLens.key,
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleEvidence(side: 'A' | 'B', evidenceId: string) {
+    const field = side === 'A' ? 'selectedEvidenceIdsA' : 'selectedEvidenceIdsB'
+    const currentIds = currentDraft[field]
+    const nextIds = currentIds.includes(evidenceId)
+      ? currentIds.filter((id) => id !== evidenceId)
+      : [...currentIds, evidenceId]
+
+    updateDraft({ [field]: nextIds } as Pick<CompareDraft, typeof field>)
+  }
+
+  function clearCurrentDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[draftKey]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
 
   async function copyAssignment() {
     try {
       await copyTextToClipboard(formatCompareAssignment(scenarioA, scenarioB, selectedLens))
-      setCopyStatus('copied')
+      setCopyStatus('assignment-copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  async function copyCompareBrief() {
+    try {
+      await copyTextToClipboard(formatCompareBrief(scenarioA, scenarioB, selectedLens, currentDraft))
+      setCopyStatus('brief-copied')
     } catch {
       setCopyStatus('failed')
     }
@@ -11002,15 +11322,15 @@ function CompareLabPanel({
       <div className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5">
         <div className="mb-4 flex items-center gap-3 text-teal-100">
           <Scale size={20} />
-          <span className="text-sm uppercase tracking-[0.3em]">compare lab</span>
+          <span className="text-sm uppercase tracking-[0.3em]">compare lab workspace</span>
         </div>
-        <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+        <div className="grid gap-6 xl:grid-cols-[0.78fr_1.22fr]">
           <div>
             <h2 id="compare-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
-              跨场景比较实验室 / 作业生成器
+              跨场景比较实验室 / Workspace 1.0
             </h2>
             <p className="mt-3 leading-7 text-stone-400">
-              选择两个不同历史身份和一个比较镜头，TimeAtlas 会抽取相关字段，生成可直接用于课堂的比较作业。
+              选择两个不同历史身份和一个比较镜头，在作业单、证据草稿和比较简报之间切换；草稿会保存在本机。
             </p>
 
             <div className="mt-5 grid gap-3">
@@ -11061,67 +11381,180 @@ function CompareLabPanel({
             </div>
 
             <div className="mt-5 rounded-3xl border border-white/10 bg-black/20 p-4">
-              <h3 className="font-semibold text-teal-100">当前镜头</h3>
-              <p className="mt-2 text-sm leading-6 text-stone-400">{selectedLens.description}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-teal-100">当前镜头</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedLens.description}</p>
+                </div>
+                <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.08] px-3 py-1 text-xs font-semibold text-teal-100">
+                  {getActiveCompareDrafts(draftState).length} 个比较草稿
+                </span>
+              </div>
               <p className="mt-3 rounded-2xl border border-teal-100/15 bg-teal-100/[0.045] p-3 text-sm leading-6 text-stone-300">
                 {selectedLens.prompt}
+              </p>
+              <p className="mt-3 text-xs text-stone-500">
+                当前已选 {selectedEvidenceCount}/{scenarioAEvidence.length + scenarioBEvidence.length} 条证据 · {currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '本机保存，受限时回退 sessionStorage。'}
               </p>
             </div>
           </div>
 
           <div className="space-y-5">
-            <div className="grid gap-4 lg:grid-cols-2">
-              {[{ scenario: scenarioA, evidence: scenarioAEvidence }, { scenario: scenarioB, evidence: scenarioBEvidence }].map(({ scenario, evidence }) => (
-                <article key={scenario.id} className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
-                  <div className="h-1.5" style={{ backgroundColor: scenario.accent }} />
-                  <div className="p-5">
-                    <div className="mb-3 text-xs uppercase tracking-[0.25em] text-stone-500">{scenario.era} · {scenario.location}</div>
-                    <h3 className="text-2xl font-semibold tracking-tight text-stone-50">{scenario.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-stone-400">{scenario.identity} · {scenario.role}</p>
-                    <div className="mt-4 space-y-3">
-                      {evidence.map((section) => (
-                        <div key={`${scenario.id}-${section.label}`} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                          <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-100/80">{section.label}</div>
-                          <p className="mt-2 text-sm leading-6 text-stone-400">{section.text}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </article>
-              ))}
+            <div className="grid gap-2 rounded-[1.4rem] border border-white/10 bg-black/20 p-2 sm:grid-cols-3" role="tablist" aria-label="Compare Lab workspace tabs">
+              {workspaceTabs.map((tab) => {
+                const isActive = activeWorkspaceTab === tab.id
+
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveWorkspaceTab(tab.id)}
+                    className={`rounded-[1rem] border px-4 py-3 text-left transition ${
+                      isActive
+                        ? 'border-amber-200/55 bg-amber-100/[0.14] text-stone-50'
+                        : 'border-white/10 bg-white/[0.025] text-stone-400 hover:border-amber-100/25 hover:text-stone-100'
+                    }`}
+                  >
+                    <span className="block text-xs uppercase tracking-[0.18em] text-stone-500">{tab.eyebrow}</span>
+                    <span className="mt-1 block font-semibold">{tab.label}</span>
+                  </button>
+                )
+              })}
             </div>
 
-            <section className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-5" aria-labelledby="compare-assignment-title">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 id="compare-assignment-title" className="text-2xl font-semibold tracking-tight text-stone-50">
-                    课堂比较作业
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-stone-400">复制后可直接发给学生，也可作为小组讨论单。</p>
+            {activeWorkspaceTab === 'assignment' ? (
+              <section className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-5" aria-labelledby="compare-assignment-title">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 id="compare-assignment-title" className="text-2xl font-semibold tracking-tight text-stone-50">
+                      课堂比较作业
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">复制后可直接发给学生，也可作为小组讨论单。</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void copyAssignment()}
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
+                  >
+                    {copyStatus === 'assignment-copied' ? <Check size={18} /> : <Copy size={18} />}
+                    {copyStatus === 'assignment-copied' ? '作业已复制' : copyStatus === 'failed' ? '复制失败' : '复制作业'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void copyAssignment()}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200"
-                >
-                  {copyStatus === 'copied' ? <Check size={18} /> : <Copy size={18} />}
-                  {copyStatus === 'copied' ? '作业已复制' : copyStatus === 'failed' ? '复制失败' : '复制作业'}
-                </button>
-              </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                <div className="rounded-3xl border border-white/10 bg-black/20 p-4 lg:col-span-3">
-                  <h4 className="font-semibold text-amber-100">提示</h4>
-                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedLens.prompt}</p>
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-3xl border border-white/10 bg-black/20 p-4 lg:col-span-3">
+                    <h4 className="font-semibold text-amber-100">提示</h4>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{selectedLens.prompt}</p>
+                  </div>
+                  <CompareAssignmentList title="证据清单" items={selectedLens.evidenceChecklist} />
+                  <CompareAssignmentList title="输出结构" items={selectedLens.outputTemplate} ordered />
+                  <CompareAssignmentList title="评分标准" items={selectedLens.rubric} />
                 </div>
-                <CompareAssignmentList title="证据清单" items={selectedLens.evidenceChecklist} />
-                <CompareAssignmentList title="输出结构" items={selectedLens.outputTemplate} ordered />
-                <CompareAssignmentList title="评分标准" items={selectedLens.rubric} />
-              </div>
-              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
-                {copyStatus === 'failed' ? '剪贴板不可用时，请手动复制本区内容。' : '比较对象和镜头会同步到地址栏，便于分享或下次打开。'}
-              </p>
-            </section>
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '剪贴板不可用时，请手动复制本区内容。' : '比较对象和镜头会同步到地址栏，便于分享或下次打开。'}
+                </p>
+              </section>
+            ) : null}
+
+            {activeWorkspaceTab === 'evidence' ? (
+              <section className="rounded-[1.5rem] border border-teal-200/15 bg-teal-100/[0.045] p-5" aria-labelledby="compare-evidence-title">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 id="compare-evidence-title" className="text-2xl font-semibold tracking-tight text-stone-50">Evidence draft / 证据草稿</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">勾选 A/B 两侧可支持比较主张的证据，再在 Brief 中建立共同点、差异与来源边界。</p>
+                  </div>
+                  <span className="rounded-full border border-teal-200/20 bg-teal-100/[0.08] px-3 py-1 text-xs font-semibold text-teal-100">{selectedEvidenceCount} selected</span>
+                </div>
+
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  {[
+                    { side: 'A' as const, scenario: scenarioA, evidence: scenarioAEvidence, selectedIds: currentDraft.selectedEvidenceIdsA },
+                    { side: 'B' as const, scenario: scenarioB, evidence: scenarioBEvidence, selectedIds: currentDraft.selectedEvidenceIdsB },
+                  ].map(({ side, scenario, evidence, selectedIds }) => (
+                    <article key={`${side}:${scenario.id}`} className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+                      <div className="h-1.5" style={{ backgroundColor: scenario.accent }} />
+                      <div className="p-5">
+                        <div className="mb-3 text-xs uppercase tracking-[0.25em] text-stone-500">Scenario {side} · {scenario.era} · {scenario.location}</div>
+                        <h4 className="text-xl font-semibold tracking-tight text-stone-50">{scenario.title}</h4>
+                        <p className="mt-2 text-sm leading-6 text-stone-400">{scenario.identity} · {scenario.role}</p>
+                        <div className="mt-4 space-y-3">
+                          {evidence.map((section) => {
+                            const checked = selectedIds.includes(section.id)
+
+                            return (
+                              <label key={section.id} className={`block cursor-pointer rounded-2xl border p-3 transition ${checked ? 'border-teal-200/45 bg-teal-100/[0.11]' : 'border-white/10 bg-white/[0.035] hover:border-teal-100/25'}`}>
+                                <span className="flex items-start gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleEvidence(side, section.id)}
+                                    className="mt-1 h-4 w-4 rounded border-white/20 bg-black/40 accent-teal-300"
+                                  />
+                                  <span>
+                                    <span className="block text-xs font-medium uppercase tracking-[0.18em] text-amber-100/80">{section.label}</span>
+                                    <span className="mt-2 block text-sm leading-6 text-stone-400">{section.text}</span>
+                                  </span>
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {activeWorkspaceTab === 'brief' ? (
+              <section className="rounded-[1.5rem] border border-fuchsia-200/15 bg-fuchsia-100/[0.04] p-5" aria-labelledby="compare-brief-title">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 id="compare-brief-title" className="text-2xl font-semibold tracking-tight text-stone-50">Compare brief / 比较简报</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">把已选证据转成一句比较主张、一组共同点/差异和谨慎的来源限制。</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={clearCurrentDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:border-red-200/40 hover:text-red-100">清空当前草稿</button>
+                    <button type="button" onClick={() => void copyCompareBrief()} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-2 font-semibold text-stone-950 transition hover:bg-amber-200">
+                      {copyStatus === 'brief-copied' ? <Check size={18} /> : <Copy size={18} />}
+                      {copyStatus === 'brief-copied' ? '简报已复制' : copyStatus === 'failed' ? '复制失败' : '复制 / 导出 Compare Brief'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4">
+                  {([
+                    ['comparativeClaim', 'Comparative claim / 比较主张', '用一句话回答：这个镜头下两个身份最重要的可比之处是什么？'],
+                    ['similarity', 'Similarity / 共同点', '两者在哪些历史条件、经验或证据限制上相似？'],
+                    ['difference', 'Difference / 差异', '两者在哪些制度、风险、知识、市场或选择边界上不同？'],
+                    ['evidenceBridge', 'Evidence bridge / 证据桥', '明确连接 A 侧证据与 B 侧证据，说明它们如何支持比较。'],
+                    ['sourceLimits', 'Source limits / 来源限制', '哪些来源视角、保存条件或缺席声音限制了你的判断？'],
+                  ] as [keyof Pick<CompareDraft, 'comparativeClaim' | 'similarity' | 'difference' | 'evidenceBridge' | 'sourceLimits'>, string, string][]).map(([field, label, placeholder]) => (
+                    <label key={field} className="block">
+                      <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                      <textarea
+                        value={currentDraft[field]}
+                        onChange={(event) => updateDraft({ [field]: event.target.value } as Pick<CompareDraft, typeof field>)}
+                        placeholder={placeholder}
+                        rows={field === 'comparativeClaim' ? 2 : 3}
+                        className="w-full rounded-3xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-fuchsia-200/50"
+                      />
+                    </label>
+                  ))}
+                  <label className="block">
+                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-stone-500">Confidence / 信心等级</span>
+                    <select value={currentDraft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as CompareConfidence })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-fuchsia-200/50">
+                      {(Object.entries(compareConfidenceLabels) as [CompareConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <p className="mt-3 text-sm text-stone-500" aria-live="polite">
+                  {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : 'Compare Brief 会优先导出已选证据；若未勾选，则导出每侧前三条建议证据。'}
+                </p>
+              </section>
+            ) : null}
           </div>
         </div>
       </div>

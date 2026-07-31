@@ -64,6 +64,7 @@ Scenario Deep Dive / Scene Reader 9.0 当前包含 15 个历史身份：
 - Atlas Connections / Inquiry Pathways 8.0：提供多条带稳定 ID 的策展式跨场景探究路径，每条包含 driving question、场景路径、讨论推进、任务、rubric、建议证据、持久化路径清单、探究草稿、完成状态和可复制 inquiry pack + user draft；在 Atlas 页作为 `pathways` 子页面单独渲染
 - Inquiry Pathways 可一键打开首个场景，或把路径的前两个场景与比较镜头载入 Compare Lab，并遵守 reduced motion 设置滚动定位
 - Cross-Scenario Compare Lab / Assignment Builder：选择两个不同身份和 7 个比较镜头之一（日常生活、制度约束、风险与安全、知识传播、市场与交换、来源可信度、历史选择），生成并复制课堂比较作业；建议引用证据会在合适镜头中优先纳入 Scene Reader 场景证据；在 Atlas 页作为 `compare` 子页面单独渲染，来自路径或来源层的 Compare 载入会自动切到该子页面
+- Compare Lab Workspace 1.0：Compare Lab 内部新增紧凑 workspace tabs（作业单、证据草稿、比较简报），不新增页面或 scenario schema。证据草稿按当前 A/B 身份与比较镜头调用 `getLensEvidenceSections` 生成双侧 checklist，支持勾选 A/B 证据并按本机 localStorage / sessionStorage fallback 保存；比较简报字段覆盖 comparativeClaim、similarity、difference、evidenceBridge、sourceLimits、confidence、updatedAt，支持清空当前草稿与复制 / 导出 Compare Brief。比较草稿会进入 Learning Portfolio 统计、最近草稿、Learning Archive export，并以 origin `compare` 纳入 Synthesis evidence pool。
 
 ## 来源层与探索体验
 
