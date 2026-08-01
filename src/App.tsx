@@ -82,6 +82,7 @@ const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
 const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
 const dispatchBoardDraftStorageKey = 'timeatlas:dispatch-board-drafts'
+const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -627,6 +628,7 @@ type SynthesisInquiryPreset = {
 }
 
 type SynthesisEvidenceOrigin =
+  | 'vocabulary-clinic'
   | 'place-desk'
   | 'case-file'
   | 'corroboration'
@@ -767,7 +769,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'vocabulary-clinic' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -805,7 +807,7 @@ type SubpageNavItem<T extends string> = {
 type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'missions' | 'pathways' | 'compare'
 type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
 
@@ -839,6 +841,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
   { id: 'workbench', label: '任务执行台', eyebrow: 'Workbench', description: '按单个任务记录清单、证据、主张与反思', hash: 'task-workbench' },
+  { id: 'practice', label: '术语练习', eyebrow: 'Clinic', description: '历史术语、误区纠正与证据标签匹配短练习', hash: 'vocabulary-clinic' },
   { id: 'assessment', label: '评价反馈', eyebrow: 'Assessment', description: '按任务、组合或模块生成 rubric、评分指南与反馈句式', hash: 'assessment-studio' },
   { id: 'debate', label: '辩论工作台', eyebrow: 'Debate', description: '角色卡、证据卡、回合计划与可复制指南', hash: 'debate-studio' },
   { id: 'exhibits', label: '展览策展', eyebrow: 'Exhibits', description: 'Public History Exhibit Studio 微型展览策展', hash: 'exhibit-studio' },
@@ -1138,6 +1141,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'material-culture', label: 'Material Culture' },
   { value: 'dispatch', label: 'Scenario Dispatch' },
   { value: 'source-annotation', label: 'Source Annotation Notebook' },
+  { value: 'vocabulary-clinic', label: 'Vocabulary Clinic' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'place-desk', label: 'Place Evidence Studio' },
@@ -1149,7 +1153,6 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'concept-atlas', label: 'Concept Atlas' },
   { value: 'synthesis', label: 'Synthesis Studio' },
   { value: 'case-file', label: 'Evidence Case Files' },
-  { value: 'source-annotation', label: 'Source Annotation Notebook' },
   { value: 'exhibit', label: 'Exhibit Studio' },
 ]
 
@@ -1186,6 +1189,49 @@ type SourceAnnotationStats = {
   completedCount: number
   taggedDraftCount: number
   recentDrafts: [string, SourceAnnotationDraft][]
+}
+
+type VocabularyPracticeMode = 'term-in-context' | 'misconception-fix' | 'evidence-tag-match'
+
+type VocabularyPracticeItem = {
+  id: string
+  scenario: Scenario
+  mode: VocabularyPracticeMode
+  title: string
+  prompt: string
+  term?: string
+  definition?: string
+  misconception?: string
+  correction?: string
+  evidenceTagIds: string[]
+  suggestedEvidenceTagIds: string[]
+  sourceTitles: string[]
+  contextHint: string
+  sourceLimitHint: string
+  tags: string[]
+  estimatedMinutes: number
+  ctaHash: ScenarioSectionId
+}
+
+type VocabularyClinicDraft = {
+  selectedEvidenceTagIds: string[]
+  explanation: string
+  correctedMisconception: string
+  contextExample: string
+  sourceLimitNote: string
+  confidence: SynthesisConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type VocabularyClinicDraftState = Record<string, VocabularyClinicDraft>
+
+type VocabularyClinicStats = {
+  activeDrafts: [string, VocabularyClinicDraft][]
+  draftCount: number
+  completedCount: number
+  selectedEvidenceTagCount: number
+  recentDrafts: [string, VocabularyClinicDraft][]
 }
 
 const evidenceCaseFiles: EvidenceCaseFile[] = [
@@ -3592,6 +3638,265 @@ function persistSourceAnnotationDraftState(state: SourceAnnotationDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(sourceAnnotationStorageKey, serializedState)
+}
+
+function getVocabularyEvidenceTagId(scenario: Scenario, tag: string) {
+  return `${scenario.id}:tag:${normalizeSourceTitleForId(tag)}`
+}
+
+function getVocabularyEvidenceTagCatalog(scenario: Scenario) {
+  const tagMap = new Map<string, { id: string; tag: string; sourceTitles: string[] }>()
+
+  scenario.sources.forEach((source) => {
+    source.evidenceTags.forEach((tag) => {
+      const normalizedTag = tag.trim()
+      if (!normalizedTag) return
+      const id = getVocabularyEvidenceTagId(scenario, normalizedTag)
+      const current = tagMap.get(id) ?? { id, tag: normalizedTag, sourceTitles: [] }
+      current.sourceTitles = [...new Set([...current.sourceTitles, source.title])]
+      tagMap.set(id, current)
+    })
+  })
+
+  return [...tagMap.values()]
+}
+
+function buildVocabularyPracticeItems(): VocabularyPracticeItem[] {
+  return scenarios.flatMap((scenario) => {
+    const tagCatalog = getVocabularyEvidenceTagCatalog(scenario)
+    const sourceTitlesByTagId = new Map(tagCatalog.map((entry) => [entry.id, entry.sourceTitles]))
+    const fallbackSourceTitles = scenario.sources.slice(0, 2).map((source) => source.title)
+    const fallbackTagIds = tagCatalog.slice(0, 3).map((entry) => entry.id)
+    const sourceLimitHint = scenario.sources[0]?.reliabilityNote || scenario.sourceEvidenceUse || scenario.interpretationNote
+    const terms = scenario.keyTerms.slice(0, 2).map((term, index) => {
+      const suggestedEvidenceTagIds = tagCatalog.slice(index, index + 3).map((entry) => entry.id)
+      const evidenceTagIds = suggestedEvidenceTagIds.length ? suggestedEvidenceTagIds : fallbackTagIds
+      return {
+        id: `vocabulary:${scenario.id}:term:${normalizeSourceTitleForId(term.term)}`,
+        scenario,
+        mode: 'term-in-context' as const,
+        title: `${term.term} in context`,
+        prompt: `用 2-3 句话解释“${term.term}”在 ${scenario.title} 的日常处境中是什么意思，并给出一个具体情境例子。`,
+        term: term.term,
+        definition: term.definition,
+        evidenceTagIds,
+        suggestedEvidenceTagIds: evidenceTagIds.slice(0, 2),
+        sourceTitles: [...new Set(evidenceTagIds.flatMap((id) => sourceTitlesByTagId.get(id) ?? []))].slice(0, 3),
+        contextHint: `${scenario.identity}｜${scenario.location}｜${scenario.theme}`,
+        sourceLimitHint,
+        tags: ['term-in-context', 'historical vocabulary', term.term, scenario.region, scenario.theme],
+        estimatedMinutes: 8,
+        ctaHash: sectionIds.lessonPack,
+      } satisfies VocabularyPracticeItem
+    })
+
+    const misconceptions = scenario.lessonPack.misconceptions.slice(0, 2).map((misconception, index) => {
+      const evidenceTagIds = tagCatalog.slice(index, index + 4).map((entry) => entry.id)
+      return {
+        id: `vocabulary:${scenario.id}:misconception:${index + 1}`,
+        scenario,
+        mode: 'misconception-fix' as const,
+        title: `Fix misconception · ${scenario.title}`,
+        prompt: '先指出误区哪里过度简化或时代错置，再用证据改写为更谨慎的历史解释。',
+        misconception: misconception.misconception,
+        correction: misconception.correction,
+        evidenceTagIds: evidenceTagIds.length ? evidenceTagIds : fallbackTagIds,
+        suggestedEvidenceTagIds: (evidenceTagIds.length ? evidenceTagIds : fallbackTagIds).slice(0, 2),
+        sourceTitles: scenario.sources.slice(index, index + 3).map((source) => source.title),
+        contextHint: scenario.lessonPack.inquiryQuestion,
+        sourceLimitHint,
+        tags: ['misconception-fix', 'misconception clinic', 'anti-presentism', scenario.region, scenario.theme],
+        estimatedMinutes: 10,
+        ctaHash: sectionIds.lessonPack,
+      } satisfies VocabularyPracticeItem
+    })
+
+    const tagMatches = tagCatalog.slice(0, 2).map((tagEntry) => ({
+      id: `vocabulary:${scenario.id}:evidence-tag:${normalizeSourceTitleForId(tagEntry.tag)}`,
+      scenario,
+      mode: 'evidence-tag-match' as const,
+      title: `Match evidence tag · ${tagEntry.tag}`,
+      prompt: `判断证据标签“${tagEntry.tag}”最适合连接哪些来源标题，并说明它能支持怎样的短解释。`,
+      term: tagEntry.tag,
+      evidenceTagIds: tagCatalog.slice(0, 5).map((entry) => entry.id),
+      suggestedEvidenceTagIds: [tagEntry.id],
+      sourceTitles: tagEntry.sourceTitles.length ? tagEntry.sourceTitles : fallbackSourceTitles,
+      contextHint: scenario.sourceEvidenceUse,
+      sourceLimitHint,
+      tags: ['evidence-tag-match', 'source tags', tagEntry.tag, scenario.region, scenario.theme],
+      estimatedMinutes: 7,
+      ctaHash: sectionIds.sourceReader,
+    } satisfies VocabularyPracticeItem))
+
+    return [...terms, ...misconceptions, ...tagMatches]
+  })
+}
+
+function getEmptyVocabularyClinicDraft(item?: VocabularyPracticeItem): VocabularyClinicDraft {
+  return {
+    selectedEvidenceTagIds: item?.suggestedEvidenceTagIds.slice(0, 2) ?? [],
+    explanation: item?.definition ?? '',
+    correctedMisconception: item?.correction ?? '',
+    contextExample: '',
+    sourceLimitNote: item?.sourceLimitHint ?? '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function parseVocabularyClinicDraftState(rawState: string | null): VocabularyClinicDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as VocabularyClinicDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+        const draft = value as Partial<VocabularyClinicDraft>
+        const selectedEvidenceTagIds = Array.isArray(draft.selectedEvidenceTagIds)
+          ? draft.selectedEvidenceTagIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in synthesisConfidenceLabels ? draft.confidence : 'uncertain'
+
+        return [[key, {
+          selectedEvidenceTagIds,
+          explanation: typeof draft.explanation === 'string' ? draft.explanation : '',
+          correctedMisconception: typeof draft.correctedMisconception === 'string' ? draft.correctedMisconception : '',
+          contextExample: typeof draft.contextExample === 'string' ? draft.contextExample : '',
+          sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+          confidence,
+          completed: Boolean(draft.completed),
+          updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+        } satisfies VocabularyClinicDraft]]
+      }),
+    )
+  } catch {
+    return {} as VocabularyClinicDraftState
+  }
+}
+
+function hasVocabularyClinicDraftActivity(draft: VocabularyClinicDraft) {
+  return Boolean(
+    draft.selectedEvidenceTagIds.length
+      || draft.explanation.trim()
+      || draft.correctedMisconception.trim()
+      || draft.contextExample.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveVocabularyClinicDrafts(draftState: VocabularyClinicDraftState) {
+  return Object.entries(draftState).filter((entry): entry is [string, VocabularyClinicDraft] => hasVocabularyClinicDraftActivity(entry[1]))
+}
+
+function getVocabularyClinicStats(draftState: VocabularyClinicDraftState): VocabularyClinicStats {
+  const activeDrafts = getActiveVocabularyClinicDrafts(draftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => new Date(second[1].updatedAt ?? 0).getTime() - new Date(first[1].updatedAt ?? 0).getTime())
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceTagCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceTagIds.length, 0),
+    recentDrafts,
+  }
+}
+
+function loadVocabularyClinicDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseVocabularyClinicDraftState(localStorage?.getItem(vocabularyClinicStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasVocabularyClinicDraftActivity)) {
+    return localState
+  }
+
+  return parseVocabularyClinicDraftState(sessionStorage?.getItem(vocabularyClinicStorageKey) ?? null)
+}
+
+function persistVocabularyClinicDraftState(state: VocabularyClinicDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(vocabularyClinicStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(vocabularyClinicStorageKey, serializedState)
+}
+
+function getVocabularyPracticeModeLabel(mode: VocabularyPracticeMode) {
+  return {
+    'term-in-context': 'Term in context / 术语情境解释',
+    'misconception-fix': 'Misconception fix / 误区纠正',
+    'evidence-tag-match': 'Evidence tag match / 证据标签匹配',
+  }[mode]
+}
+
+function getVocabularyTagLabel(item: VocabularyPracticeItem, tagId: string) {
+  return getVocabularyEvidenceTagCatalog(item.scenario).find((entry) => entry.id === tagId)?.tag ?? tagId
+}
+
+function formatVocabularyClinicBrief(item: VocabularyPracticeItem, draft: VocabularyClinicDraft) {
+  const selectedTags = draft.selectedEvidenceTagIds.map((tagId) => getVocabularyTagLabel(item, tagId))
+
+  return [
+    `TimeAtlas Vocabulary Clinic Brief：${item.title}`,
+    `场景：${item.scenario.title}｜${item.scenario.era}｜${item.scenario.location}`,
+    `模式：${getVocabularyPracticeModeLabel(item.mode)}`,
+    `状态：${draft.completed ? '已完成' : hasVocabularyClinicDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `Prompt：${item.prompt}`,
+    item.term ? `术语/标签：${item.term}` : '',
+    item.definition ? `基础解释：${item.definition}` : '',
+    item.misconception ? `待纠正误区：${item.misconception}` : '',
+    item.correction ? `参考纠正：${item.correction}` : '',
+    '',
+    '学生草稿：',
+    `- 已选证据标签：${selectedTags.join('、') || '尚未选择'}`,
+    `- Explanation：${draft.explanation.trim() || '尚未填写'}`,
+    `- Corrected misconception：${draft.correctedMisconception.trim() || '尚未填写'}`,
+    `- Context example：${draft.contextExample.trim() || '尚未填写'}`,
+    `- Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `- Confidence：${synthesisConfidenceLabels[draft.confidence]}`,
+    '',
+    '可用来源：',
+    ...(item.sourceTitles.length ? item.sourceTitles.map((title) => `- ${title}`) : ['- 打开场景来源层选择来源']),
+  ].filter((line) => line !== '').join('\n')
+}
+
+function formatVocabularyClinicTaskSheet(item: VocabularyPracticeItem) {
+  return [
+    `TimeAtlas Vocabulary Clinic Task Sheet：${item.title}`,
+    `场景：${item.scenario.title}｜${item.scenario.era}｜${item.scenario.location}`,
+    `模式：${getVocabularyPracticeModeLabel(item.mode)}`,
+    `建议时长：${item.estimatedMinutes} 分钟`,
+    '',
+    `任务：${item.prompt}`,
+    item.definition ? `术语定义：${item.definition}` : '',
+    item.misconception ? `误区：${item.misconception}` : '',
+    item.correction ? `参考纠正：${item.correction}` : '',
+    `情境提示：${item.contextHint}`,
+    `来源边界提示：${item.sourceLimitHint}`,
+    '',
+    '步骤：',
+    '1. 用自己的话解释术语或标签，不只翻译词面。',
+    '2. 选择 1-3 个 evidence tags，并把它们连接到来源标题或场景细节。',
+    '3. 如果是误区题，先指出误区，再改写成谨慎表达。',
+    '4. 写出一个 context example 和一条 source limit note。',
+    '',
+    '建议 evidence tags：',
+    ...item.suggestedEvidenceTagIds.map((tagId) => `- ${getVocabularyTagLabel(item, tagId)}`),
+    '',
+    '相关来源：',
+    ...(item.sourceTitles.length ? item.sourceTitles.map((title) => `- ${title}`) : ['- 场景来源层']),
+  ].filter((line) => line !== '').join('\n')
 }
 
 function getTaskWorkbenchChecklist(task: LibraryTask) {
@@ -6412,6 +6717,7 @@ function formatExhibitTaskSheet(theme: ExhibitTheme) {
 
 function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
   return {
+    'vocabulary-clinic': 'Vocabulary Clinic draft / 术语练习草稿',
     chronology: 'Chronology Desk draft / 时间证据草稿',
     corroboration: 'Corroboration draft / 互证草稿',
     causation: 'Causation draft / 因果草稿',
@@ -6458,6 +6764,7 @@ function buildSynthesisEvidencePool({
   materialCultureDraftState,
   dispatchDraftState,
   exhibitDraftState,
+  vocabularyClinicDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -6477,6 +6784,7 @@ function buildSynthesisEvidencePool({
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
   exhibitDraftState: ExhibitStudioDraftState
+  vocabularyClinicDraftState: VocabularyClinicDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -6486,7 +6794,25 @@ function buildSynthesisEvidencePool({
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
+  const vocabularyPracticeItems = buildVocabularyPracticeItems()
   const entries: SynthesisEvidence[] = []
+
+  getActiveVocabularyClinicDrafts(vocabularyClinicDraftState).forEach(([itemId, draft]) => {
+    const item = vocabularyPracticeItems.find((candidate) => candidate.id === itemId)
+    if (!item) return
+    entries.push({
+      id: makeSynthesisEvidenceId('vocabulary-clinic', itemId),
+      origin: 'vocabulary-clinic',
+      originLabel: getSynthesisOriginLabel('vocabulary-clinic'),
+      title: item.title,
+      text: [`解释：${draft.explanation}`, `纠误：${draft.correctedMisconception}`, `情境例：${draft.contextExample}`, `来源限制：${draft.sourceLimitNote}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['vocabulary clinic', item.mode, ...draft.selectedEvidenceTagIds.map((tagId) => getVocabularyTagLabel(item, tagId)).slice(0, 4), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: item.scenario.title,
+      scenarioId: item.scenario.id,
+      inquiryTitle: item.prompt,
+      updatedAt: draft.updatedAt,
+    })
+  })
 
   getActivePlaceDrafts(placeDraftState).forEach(([inquiryId, draft]) => {
     const inquiry = placeInquiries.find((candidate) => candidate.id === inquiryId)
@@ -7005,6 +7331,7 @@ function formatLearningArchive(
   synthesisDraftState: SynthesisDraftState,
   caseFileDraftState: EvidenceCaseFileDraftState,
   sourceAnnotationDraftState: SourceAnnotationDraftState,
+  vocabularyClinicDraftState: VocabularyClinicDraftState,
   compareDraftState: CompareDraftState,
   actorNetworkDraftState: ActorNetworkDraftState,
   materialCultureDraftState: MaterialCultureDraftState,
@@ -7029,6 +7356,8 @@ function formatLearningArchive(
   const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
   const activeSourceAnnotationDrafts = getActiveSourceAnnotationDrafts(sourceAnnotationDraftState)
   const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
+  const vocabularyClinicStats = getVocabularyClinicStats(vocabularyClinicDraftState)
+  const vocabularyPracticeItems = buildVocabularyPracticeItems()
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
   const activeMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
@@ -7043,7 +7372,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -7066,6 +7395,7 @@ function formatLearningArchive(
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
     `- Source Annotation Notebook 草稿：${sourceAnnotationStats.draftCount} drafts，${sourceAnnotationStats.completedCount} completed，${sourceAnnotationStats.taggedDraftCount} tagged`,
+    `- Vocabulary Clinic 术语练习草稿：${vocabularyClinicStats.draftCount} drafts，${vocabularyClinicStats.completedCount} completed，${vocabularyClinicStats.selectedEvidenceTagCount} selected tags`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
@@ -7529,6 +7859,26 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (vocabularyClinicStats.activeDrafts.length > 0) {
+    lines.push('Vocabulary Clinic / 历史术语与误区练习台：')
+    vocabularyClinicStats.activeDrafts.forEach(([itemId, draft]) => {
+      const item = vocabularyPracticeItems.find((candidate) => candidate.id === itemId)
+      if (!item) return
+      const selectedTags = draft.selectedEvidenceTagIds.map((tagId) => getVocabularyTagLabel(item, tagId))
+      lines.push(
+        `  - ${item.title}（${draft.completed ? '已完成' : '草稿'}｜${item.scenario.title}｜${getVocabularyPracticeModeLabel(item.mode)}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选标签：${selectedTags.join('、') || '尚未选择'}`,
+        `    Explanation：${draft.explanation.trim() || '尚未填写'}`,
+        `    Corrected misconception：${draft.correctedMisconception.trim() || '尚未填写'}`,
+        `    Context example：${draft.contextExample.trim() || '尚未填写'}`,
+        `    Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    Confidence：${synthesisConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCompareDrafts.length > 0) {
     lines.push('Compare Lab Workspace / 跨场景比较工作区：')
     activeCompareDrafts.forEach(([, draft]) => {
@@ -7735,6 +8085,7 @@ function buildLearningCoachRecommendations({
   significanceDraftState,
   synthesisDraftState,
   sourceAnnotationDraftState,
+  vocabularyClinicDraftState,
   compareDraftState,
   missionWorkState,
   completedMissionIdsByScenario,
@@ -7758,6 +8109,7 @@ function buildLearningCoachRecommendations({
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
+  vocabularyClinicDraftState: VocabularyClinicDraftState
   compareDraftState: CompareDraftState
   missionWorkState: MissionWorkState
   completedMissionIdsByScenario: Record<string, string[]>
@@ -7775,6 +8127,7 @@ function buildLearningCoachRecommendations({
   const workspaceStats = getWorkspaceStats(workspaceState)
   const labDraftCount = getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState })
   const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
+  const vocabularyClinicStats = getVocabularyClinicStats(vocabularyClinicDraftState)
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const argumentDraftCount = Object.values(argumentDraftState).filter(hasArgumentDraftActivity).length
@@ -7786,6 +8139,7 @@ function buildLearningCoachRecommendations({
       || workspaceStats.totalEntries
       || labDraftCount
       || sourceAnnotationStats.draftCount
+      || vocabularyClinicStats.draftCount
       || compareDraftCount
       || synthesisDraftCount
       || argumentDraftCount
@@ -8951,6 +9305,7 @@ function buildTaskLibraryTasks({
   onOpenSourceAnnotation,
   onOpenDebateStudio,
   onOpenExhibitTheme,
+  onOpenVocabularyClinic,
   onStartTask,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
@@ -8969,6 +9324,7 @@ function buildTaskLibraryTasks({
   onOpenSourceAnnotation?: (sourceId?: string) => void
   onOpenDebateStudio?: (scenarioId: string) => void
   onOpenExhibitTheme?: (themeId: string) => void
+  onOpenVocabularyClinic?: (itemId?: string) => void
   onStartTask?: (taskId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
@@ -9035,6 +9391,38 @@ function buildTaskLibraryTasks({
       }
 
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, dispatch.subtitle, dispatch.situation, dispatch.urgency, ...dispatch.tags, ...dispatch.suggestedEvidence.flatMap((evidence) => [evidence.label, evidence.title, evidence.text]), ...dispatch.actionOptions.flatMap((option) => [option.label, option.description])].join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
+    buildVocabularyPracticeItems().filter((item) => item.scenario.id === scenario.id).forEach((item) => {
+      const tags = ['Vocabulary Clinic', getVocabularyPracticeModeLabel(item.mode), ...item.tags, ...item.sourceTitles.slice(0, 2)]
+      const task: LibraryTask = {
+        id: item.id,
+        title: item.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: getVocabularyPracticeModeLabel(item.mode),
+        source: 'vocabulary-clinic',
+        sourceLabel: 'Vocabulary Clinic',
+        durationMinutes: item.estimatedMinutes,
+        durationBand: getDurationBand(item.estimatedMinutes),
+        summary: item.prompt,
+        deliverable: 'Vocabulary Clinic Brief：证据标签、短解释、纠误/情境例、来源限制与信心等级',
+        tags,
+        sourceBased: true,
+        searchText: '',
+        primaryActionLabel: '打开术语练习',
+        secondaryActionLabel: '打开相关场景',
+        onPrimaryAction: () => onOpenVocabularyClinic?.(item.id),
+        onSecondaryAction: () => onOpenScenario(scenario.id, item.ctaHash),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [item.prompt, item.definition ?? item.misconception ?? item.contextHint, `来源边界：${item.sourceLimitHint}`],
+        checklist: ['解释术语或标签在本场景中的含义', '选择并说明 1-3 个 evidence tags', '写出情境例子', '修正误区或避免时代错置', '记录来源限制与 confidence'],
+        evidencePrompts: [...item.suggestedEvidenceTagIds.map((tagId) => `证据标签：${getVocabularyTagLabel(item, tagId)}`), ...item.sourceTitles.map((title) => `来源标题：${title}`)],
+        formatSheet: () => formatVocabularyClinicTaskSheet(item),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, item.term, item.definition, item.misconception, item.correction, item.contextHint, item.sourceLimitHint, ...tags, ...item.sourceTitles].filter(Boolean).join(' ').toLowerCase()
       tasks.push(task)
     })
 
@@ -10235,6 +10623,8 @@ function App() {
   const [synthesisDraftState, setSynthesisDraftState] = useState<SynthesisDraftState>(loadSynthesisDraftState)
   const [caseFileDraftState, setCaseFileDraftState] = useState<EvidenceCaseFileDraftState>(loadEvidenceCaseFileDraftState)
   const [sourceAnnotationDraftState, setSourceAnnotationDraftState] = useState<SourceAnnotationDraftState>(loadSourceAnnotationDraftState)
+  const [vocabularyClinicDraftState, setVocabularyClinicDraftState] = useState<VocabularyClinicDraftState>(loadVocabularyClinicDraftState)
+  const [selectedVocabularyPracticeItemId, setSelectedVocabularyPracticeItemId] = useState(buildVocabularyPracticeItems()[0]?.id ?? '')
   const [selectedSourceAnnotationSourceId, setSelectedSourceAnnotationSourceId] = useState(buildSourceAnnotationSourceIndex()[0]?.sourceId ?? '')
   const [selectedCaseFileId, setSelectedCaseFileId] = useState(evidenceCaseFiles[0]?.id ?? '')
   const [selectedSynthesisPresetId, setSelectedSynthesisPresetId] = useState(synthesisInquiryPresets[0]?.id ?? '')
@@ -10284,8 +10674,8 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -10327,6 +10717,7 @@ function App() {
     synthesisDraftState,
     caseFileDraftState,
     sourceAnnotationDraftState,
+    vocabularyClinicDraftState,
     compareDraftState,
     missionWorkState,
     completedMissionIdsByScenario,
@@ -10523,6 +10914,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [sourceAnnotationDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistVocabularyClinicDraftState(vocabularyClinicDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [vocabularyClinicDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -10863,6 +11266,25 @@ function App() {
     setActiveTasksSubpage('exhibits')
 
     const hash = getHashForTasksSubpage('exhibits')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openVocabularyClinic(itemId: string = selectedVocabularyPracticeItemId) {
+    const item = buildVocabularyPracticeItems().find((candidate) => candidate.id === itemId) ?? buildVocabularyPracticeItems()[0]
+
+    if (item) {
+      setSelectedVocabularyPracticeItemId(item.id)
+    }
+
+    setActivePage('tasks')
+    setActiveTasksSubpage('practice')
+
+    const hash = getHashForTasksSubpage('practice')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -11467,6 +11889,7 @@ function App() {
                 onOpenSourceAnnotation={openSourceAnnotationSource}
                 onOpenDebateStudio={openDebateStudio}
                 onOpenExhibitTheme={openExhibitTheme}
+                onOpenVocabularyClinic={openVocabularyClinic}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -11490,6 +11913,7 @@ function App() {
                 onOpenSourceAnnotation={openSourceAnnotationSource}
                 onOpenDebateStudio={openDebateStudio}
                 onOpenExhibitTheme={openExhibitTheme}
+                onOpenVocabularyClinic={openVocabularyClinic}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -11509,6 +11933,16 @@ function App() {
                 activeTaskId={activeWorkbenchTaskId}
                 onSelectTask={setActiveWorkbenchTaskId}
                 onUpdateDraftState={setTaskWorkbenchDraftState}
+              />
+            ) : null}
+            {activeTasksSubpage === 'practice' ? (
+              <VocabularyClinicPanel
+                selectedItemId={selectedVocabularyPracticeItemId}
+                draftState={vocabularyClinicDraftState}
+                onSelectItem={setSelectedVocabularyPracticeItemId}
+                onUpdateDraftState={setVocabularyClinicDraftState}
+                onOpenScenario={selectScenario}
+                onStartTask={startTaskWorkbench}
               />
             ) : null}
             {activeTasksSubpage === 'assessment' ? (
@@ -11567,6 +12001,7 @@ function App() {
                 synthesisDraftState={synthesisDraftState}
                 caseFileDraftState={caseFileDraftState}
                 sourceAnnotationDraftState={sourceAnnotationDraftState}
+                vocabularyClinicDraftState={vocabularyClinicDraftState}
                 compareDraftState={compareDraftState}
                 actorNetworkDraftState={actorNetworkDraftState}
                 materialCultureDraftState={materialCultureDraftState}
@@ -16041,6 +16476,169 @@ function TaskModulesPanel({
   )
 }
 
+function VocabularyClinicPanel({
+  selectedItemId,
+  draftState,
+  onSelectItem,
+  onUpdateDraftState,
+  onOpenScenario,
+  onStartTask,
+}: {
+  selectedItemId: string
+  draftState: VocabularyClinicDraftState
+  onSelectItem: (itemId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<VocabularyClinicDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onStartTask: (taskId: string) => void
+}) {
+  const [modeFilter, setModeFilter] = useState<'all' | VocabularyPracticeMode>('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'completed' | 'not-started'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const items = useMemo(buildVocabularyPracticeItems, [])
+  const stats = getVocabularyClinicStats(draftState)
+  const visibleItems = items.filter((item) => {
+    const draft = draftState[item.id]
+    const status = draft?.completed ? 'completed' : draft && hasVocabularyClinicDraftActivity(draft) ? 'draft' : 'not-started'
+    const searchText = [item.title, item.prompt, item.term, item.definition, item.misconception, item.correction, item.contextHint, item.sourceLimitHint, item.scenario.title, item.scenario.region, item.scenario.theme, ...item.sourceTitles, ...item.tags].filter(Boolean).join(' ').toLowerCase()
+
+    return (modeFilter === 'all' || item.mode === modeFilter)
+      && (scenarioFilter === 'all' || item.scenario.id === scenarioFilter)
+      && (statusFilter === 'all' || status === statusFilter)
+      && (!searchQuery.trim() || searchText.includes(searchQuery.trim().toLowerCase()))
+  })
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? visibleItems[0] ?? items[0]
+  const draft = selectedItem ? draftState[selectedItem.id] ?? getEmptyVocabularyClinicDraft(selectedItem) : getEmptyVocabularyClinicDraft()
+  const tagCatalog = selectedItem ? getVocabularyEvidenceTagCatalog(selectedItem.scenario) : []
+  const completedFields = [draft.explanation, draft.correctedMisconception, draft.contextExample, draft.sourceLimitNote].filter((value) => value.trim()).length
+
+  function updateDraft(patch: Partial<VocabularyClinicDraft>) {
+    if (!selectedItem) return
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[selectedItem.id] ?? getEmptyVocabularyClinicDraft(selectedItem)
+      return {
+        ...currentState,
+        [selectedItem.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleEvidenceTag(tagId: string) {
+    const selectedEvidenceTagIds = draft.selectedEvidenceTagIds.includes(tagId)
+      ? draft.selectedEvidenceTagIds.filter((id) => id !== tagId)
+      : [...draft.selectedEvidenceTagIds, tagId]
+    updateDraft({ selectedEvidenceTagIds })
+  }
+
+  async function copyBrief() {
+    if (!selectedItem) return
+    try {
+      await copyTextToClipboard(formatVocabularyClinicBrief(selectedItem, draft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    if (!selectedItem) return
+    const safeTitle = selectedItem.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'vocabulary-clinic'
+    downloadTextFile(`timeatlas-${safeTitle}-vocabulary-clinic.txt`, formatVocabularyClinicBrief(selectedItem, draft))
+  }
+
+  function clearDraft() {
+    if (!selectedItem) return
+    onUpdateDraftState((currentState) => ({ ...currentState, [selectedItem.id]: getEmptyVocabularyClinicDraft(selectedItem) }))
+  }
+
+  return (
+    <section id="vocabulary-clinic" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="vocabulary-clinic-title">
+      <div className="rounded-[2rem] border border-lime-200/15 bg-lime-100/[0.045] p-5">
+        <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+          <div>
+            <div className="mb-3 flex items-center gap-3 text-lime-100"><BookOpen size={20} /><span className="text-sm uppercase tracking-[0.3em]">Vocabulary Clinic</span></div>
+            <h2 id="vocabulary-clinic-title" className="text-3xl font-semibold tracking-tight text-stone-50">历史术语与误区练习台</h2>
+            <p className="mt-3 leading-7 text-stone-400">从每个 scenario 的 key terms、misconceptions 与 sources evidence tags 派生 7-10 分钟短练习，适合课前热身或出口票。</p>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+              {[{ label: '练习项', value: items.length }, { label: '草稿', value: stats.draftCount }, { label: '完成', value: stats.completedCount }].map((item) => <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 p-3"><div className="text-2xl font-semibold text-lime-100">{item.value}</div><div className="text-xs text-stone-500">{item.label}</div></div>)}
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">mode</span><select value={modeFilter} onChange={(event) => setModeFilter(event.target.value as 'all' | VocabularyPracticeMode)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none"><option value="all">全部模式</option><option value="term-in-context">术语情境</option><option value="misconception-fix">误区纠正</option><option value="evidence-tag-match">标签匹配</option></select></label>
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">scenario</span><select value={scenarioFilter} onChange={(event) => setScenarioFilter(event.target.value)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none"><option value="all">全部场景</option>{scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}</select></label>
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none"><option value="all">全部状态</option><option value="not-started">未开始</option><option value="draft">草稿</option><option value="completed">已完成</option></select></label>
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">search</span><div className="flex items-center rounded-full border border-white/10 bg-black/25 px-3"><Search size={15} className="text-stone-500" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="术语 / 来源 / 标签" className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm text-stone-100 outline-none" /></div></label>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+          <div className="max-h-[620px] overflow-y-auto rounded-3xl border border-white/10 bg-black/20 p-3">
+            <div className="mb-2 text-sm text-stone-500">{visibleItems.length} items · 点击进入 workspace</div>
+            <div className="space-y-2">
+              {visibleItems.map((item) => {
+                const itemDraft = draftState[item.id]
+                const status = itemDraft?.completed ? '已完成' : itemDraft && hasVocabularyClinicDraftActivity(itemDraft) ? '草稿' : 'new'
+                return (
+                  <button key={item.id} type="button" onClick={() => onSelectItem(item.id)} className={`w-full rounded-2xl border p-3 text-left transition ${selectedItem?.id === item.id ? 'border-lime-200/40 bg-lime-100/[0.08]' : 'border-white/10 bg-white/[0.03] hover:border-white/20'}`}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-semibold text-stone-100">{item.title}</span><span className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-lime-100">{status}</span></div>
+                    <div className="mt-1 text-xs text-stone-500">{getVocabularyPracticeModeLabel(item.mode)} · {item.estimatedMinutes}m · {item.scenario.title}</div>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-400">{item.prompt}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {selectedItem ? (
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-lime-100">{getVocabularyPracticeModeLabel(selectedItem.mode)} · {selectedItem.estimatedMinutes}m</p>
+                  <h3 className="mt-1 text-2xl font-semibold text-stone-50">{selectedItem.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{selectedItem.prompt}</p>
+                </div>
+                <button type="button" onClick={() => onStartTask(selectedItem.id)} className="rounded-full border border-lime-200/25 bg-lime-100/[0.08] px-4 py-2 text-sm font-semibold text-lime-100 transition hover:bg-lime-100/[0.14]">进入 Workbench</button>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-stone-400"><span className="font-semibold text-stone-100">Context：</span>{selectedItem.contextHint}</div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-stone-400"><span className="font-semibold text-stone-100">Sources：</span>{selectedItem.sourceTitles.join('；') || '打开来源层选择'}</div>
+                {selectedItem.misconception ? <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400"><span className="font-semibold text-amber-100">Misconception：</span>{selectedItem.misconception}</div> : null}
+                {selectedItem.definition ? <div className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-3 text-sm leading-6 text-stone-400"><span className="font-semibold text-sky-100">Definition：</span>{selectedItem.definition}</div> : null}
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                <div>
+                  <h4 className="text-sm font-semibold text-stone-100">Evidence tags</h4>
+                  <div className="mt-2 flex max-h-48 flex-wrap gap-2 overflow-y-auto">
+                    {tagCatalog.map((tag) => (
+                      <button key={tag.id} type="button" onClick={() => toggleEvidenceTag(tag.id)} className={`rounded-full border px-3 py-1.5 text-xs transition ${draft.selectedEvidenceTagIds.includes(tag.id) ? 'border-lime-200/50 bg-lime-100/15 text-lime-100' : 'border-white/10 bg-white/[0.03] text-stone-400 hover:border-white/20'}`}>{tag.tag}</button>
+                    ))}
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">confidence</span><select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as SynthesisConfidence })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none">{(Object.entries(synthesisConfidenceLabels) as [SynthesisConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-full border border-lime-200/20 bg-lime-100/[0.06] px-4 py-3 text-sm text-lime-100"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} className="h-4 w-4 rounded border-white/20 bg-black text-lime-300 focus:ring-lime-200" />标记完成</label></div>
+                </div>
+                <div className="grid gap-3">
+                  <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">explanation</span><textarea value={draft.explanation} onChange={(event) => updateDraft({ explanation: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" placeholder="用自己的话解释术语 / 标签。" /></label>
+                  <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">corrected misconception</span><textarea value={draft.correctedMisconception} onChange={(event) => updateDraft({ correctedMisconception: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" placeholder="纠正误区或写下谨慎改写。" /></label>
+                  <div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">context example</span><textarea value={draft.contextExample} onChange={(event) => updateDraft({ contextExample: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label><label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">source limit note</span><textarea value={draft.sourceLimitNote} onChange={(event) => updateDraft({ sourceLimitNote: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label></div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'copied' ? '已复制' : '复制 Vocabulary Clinic Brief'}</button><button type="button" onClick={downloadBrief} className="inline-flex items-center gap-2 rounded-full border border-lime-200/25 bg-lime-100/[0.08] px-4 py-2 text-sm font-semibold text-lime-100 transition hover:bg-lime-100/[0.14]"><ScrollText size={16} />下载 txt</button><button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.05]">清空草稿</button><button type="button" onClick={() => onOpenScenario(selectedItem.scenario.id, selectedItem.ctaHash)} className="inline-flex items-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"><ArrowRight size={16} />打开相关 scenario/source</button></div>
+              <p className="mt-3 text-xs text-stone-500" aria-live="polite">fields {completedFields}/4 · tags {draft.selectedEvidenceTagIds.length} · {copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : 'Brief 会进入 Portfolio、Learning Archive 与 Synthesis evidence pool。'}</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -16062,6 +16660,7 @@ function PortfolioPanel({
   synthesisDraftState,
   caseFileDraftState,
   sourceAnnotationDraftState,
+  vocabularyClinicDraftState,
   compareDraftState,
   actorNetworkDraftState,
   materialCultureDraftState,
@@ -16089,6 +16688,7 @@ function PortfolioPanel({
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
+  vocabularyClinicDraftState: VocabularyClinicDraftState
   compareDraftState: CompareDraftState
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
@@ -16111,6 +16711,8 @@ function PortfolioPanel({
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
   const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
+  const vocabularyClinicStats = getVocabularyClinicStats(vocabularyClinicDraftState)
+  const vocabularyPracticeItems = buildVocabularyPracticeItems()
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
   const materialCultureDraftCount = getActiveMaterialCultureDrafts(materialCultureDraftState).length
@@ -16130,6 +16732,7 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentSourceAnnotationDrafts = sourceAnnotationStats.recentDrafts.slice(0, 3)
+  const recentVocabularyClinicDrafts = vocabularyClinicStats.recentDrafts.slice(0, 3)
   const sourceAnnotationIndex = buildSourceAnnotationSourceIndex()
   const recentCompareDrafts = getActiveCompareDrafts(compareDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
@@ -16153,7 +16756,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -16206,6 +16809,8 @@ function PortfolioPanel({
               { label: 'Case Files', value: caseFileDraftCount },
               { label: '来源注释', value: sourceAnnotationStats.draftCount },
               { label: '注释完成', value: sourceAnnotationStats.completedCount },
+              { label: '术语练习', value: vocabularyClinicStats.draftCount },
+              { label: '术语完成', value: vocabularyClinicStats.completedCount },
               { label: '比较草稿', value: compareDraftCount },
               { label: '人物网络', value: actorNetworkDraftCount },
               { label: '物件证据', value: materialCultureDraftCount },
@@ -16231,7 +16836,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -16318,6 +16923,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{source?.source.title ?? sourceId}</div>
                       <div>Source Annotation · {source?.scenario.title ?? '来源索引已变化'} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
                       <div className="mt-1 text-stone-500">{draft.usefulEvidence.trim() || draft.paraphrase.trim() || '尚未填写 source note'}</div>
+                    </div>
+                  )
+                })}
+                {recentVocabularyClinicDrafts.map(([itemId, draft]) => {
+                  const item = vocabularyPracticeItems.find((candidate) => candidate.id === itemId)
+
+                  return (
+                    <div key={itemId} className="rounded-2xl border border-lime-200/15 bg-lime-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{item?.title ?? itemId}</div>
+                      <div>Vocabulary Clinic · {item?.scenario.title ?? '练习项已变化'} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceTagIds.length} tags</div>
+                      <div className="mt-1 text-stone-500">{draft.explanation.trim() || draft.correctedMisconception.trim() || draft.contextExample.trim() || '尚未填写术语解释'}</div>
                     </div>
                   )
                 })}
@@ -16486,6 +17102,7 @@ function TaskDiscoveryPanel({
   onOpenSourceAnnotation,
   onOpenDebateStudio,
   onOpenExhibitTheme,
+  onOpenVocabularyClinic,
   onStartTask,
 }: {
   learningCoachRecommendations: LearningCoachRecommendation[]
@@ -16507,12 +17124,13 @@ function TaskDiscoveryPanel({
   onOpenSourceAnnotation?: (sourceId?: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenExhibitTheme: (themeId: string) => void
+  onOpenVocabularyClinic: (itemId?: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -17766,6 +18384,7 @@ function TaskLibraryPanel({
   onOpenSourceAnnotation,
   onOpenDebateStudio,
   onOpenExhibitTheme,
+  onOpenVocabularyClinic,
   onStartTask,
 }: {
   preset: TaskLibraryPreset | null
@@ -17786,6 +18405,7 @@ function TaskLibraryPanel({
   onOpenSourceAnnotation?: (sourceId?: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenExhibitTheme: (themeId: string) => void
+  onOpenVocabularyClinic: (itemId?: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -17796,8 +18416,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
