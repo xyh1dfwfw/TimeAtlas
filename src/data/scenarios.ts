@@ -169,6 +169,19 @@ export type ChronologyChallenge = {
   tags: string[]
 }
 
+export type PlaceInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  spatialQuestion: string
+  spatialFocus: string
+  taskPrompt: string
+  evidencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type ConceptAtlasTopic = {
   id: string
   title: string
@@ -1257,6 +1270,106 @@ export const exhibitThemes: ExhibitTheme[] = [
     ],
     visitorTakeaway: '档案不是历史的透明窗口；它既保存证据，也留下权力分类和缺席声音。',
     tags: ['archive silence', 'empire records', 'khipu', 'colonial chronicles', 'absent voices', '档案沉默'],
+  },
+]
+
+
+export const placeInquiries: PlaceInquiry[] = [
+  {
+    id: 'market-space-managed',
+    title: '市场空间如何被管理',
+    subtitle: '从坊市、茶铺、集市、港口与十三行观察交易场所如何被规则、税赋和中介组织。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    spatialQuestion: '市场空间如何把交易机会、行动边界、监管可见性和普通人的风险放在同一个地点中？',
+    spatialFocus: '市场入口、摊位/店铺、税册/行规、港口中介、坊市或口岸边界。',
+    taskPrompt: '选择 4-6 条空间证据，画出一个 market-control sketch：谁能进入、在哪里等待、哪条规则改变交易路线。',
+    evidencePrompts: [
+      '哪条证据显示市场不是“自由真空”，而是被门、时辰、税赋、行规或中介管理？',
+      '空间管理让哪些人更容易交易，哪些人被排除、记录或推到风险位置？',
+      '场所中的规则如何连接城市、区域或帝国尺度？',
+    ],
+    deliverable: '一份 Place Brief：市场空间草图、移动/等待路线、边界或控制点、进入不平等、尺度连接、来源限制与信心等级。',
+    tags: ['market rules', 'urban space', 'ports', 'taxation', 'access', '市场空间'],
+  },
+  {
+    id: 'ports-monsoon-waiting',
+    title: '港口与季风如何组织等待',
+    subtitle: '把 Fustat、基尔瓦、马六甲、广州和孟买连成等待、担保、通译、装卸与结算的港口空间。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    spatialQuestion: '港口空间如何把自然季节、信用文书、中介语言和国家权力变成可执行的等待秩序？',
+    spatialFocus: '码头、仓储、通译/经纪位置、海关/税册、信件路线、季风等待区。',
+    taskPrompt: '用空间证据写出“等待在哪里发生、由谁管理、靠什么文书或关系结束等待”的港口 Place Brief。',
+    evidencePrompts: [
+      '哪条证据显示等待由季风、港口制度或信用关系共同制造？',
+      '通译、经纪、书信和合约分别占据什么空间位置？',
+      '来源幸存让我们更容易看见哪些港口空间，忽略哪些劳动空间？',
+    ],
+    deliverable: '一份 Monsoon Port Place Brief：等待路线、控制点、信用/语言中介、尺度连接、来源限制与信心等级。',
+    tags: ['monsoon', 'port space', 'waiting', 'credit', 'intermediaries', 'Indian Ocean'],
+  },
+  {
+    id: 'labor-space-body-risk',
+    title: '劳动空间如何塑造身体风险',
+    subtitle: '从糖园、工厂、棉纺厂、道路仓储与市场劳动比较身体如何被场所、节奏和权力暴露于风险。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'inca-cusco-khipu-runner', 'tenochtitlan-market-seller'],
+    spatialQuestion: '劳动空间如何通过距离、噪音、监管、强制和危险物质改变身体风险？',
+    spatialFocus: '种植园田垄、工厂车间、宿舍/迁移路线、道路仓储节点、集市摊位与监管视线。',
+    taskPrompt: '选择劳动与风险证据，标出身体在空间中移动、停留、受控和暴露的节点。',
+    evidencePrompts: [
+      '哪条证据最清楚显示身体风险来自具体场所，而不只是抽象制度？',
+      '谁能控制移动、休息、逃离或申诉的空间？',
+      '劳动空间中的风险如何连接商品链、帝国或城市尺度？',
+    ],
+    deliverable: '一份 Labor Risk Place Brief：身体风险节点、移动路线、控制点、进入/逃离不平等、尺度连接与来源限制。',
+    tags: ['labor space', 'body risk', 'coercion', 'factory', 'plantation', 'mit’a'],
+  },
+  {
+    id: 'knowledge-space-thresholds',
+    title: '知识空间的进入门槛',
+    subtitle: '比较书房、纸坊、手稿课堂、商业信件和市场知识如何通过场所筛选学习者。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice', 'tang-changan-merchant'],
+    spatialQuestion: '知识空间如何决定谁能进入、旁听、复制、保存或把知识转化为身份机会？',
+    spatialFocus: '纸坊/书坊、私塾或书房、手稿学习圈、信件档案、市场信息节点与门槛。',
+    taskPrompt: '构建一个 knowledge-threshold sketch：标出进入点、守门人、媒介位置和被排除的声音。',
+    evidencePrompts: [
+      '进入知识空间需要金钱、身份、师承、文字能力还是档案幸存？',
+      '知识在场所中如何被复制、口传、保存或限制？',
+      '空间门槛如何改变我们能看到的学习者和缺席者？',
+    ],
+    deliverable: '一份 Knowledge Space Place Brief：进入门槛、媒介/守门人位置、进入不平等、来源限制与信心等级。',
+    tags: ['knowledge space', 'access thresholds', 'manuscripts', 'paper', 'letters', 'education'],
+  },
+  {
+    id: 'crisis-message-spatial-paths',
+    title: '危机消息的空间路径',
+    subtitle: '追踪危机消息如何穿过市场、港口、街区、警报系统和口岸，把远方事件变成当日判断。',
+    scenarioIds: ['tang-changan-merchant', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'wwii-london-civilian'],
+    spatialQuestion: '危机消息通过哪些空间路径抵达普通人，又在哪里被延迟、扭曲、放大或制度化？',
+    spatialFocus: '市场传闻、码头/通译、口岸办公室、街区避难空间、警报路线与家庭决策点。',
+    taskPrompt: '用 4-6 条证据画出 crisis-message route：消息从哪里来、在哪里被过滤、在哪里改变行动。',
+    evidencePrompts: [
+      '哪条证据显示消息已经穿过空间边界进入日常生活？',
+      '消息路径中谁有转译、过滤、延迟或发布的权力？',
+      '危机空间如何连接家庭、城市、港口、帝国或战争尺度？',
+    ],
+    deliverable: '一份 Crisis Message Place Brief：消息路线、控制/过滤点、行动空间、来源限制与信心等级。',
+    tags: ['crisis news', 'message routes', 'urban safety', 'ports', 'war', 'risk'],
+  },
+  {
+    id: 'empire-records-spatial-visibility',
+    title: '帝国记录的空间可见性',
+    subtitle: '用 khipu、殖民编年、商人档案、清单和港口记录比较权力如何在空间中制造可见与不可见。',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker', 'malacca-monsoon-port-broker'],
+    spatialQuestion: '帝国和商业记录在哪里收集、保存、转译或压缩普通人的经验？这些地点让谁可见、让谁沉默？',
+    spatialFocus: '道路仓储、市场监管、档案/书信保存点、种植园清单、港口税册和殖民叙述位置。',
+    taskPrompt: '选择记录与沉默证据，说明记录空间如何把人变成数字、职责、风险或缺席。',
+    evidencePrompts: [
+      '哪条证据显示空间位置决定了谁会被记录？',
+      '记录发生在现场、行政节点、档案保存点还是后世解释中？',
+      '非文字证据、殖民文本和商业档案的空间可见性有何不同？',
+    ],
+    deliverable: '一份 Records Visibility Place Brief：记录地点、可见/不可见对象、控制点、尺度连接、来源限制与信心等级。',
+    tags: ['empire records', 'archive silence', 'spatial visibility', 'khipu', 'colonial records', 'source limits'],
   },
 ]
 
