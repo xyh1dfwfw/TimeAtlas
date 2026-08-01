@@ -85,6 +85,7 @@ const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
 const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
 const dispatchBoardDraftStorageKey = 'timeatlas:dispatch-board-drafts'
+const decisionReplayDraftStorageKey = 'timeatlas:decision-replay-drafts'
 const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
 const questionBankStorageKey = 'timeatlas:question-bank-drafts'
 const questionSetDraftStorageKey = 'timeatlas:question-set-draft'
@@ -689,6 +690,7 @@ type SynthesisEvidenceOrigin =
   | 'actor-network'
   | 'material-culture'
   | 'dispatch'
+  | 'decision-replay'
   | 'source-annotation'
   | 'mission-work'
   | 'workspace'
@@ -815,7 +817,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -992,6 +994,36 @@ type DispatchDraft = {
 }
 
 type DispatchDraftState = Record<string, DispatchDraft>
+
+type DecisionReplayEvidenceType = 'decision-context' | 'decision-option' | 'constraint' | 'daily-life' | 'scene-beat' | 'timeline' | 'source' | 'real-history' | 'interpretation-note'
+
+type DecisionReplayEvidence = {
+  id: string
+  scenario: Scenario
+  type: DecisionReplayEvidenceType
+  typeLabel: string
+  title: string
+  text: string
+  tags: string[]
+  ctaHash: ScenarioSectionId
+}
+
+type DecisionReplayDraft = {
+  selectedOptionId: string
+  selectedEvidenceIds: string[]
+  situationReading: string
+  knownAtTheTime: string
+  constraints: string
+  shortTermTradeoff: string
+  longTermConsequence: string
+  hindsightWarning: string
+  finalDecisionMemo: string
+  confidence: ChronologyConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type DecisionReplayDraftState = Record<string, DecisionReplayDraft>
 
 type LibraryTask = {
   id: string
@@ -1188,6 +1220,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'actor-network', label: 'Actor Network' },
   { value: 'material-culture', label: 'Material Culture' },
   { value: 'dispatch', label: 'Scenario Dispatch' },
+  { value: 'decision-replay', label: 'Decision Replay Desk' },
   { value: 'source-annotation', label: 'Source Annotation Notebook' },
   { value: 'vocabulary-clinic', label: 'Vocabulary Clinic' },
   { value: 'question-bank', label: 'Question Bank' },
@@ -1552,6 +1585,7 @@ const compareConfidenceLabels: Record<CompareConfidence, string> = corroboration
 const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const conceptAtlasConfidenceLabels: Record<ConceptAtlasConfidence, string> = corroborationConfidenceLabels
 const counterfactualConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
+const decisionReplayConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const exhibitStudioConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
@@ -3388,6 +3422,77 @@ function persistDispatchDraftState(state: DispatchDraftState) {
   getSafeStorage('sessionStorage')?.setItem(dispatchBoardDraftStorageKey, serializedState)
 }
 
+
+function parseDecisionReplayDraftState(rawState: string | null): DecisionReplayDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as DecisionReplayDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<DecisionReplayDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in decisionReplayConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            selectedOptionId: typeof draft.selectedOptionId === 'string' ? draft.selectedOptionId : '',
+            selectedEvidenceIds,
+            situationReading: typeof draft.situationReading === 'string' ? draft.situationReading : '',
+            knownAtTheTime: typeof draft.knownAtTheTime === 'string' ? draft.knownAtTheTime : '',
+            constraints: typeof draft.constraints === 'string' ? draft.constraints : '',
+            shortTermTradeoff: typeof draft.shortTermTradeoff === 'string' ? draft.shortTermTradeoff : '',
+            longTermConsequence: typeof draft.longTermConsequence === 'string' ? draft.longTermConsequence : '',
+            hindsightWarning: typeof draft.hindsightWarning === 'string' ? draft.hindsightWarning : '',
+            finalDecisionMemo: typeof draft.finalDecisionMemo === 'string' ? draft.finalDecisionMemo : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies DecisionReplayDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as DecisionReplayDraftState
+  }
+}
+
+function loadDecisionReplayDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseDecisionReplayDraftState(localStorage?.getItem(decisionReplayDraftStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasDecisionReplayDraftActivity)) {
+    return localState
+  }
+
+  return parseDecisionReplayDraftState(sessionStorage?.getItem(decisionReplayDraftStorageKey) ?? null)
+}
+
+function persistDecisionReplayDraftState(state: DecisionReplayDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(decisionReplayDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(decisionReplayDraftStorageKey, serializedState)
+}
+
 function getEmptyTaskWorkbenchDraft(taskId: string): TaskWorkbenchDraft {
   return {
     taskId,
@@ -4817,6 +4922,223 @@ function getWorkspaceStats(workspaceState: WorkspaceState): WorkspaceStats {
   }
 }
 
+
+
+function getDecisionReplayEvidenceTypeLabel(type: DecisionReplayEvidenceType) {
+  return {
+    'decision-context': 'Decision context / 选择情境',
+    'decision-option': 'Decision option / 可选行动',
+    constraint: 'Constraint / 当时约束',
+    'daily-life': 'Daily life / 日常限制',
+    'scene-beat': 'Scene beat / 现场证据',
+    timeline: 'Timeline / 时间背景',
+    source: 'Source / 史料线索',
+    'real-history': 'Outcome evidence / 历史后果',
+    'interpretation-note': 'Interpretation boundary / 解释边界',
+  }[type]
+}
+
+function buildDecisionReplayEvidence(scenario: Scenario): DecisionReplayEvidence[] {
+  const baseTags = [scenario.era, scenario.location, scenario.region, scenario.theme]
+  const constraintDaily = scenario.dailyLife.filter((section) => ['work', 'risks', 'freedoms', 'education'].includes(section.key)).slice(0, 4)
+
+  return [
+    {
+      id: `${scenario.id}:decision:context`,
+      scenario,
+      type: 'decision-context',
+      typeLabel: getDecisionReplayEvidenceTypeLabel('decision-context'),
+      title: scenario.decision.prompt,
+      text: scenario.decision.context,
+      tags: [...baseTags, 'decision', 'known-at-the-time'],
+      ctaHash: sectionIds.decisionPanel,
+    },
+    ...scenario.decision.options.map((option) => ({
+      id: `${scenario.id}:decision:option:${option.id}`,
+      scenario,
+      type: 'decision-option' as const,
+      typeLabel: getDecisionReplayEvidenceTypeLabel('decision-option'),
+      title: option.label,
+      text: `${option.stance}：${option.description}｜短期：${option.immediate}｜长期：${option.longTerm}`,
+      tags: [...baseTags, 'option', option.stance],
+      ctaHash: sectionIds.decisionPanel,
+    } satisfies DecisionReplayEvidence)),
+    ...constraintDaily.map((section) => ({
+      id: `${scenario.id}:constraint:${section.key}`,
+      scenario,
+      type: 'constraint' as const,
+      typeLabel: `${getDecisionReplayEvidenceTypeLabel('constraint')} · ${section.label}`,
+      title: section.title,
+      text: section.text,
+      tags: [...baseTags, 'constraint', section.key, section.label],
+      ctaHash: sectionIds.dailyLife,
+    } satisfies DecisionReplayEvidence)),
+    ...scenario.dailyLife.slice(0, 3).map((section) => ({
+      id: `${scenario.id}:daily:${section.key}`,
+      scenario,
+      type: 'daily-life' as const,
+      typeLabel: `${getDecisionReplayEvidenceTypeLabel('daily-life')} · ${section.label}`,
+      title: section.title,
+      text: section.text,
+      tags: [...baseTags, 'daily life', section.key],
+      ctaHash: sectionIds.dailyLife,
+    } satisfies DecisionReplayEvidence)),
+    ...scenario.sceneBeats.slice(0, 4).map((beat, index) => ({
+      id: `${scenario.id}:scene:${index}`,
+      scenario,
+      type: 'scene-beat' as const,
+      typeLabel: getDecisionReplayEvidenceTypeLabel('scene-beat'),
+      title: `${beat.timeLabel} · ${beat.title}`,
+      text: `${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+      tags: [...baseTags, ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+      ctaHash: sectionIds.sceneReader,
+    } satisfies DecisionReplayEvidence)),
+    ...scenario.timeline.slice(0, 3).map((event, index) => ({
+      id: `${scenario.id}:timeline:${index}`,
+      scenario,
+      type: 'timeline' as const,
+      typeLabel: getDecisionReplayEvidenceTypeLabel('timeline'),
+      title: event.title,
+      text: `${event.year}｜${event.text}`,
+      tags: [...baseTags, 'timeline', event.year],
+      ctaHash: sectionIds.experience,
+    } satisfies DecisionReplayEvidence)),
+    ...scenario.sources.slice(0, 4).map((source, index) => ({
+      id: `${scenario.id}:source:${index}`,
+      scenario,
+      type: 'source' as const,
+      typeLabel: sourceTypeLabels[source.sourceType],
+      title: source.title,
+      text: `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}`,
+      tags: [...baseTags, source.creator, ...source.evidenceTags],
+      ctaHash: sectionIds.sourceReader,
+    } satisfies DecisionReplayEvidence)),
+    {
+      id: `${scenario.id}:real-history`,
+      scenario,
+      type: 'real-history',
+      typeLabel: getDecisionReplayEvidenceTypeLabel('real-history'),
+      title: '真实历史对照',
+      text: scenario.realHistory,
+      tags: [...baseTags, 'real history', 'hindsight boundary'],
+      ctaHash: sectionIds.decisionPanel,
+    },
+    {
+      id: `${scenario.id}:interpretation-note`,
+      scenario,
+      type: 'interpretation-note',
+      typeLabel: getDecisionReplayEvidenceTypeLabel('interpretation-note'),
+      title: '解释边界',
+      text: scenario.interpretationNote,
+      tags: [...baseTags, 'source limits', 'no counterfactual'],
+      ctaHash: sectionIds.sourceReader,
+    },
+  ]
+}
+
+function getEmptyDecisionReplayDraft(scenario: Scenario): DecisionReplayDraft {
+  return {
+    selectedOptionId: scenario.decision.options[0]?.id ?? '',
+    selectedEvidenceIds: buildDecisionReplayEvidence(scenario).slice(0, 4).map((entry) => entry.id),
+    situationReading: '',
+    knownAtTheTime: '',
+    constraints: '',
+    shortTermTradeoff: '',
+    longTermConsequence: '',
+    hindsightWarning: '',
+    finalDecisionMemo: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function hasDecisionReplayDraftActivity(draft: DecisionReplayDraft) {
+  return Boolean(
+    draft.selectedOptionId
+      || draft.selectedEvidenceIds.length
+      || draft.situationReading.trim()
+      || draft.knownAtTheTime.trim()
+      || draft.constraints.trim()
+      || draft.shortTermTradeoff.trim()
+      || draft.longTermConsequence.trim()
+      || draft.hindsightWarning.trim()
+      || draft.finalDecisionMemo.trim()
+      || draft.completed,
+  )
+}
+
+function getActiveDecisionReplayDrafts(decisionReplayDraftState: DecisionReplayDraftState) {
+  return Object.entries(decisionReplayDraftState).filter((entry): entry is [string, DecisionReplayDraft] => hasDecisionReplayDraftActivity(entry[1]))
+}
+
+function getDecisionReplayStats(decisionReplayDraftState: DecisionReplayDraftState) {
+  const activeDrafts = getActiveDecisionReplayDrafts(decisionReplayDraftState)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceIds.length, 0),
+    recentDrafts: [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '')).slice(0, 4),
+  }
+}
+
+function formatDecisionReplayBrief(scenario: Scenario, draft: DecisionReplayDraft, selectedEvidence: DecisionReplayEvidence[]) {
+  const selectedOption = scenario.decision.options.find((option) => option.id === draft.selectedOptionId)
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : buildDecisionReplayEvidence(scenario).slice(0, 8)
+
+  return [
+    'TimeAtlas Decision Replay Desk / 历史选择复盘工作台',
+    `生成时间：${new Date().toLocaleString()}`,
+    `场景：${scenario.title}（${scenario.era}｜${scenario.location}）`,
+    `身份：${scenario.identity}`,
+    `历史问题：${scenario.decision.prompt}`,
+    `复盘状态：${draft.completed ? '已完成' : hasDecisionReplayDraftActivity(draft) ? '草稿' : '未开始'}`,
+    '',
+    '边界提醒：先区分“当时可知信息”和“后见之明”，只复盘已有 decision，不做反事实推演。',
+    '',
+    '一、Selected choice / 已选行动',
+    selectedOption ? `${selectedOption.label}｜${selectedOption.stance}：${selectedOption.description}` : '尚未选择行动',
+    selectedOption ? `短期结果：${selectedOption.immediate}` : '',
+    selectedOption ? `长期影响：${selectedOption.longTerm}` : '',
+    '',
+    '二、Evidence & constraints / 已选证据与约束',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.typeLabel}｜${entry.title}\n   ${entry.text}\n   标签：${entry.tags.slice(0, 8).join('、') || '无'}`),
+    '',
+    '三、Replay workspace / 复盘草稿',
+    `Situation reading：${draft.situationReading.trim() || '尚未填写'}`,
+    `Known at the time：${draft.knownAtTheTime.trim() || '尚未填写'}`,
+    `Constraints：${draft.constraints.trim() || '尚未填写'}`,
+    `Short-term tradeoff：${draft.shortTermTradeoff.trim() || '尚未填写'}`,
+    `Long-term consequence：${draft.longTermConsequence.trim() || '尚未填写'}`,
+    `Hindsight warning：${draft.hindsightWarning.trim() || '尚未填写'}`,
+    `Final decision memo：${draft.finalDecisionMemo.trim() || '尚未填写'}`,
+    `Confidence：${decisionReplayConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].filter((line) => line !== '').join('\n')
+}
+
+function formatDecisionReplayTaskSheet(scenario: Scenario) {
+  const evidence = buildDecisionReplayEvidence(scenario).slice(0, 8)
+
+  return [
+    `TimeAtlas Decision Replay Desk Assignment：${scenario.title}`,
+    `身份：${scenario.identity}｜${scenario.era}｜${scenario.location}`,
+    `历史问题：${scenario.decision.prompt}`,
+    '',
+    '任务：围绕一个已有 decision 做“选择—约束—后果—证据—复盘”，区分当时可知信息与后见之明，不做反事实推演。',
+    '',
+    '可选行动：',
+    ...scenario.decision.options.map((option) => `- ${option.label}｜${option.stance}：${option.description}`),
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.typeLabel}｜${entry.title}：${entry.text}`),
+    '',
+    '工作区字段：Situation reading；Known at the time；Constraints；Short-term tradeoff；Long-term consequence；Hindsight warning；Final decision memo；Confidence。',
+    '自检：□ 没有用后见之明替代当时知识  □ 至少引用 3 条证据/约束  □ 明确短期/长期后果  □ 没有写成反事实推演',
+    '交付物：一份 Decision Replay Brief。',
+  ].join('\n')
+}
 
 function getDispatchModeLabel(mode: DispatchMode) {
   return {
@@ -7301,6 +7623,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'actor-network': 'Actor Network draft / 人物网络草稿',
     'material-culture': 'Material Culture draft / 物件证据草稿',
     dispatch: 'Scenario Dispatch draft / 情境简报草稿',
+    'decision-replay': 'Decision Replay draft / 历史选择复盘草稿',
     'source-annotation': 'Source Annotation draft / 来源注释草稿',
     'question-bank': 'Question Bank draft / 形成性问题草稿',
     'mission-work': 'Mission work / 场景任务草稿',
@@ -7336,6 +7659,7 @@ function buildSynthesisEvidencePool({
   actorNetworkDraftState,
   materialCultureDraftState,
   dispatchDraftState,
+  decisionReplayDraftState,
   exhibitDraftState,
   vocabularyClinicDraftState,
   questionBankDraftState,
@@ -7358,6 +7682,7 @@ function buildSynthesisEvidencePool({
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
+  decisionReplayDraftState: DecisionReplayDraftState
   exhibitDraftState: ExhibitStudioDraftState
   vocabularyClinicDraftState: VocabularyClinicDraftState
   questionBankDraftState: QuestionBankDraftState
@@ -7670,6 +7995,30 @@ function buildSynthesisEvidencePool({
       scenarioTitle: scenario?.title,
       scenarioId: scenario?.id,
       inquiryTitle: dispatch?.objective,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+
+  getActiveDecisionReplayDrafts(decisionReplayDraftState).forEach(([scenarioId, draft]) => {
+    const scenario = getScenarioById(scenarioId)
+    if (!scenario) return
+    const evidence = buildDecisionReplayEvidence(scenario)
+    const selectedEvidence = draft.selectedEvidenceIds
+      .map((id) => evidence.find((entry) => entry.id === id))
+      .filter((entry): entry is DecisionReplayEvidence => Boolean(entry))
+    const selectedOption = scenario.decision.options.find((option) => option.id === draft.selectedOptionId)
+
+    entries.push({
+      id: makeSynthesisEvidenceId('decision-replay', scenarioId),
+      origin: 'decision-replay',
+      originLabel: getSynthesisOriginLabel('decision-replay'),
+      title: `Decision Replay：${scenario.title}`,
+      text: [`选择：${selectedOption?.label ?? draft.selectedOptionId}`, `情境阅读：${draft.situationReading}`, `当时可知：${draft.knownAtTheTime}`, `约束：${draft.constraints}`, `短期权衡：${draft.shortTermTradeoff}`, `长期后果：${draft.longTermConsequence}`, `后见警示：${draft.hindsightWarning}`, `Memo：${draft.finalDecisionMemo}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['decision replay', 'constraints', 'hindsight boundary', scenario.region, scenario.theme, ...selectedEvidence.slice(0, 4).map((entry) => entry.typeLabel), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: scenario.title,
+      scenarioId: scenario.id,
+      inquiryTitle: scenario.decision.prompt,
       updatedAt: draft.updatedAt,
     })
   })
@@ -8140,6 +8489,7 @@ function formatLearningArchive(
   actorNetworkDraftState: ActorNetworkDraftState,
   materialCultureDraftState: MaterialCultureDraftState,
   dispatchDraftState: DispatchDraftState,
+  decisionReplayDraftState: DecisionReplayDraftState,
   exhibitDraftState: ExhibitStudioDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
@@ -8169,6 +8519,7 @@ function formatLearningArchive(
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
   const activeMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
   const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
+  const decisionReplayStats = getDecisionReplayStats(decisionReplayDraftState)
   const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
@@ -8179,7 +8530,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -8209,6 +8560,7 @@ function formatLearningArchive(
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
     `- Scenario Dispatch 草稿：${dispatchDraftStats.activeCount} drafts，${dispatchDraftStats.completedCount} completed，${dispatchDraftStats.selectedEvidenceCount} selected evidence`,
+    `- Decision Replay 历史选择复盘草稿：${decisionReplayStats.draftCount} drafts，${decisionReplayStats.completedCount} completed，${decisionReplayStats.selectedEvidenceCount} selected evidence`,
     `- Exhibit Studio 展览策展草稿：${exhibitStudioStats.draftCount} drafts，${exhibitStudioStats.completedCount} completed，${exhibitStudioStats.selectedEvidenceCount} selected exhibits`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
@@ -8302,6 +8654,37 @@ function formatLearningArchive(
     )
   })
 
+
+
+  if (decisionReplayStats.activeDrafts.length > 0) {
+    lines.push('Decision Replay Desk / 历史选择复盘工作台：')
+    decisionReplayStats.activeDrafts.forEach(([scenarioId, draft]) => {
+      const scenario = getScenarioById(scenarioId)
+      if (!scenario) return
+      const evidence = buildDecisionReplayEvidence(scenario)
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((id) => evidence.find((entry) => entry.id === id))
+        .filter((entry): entry is DecisionReplayEvidence => Boolean(entry))
+        .map((entry) => `${entry.typeLabel}｜${entry.title}`)
+      const option = scenario.decision.options.find((candidate) => candidate.id === draft.selectedOptionId)
+
+      lines.push(
+        `  - ${scenario.title}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    选择：${option ? `${option.label}｜${option.stance}` : draft.selectedOptionId || '尚未选择'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    情境阅读：${draft.situationReading.trim() || '尚未填写'}`,
+        `    当时可知：${draft.knownAtTheTime.trim() || '尚未填写'}`,
+        `    约束：${draft.constraints.trim() || '尚未填写'}`,
+        `    短期权衡：${draft.shortTermTradeoff.trim() || '尚未填写'}`,
+        `    长期后果：${draft.longTermConsequence.trim() || '尚未填写'}`,
+        `    后见警示：${draft.hindsightWarning.trim() || '尚未填写'}`,
+        `    Memo：${draft.finalDecisionMemo.trim() || '尚未填写'}`,
+        `    Confidence：${decisionReplayConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
 
   if (dispatchDraftStats.activeDrafts.length > 0) {
     lines.push('Scenario Dispatch Board / 情境简报板：')
@@ -9515,6 +9898,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.dispatchBoard
   }
 
+  if (source === 'decision-replay') {
+    return sectionIds.decisionPanel
+  }
+
   if (source === 'question-bank' || source === 'vocabulary-clinic') {
     return sectionIds.lessonPack
   }
@@ -10288,6 +10675,37 @@ function buildTaskLibraryTasks({
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, dispatch.subtitle, dispatch.situation, dispatch.urgency, ...dispatch.tags, ...dispatch.suggestedEvidence.flatMap((evidence) => [evidence.label, evidence.title, evidence.text]), ...dispatch.actionOptions.flatMap((option) => [option.label, option.description])].join(' ').toLowerCase()
       tasks.push(task)
     })
+
+    const decisionReplayEvidence = buildDecisionReplayEvidence(scenario)
+    const decisionReplayTask: LibraryTask = {
+      id: `decision-replay:${scenario.id}`,
+      title: `${scenario.title} · Decision Replay Desk`,
+      context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+      scenarioId: scenario.id,
+      category: 'Decision Replay / 历史选择复盘',
+      source: 'decision-replay',
+      sourceLabel: 'Decision Replay Desk',
+      durationMinutes: 25,
+      durationBand: getDurationBand(25),
+      summary: `围绕“${scenario.decision.prompt}”复盘一个已有选择：选择、约束、后果、证据与后见警示。`,
+      deliverable: 'Decision Replay Brief：当时可知信息、约束、短期权衡、长期后果、后见警示、最终 decision memo 与 confidence',
+      tags: ['Decision Replay', 'historical choice', 'constraints', 'hindsight boundary', scenario.region, scenario.theme, ...scenario.decision.options.map((option) => option.label)],
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Decision Replay Desk',
+      secondaryActionLabel: '打开来源层',
+      onPrimaryAction: () => onOpenScenario(scenario.id, sectionIds.decisionPanel),
+      onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.sourceReader),
+      onStartTask: onStartTask ? () => onStartTask(decisionReplayTask.id) : undefined,
+      workbenchPrompts: [scenario.decision.prompt, '区分当时可知信息与后见之明；不要做反事实推演。', `可选行动：${scenario.decision.options.map((option) => option.label).join(' / ')}`],
+      checklist: ['选择一个已有 decision option', '勾选至少 3 条 evidence / constraints', '写出 known at the time', '写出 constraints 与 short-term tradeoff', '对照 long-term consequence', '补充 hindsight warning', '完成 final decision memo'],
+      evidencePrompts: decisionReplayEvidence.slice(0, 8).map((entry) => `${entry.typeLabel}｜${entry.title}：${entry.text}`),
+      formatSheet: () => formatDecisionReplayTaskSheet(scenario),
+    }
+
+    decisionReplayTask.searchText = [decisionReplayTask.title, decisionReplayTask.context, decisionReplayTask.category, decisionReplayTask.sourceLabel, decisionReplayTask.summary, decisionReplayTask.deliverable, scenario.decision.context, scenario.realHistory, scenario.interpretationNote, ...decisionReplayTask.tags, ...decisionReplayEvidence.flatMap((entry) => [entry.typeLabel, entry.title, entry.text, ...entry.tags])].join(' ').toLowerCase()
+    tasks.push(decisionReplayTask)
+
 
     buildVocabularyPracticeItems().filter((item) => item.scenario.id === scenario.id).forEach((item) => {
       const tags = ['Vocabulary Clinic', getVocabularyPracticeModeLabel(item.mode), ...item.tags, ...item.sourceTitles.slice(0, 2)]
@@ -11609,6 +12027,7 @@ function App() {
   const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
   const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
   const [dispatchDraftState, setDispatchDraftState] = useState<DispatchDraftState>(loadDispatchDraftState)
+  const [decisionReplayDraftState, setDecisionReplayDraftState] = useState<DecisionReplayDraftState>(loadDecisionReplayDraftState)
   const [exhibitDraftState, setExhibitDraftState] = useState<ExhibitStudioDraftState>(loadExhibitStudioDraftState)
   const [selectedExhibitThemeId, setSelectedExhibitThemeId] = useState(exhibitThemes[0]?.id ?? '')
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
@@ -11642,7 +12061,7 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
@@ -12040,6 +12459,19 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [dispatchDraftState])
+
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistDecisionReplayDraftState(decisionReplayDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [decisionReplayDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -12696,12 +13128,14 @@ function App() {
             actorNetworkDraftState={actorNetworkDraftState}
             materialCultureDraftState={materialCultureDraftState}
             dispatchDraftState={dispatchDraftState}
+            decisionReplayDraftState={decisionReplayDraftState}
             onToggleMission={toggleMission}
             onUpdateMissionWork={setMissionWorkState}
             onUpdateArgumentDraft={setArgumentDraftState}
             onUpdateActorNetworkDraftState={setActorNetworkDraftState}
             onUpdateMaterialCultureDraftState={setMaterialCultureDraftState}
             onUpdateDispatchDraftState={setDispatchDraftState}
+            onUpdateDecisionReplayDraftState={setDecisionReplayDraftState}
             prefersReducedMotion={prefersReducedMotion}
             onOpenDebateStudio={openDebateStudio}
           />
@@ -13079,6 +13513,7 @@ function App() {
                 actorNetworkDraftState={actorNetworkDraftState}
                 materialCultureDraftState={materialCultureDraftState}
                 dispatchDraftState={dispatchDraftState}
+                decisionReplayDraftState={decisionReplayDraftState}
                 exhibitDraftState={exhibitDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
@@ -17944,6 +18379,7 @@ function PortfolioPanel({
   actorNetworkDraftState,
   materialCultureDraftState,
   dispatchDraftState,
+  decisionReplayDraftState,
   exhibitDraftState,
   taskWorkbenchDraftState,
 }: {
@@ -17974,6 +18410,7 @@ function PortfolioPanel({
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
+  decisionReplayDraftState: DecisionReplayDraftState
   exhibitDraftState: ExhibitStudioDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
@@ -17999,6 +18436,7 @@ function PortfolioPanel({
   const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
   const materialCultureDraftCount = getActiveMaterialCultureDrafts(materialCultureDraftState).length
   const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
+  const decisionReplayStats = getDecisionReplayStats(decisionReplayDraftState)
   const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -18028,6 +18466,7 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentDispatchDrafts = dispatchDraftStats.recentDrafts.slice(0, 3)
+  const recentDecisionReplayDrafts = decisionReplayStats.recentDrafts.slice(0, 3)
   const recentExhibitDrafts = exhibitStudioStats.recentDrafts.slice(0, 3)
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
@@ -18039,7 +18478,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -18101,6 +18540,8 @@ function PortfolioPanel({
               { label: '物件证据', value: materialCultureDraftCount },
               { label: '情境简报', value: dispatchDraftStats.activeCount },
               { label: '简报完成', value: dispatchDraftStats.completedCount },
+              { label: '选择复盘', value: decisionReplayStats.draftCount },
+              { label: '复盘完成', value: decisionReplayStats.completedCount },
               { label: '展览策展', value: exhibitStudioStats.draftCount },
               { label: '展览完成', value: exhibitStudioStats.completedCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
@@ -18121,7 +18562,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -18243,6 +18684,19 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{dispatch?.title ?? dispatchId}</div>
                       <div>Scenario Dispatch · {scenario?.title ?? scenarioId} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
                       <div className="mt-1 text-stone-500">{draft.actionRationale.trim() || draft.messageReply.trim() || draft.situationReading.trim() || '尚未填写 dispatch rationale'}</div>
+                    </div>
+                  )
+                })}
+
+                {recentDecisionReplayDrafts.map(([scenarioId, draft]) => {
+                  const scenario = getScenarioById(scenarioId)
+                  const option = scenario?.decision.options.find((candidate) => candidate.id === draft.selectedOptionId)
+
+                  return (
+                    <div key={`decision-replay:${scenarioId}`} className="rounded-2xl border border-fuchsia-200/15 bg-fuchsia-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{scenario?.title ?? scenarioId}</div>
+                      <div>Decision Replay · {option?.label ?? '未选择'} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条证据</div>
+                      <div className="mt-1 text-stone-500">{draft.finalDecisionMemo.trim() || draft.constraints.trim() || draft.situationReading.trim() || '尚未填写 decision memo'}</div>
                     </div>
                   )
                 })}
@@ -22051,12 +22505,14 @@ function ScenarioExperience({
   actorNetworkDraftState,
   materialCultureDraftState,
   dispatchDraftState,
+  decisionReplayDraftState,
   onToggleMission,
   onUpdateMissionWork,
   onUpdateArgumentDraft,
   onUpdateActorNetworkDraftState,
   onUpdateMaterialCultureDraftState,
   onUpdateDispatchDraftState,
+  onUpdateDecisionReplayDraftState,
   prefersReducedMotion,
   onOpenDebateStudio,
 }: {
@@ -22072,12 +22528,14 @@ function ScenarioExperience({
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
+  decisionReplayDraftState: DecisionReplayDraftState
   onToggleMission: (scenarioId: string, missionId: string) => void
   onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
   onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
   onUpdateActorNetworkDraftState: Dispatch<SetStateAction<ActorNetworkDraftState>>
   onUpdateMaterialCultureDraftState: Dispatch<SetStateAction<MaterialCultureDraftState>>
   onUpdateDispatchDraftState: Dispatch<SetStateAction<DispatchDraftState>>
+  onUpdateDecisionReplayDraftState: Dispatch<SetStateAction<DecisionReplayDraftState>>
   prefersReducedMotion: boolean | null
   onOpenDebateStudio: (scenarioId: string) => void
 }) {
@@ -22200,6 +22658,8 @@ function ScenarioExperience({
               onSelectOption={onSelectOption}
               prefersReducedMotion={prefersReducedMotion}
               onOpenDebateStudio={onOpenDebateStudio}
+              decisionReplayDraftState={decisionReplayDraftState}
+              onUpdateDecisionReplayDraftState={onUpdateDecisionReplayDraftState}
             />
           ) : null}
           {selectedTab === 'sources' ? <SourcesPanel scenario={scenario} /> : null}
@@ -24347,18 +24807,229 @@ function CompareAnglesPanel({ scenario }: { scenario: Scenario }) {
   )
 }
 
+
+function DecisionReplayDeskPanel({
+  scenario,
+  draftState,
+  onUpdateDraftState,
+  onSelectOption,
+  prefersReducedMotion,
+}: {
+  scenario: Scenario
+  draftState: DecisionReplayDraftState
+  onUpdateDraftState: Dispatch<SetStateAction<DecisionReplayDraftState>>
+  onSelectOption: (id: string) => void
+  prefersReducedMotion: boolean | null
+}) {
+  const [typeFilter, setTypeFilter] = useState<'all' | DecisionReplayEvidenceType>('all')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const evidence = useMemo(() => buildDecisionReplayEvidence(scenario), [scenario])
+  const draft = draftState[scenario.id] ?? getEmptyDecisionReplayDraft(scenario)
+  const selectedOption = scenario.decision.options.find((option) => option.id === draft.selectedOptionId) ?? scenario.decision.options[0]
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is DecisionReplayEvidence => Boolean(entry))
+  const filteredEvidence = evidence.filter((entry) => typeFilter === 'all' || entry.type === typeFilter)
+  const brief = formatDecisionReplayBrief(scenario, draft, selectedEvidence)
+  const typeOptions = [...new Map(evidence.map((entry) => [entry.type, entry.typeLabel.split(' · ')[0]])).entries()]
+  const completedFields = [draft.situationReading, draft.knownAtTheTime, draft.constraints, draft.shortTermTradeoff, draft.longTermConsequence, draft.hindsightWarning, draft.finalDecisionMemo].filter((value) => value.trim()).length
+
+  function updateDraft(patch: Partial<DecisionReplayDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[scenario.id] ?? getEmptyDecisionReplayDraft(scenario)
+
+      return {
+        ...currentState,
+        [scenario.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function chooseOption(optionId: string) {
+    updateDraft({ selectedOptionId: optionId })
+    onSelectOption(optionId)
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const selectedEvidenceIds = draft.selectedEvidenceIds.includes(evidenceId)
+      ? draft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...draft.selectedEvidenceIds, evidenceId]
+
+    updateDraft({ selectedEvidenceIds })
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(brief)
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    const safeTitle = scenario.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || scenario.id
+    downloadTextFile(`timeatlas-decision-replay-${safeTitle}.txt`, brief)
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [scenario.id]: getEmptyDecisionReplayDraft(scenario),
+    }))
+    setCopyStatus('idle')
+  }
+
+  return (
+    <section className="mt-6 rounded-[2rem] border border-fuchsia-200/15 bg-fuchsia-100/[0.045] p-5" aria-labelledby="decision-replay-title">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3 text-fuchsia-100">
+            <ClipboardList size={19} />
+            <span className="text-sm uppercase tracking-[0.28em]">decision replay desk</span>
+          </div>
+          <h3 id="decision-replay-title" className="text-2xl font-semibold tracking-tight text-stone-50">历史选择复盘工作台</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">
+            围绕本场景已有 decision 做“选择—约束—后果—证据—复盘”。边界：先写当时可知信息，再写后见警示；这里不做反事实推演。
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center text-xs text-stone-400 sm:min-w-72">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3"><div className="text-lg font-semibold text-fuchsia-100">{selectedEvidence.length}</div><div>selected evidence</div></div>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3"><div className="text-lg font-semibold text-amber-100">{completedFields}/7</div><div>memo fields</div></div>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3"><div className="text-lg font-semibold text-teal-100">{draft.completed ? 'done' : 'draft'}</div><div>status</div></div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+            <h4 className="font-semibold text-amber-100">Option matrix / 选择矩阵</h4>
+            <div className="mt-3 grid gap-3">
+              {scenario.decision.options.map((option) => {
+                const isSelected = draft.selectedOptionId === option.id
+
+                return (
+                  <button key={option.id} type="button" onClick={() => chooseOption(option.id)} aria-pressed={isSelected} className={`rounded-2xl border p-3 text-left transition ${isSelected ? 'border-amber-200/60 bg-amber-200/12' : 'border-white/10 bg-black/20 hover:border-amber-100/30'}`}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-amber-100/70">{option.stance}</div>
+                        <div className="mt-1 font-semibold text-stone-50">{option.label}</div>
+                        <p className="mt-1 text-sm leading-6 text-stone-400">{option.description}</p>
+                      </div>
+                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400">{isSelected ? 'selected' : 'choose'}</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs leading-5 text-stone-500 sm:grid-cols-2">
+                      <div><span className="font-semibold text-stone-300">短期：</span>{option.immediate}</div>
+                      <div><span className="font-semibold text-stone-300">长期：</span>{option.longTerm}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 className="font-semibold text-stone-50">Evidence & constraint rail</h4>
+                <p className="mt-1 text-xs leading-5 text-stone-500">勾选能说明当时信息、约束、后果或来源边界的证据。</p>
+              </div>
+              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | DecisionReplayEvidenceType)} className="rounded-full border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-fuchsia-200/50">
+                <option value="all">全部 type</option>
+                {typeOptions.map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+              </select>
+            </div>
+            <div className="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              {filteredEvidence.map((entry) => {
+                const checked = draft.selectedEvidenceIds.includes(entry.id)
+
+                return (
+                  <label key={entry.id} className={`block cursor-pointer rounded-2xl border p-3 transition ${checked ? 'border-fuchsia-200/45 bg-fuchsia-100/[0.09]' : 'border-white/10 bg-white/[0.03] hover:border-fuchsia-100/25'}`}>
+                    <span className="flex items-start gap-3">
+                      <input type="checkbox" checked={checked} onChange={() => toggleEvidence(entry.id)} className="mt-1 h-4 w-4 rounded border-white/20 bg-black accent-fuchsia-300" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium uppercase tracking-[0.16em] text-fuchsia-100/80">{entry.typeLabel}</span>
+                        <span className="mt-1 block font-semibold text-stone-100">{entry.title}</span>
+                        <span className="mt-1 block text-sm leading-6 text-stone-400">{entry.text}</span>
+                        <span className="mt-2 flex flex-wrap gap-1">{entry.tags.slice(0, 5).map((tag) => <span key={`${entry.id}:${tag}`} className="rounded-full border border-white/10 px-2 py-0.5 text-[0.68rem] text-stone-500">{tag}</span>)}</span>
+                      </span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-fuchsia-200/15 bg-fuchsia-100/[0.045] p-4">
+            <h4 className="font-semibold text-fuchsia-100">Decision Memo workspace</h4>
+            <p className="mt-1 text-xs leading-5 text-stone-500">按顺序填写，避免先用结局解释动机。</p>
+            <div className="mt-3 grid gap-3">
+              {([
+                ['situationReading', 'Situation reading / 情境判断', '当事人面对的具体局面是什么？哪些信息还不稳定？', 3],
+                ['knownAtTheTime', 'Known at the time / 当时可知', '只写此时可能知道、看见、听见或合理推断的信息。', 3],
+                ['constraints', 'Constraints / 约束', '制度、空间、身份、风险、来源或知识边界如何限制选择？', 3],
+                ['shortTermTradeoff', 'Short-term tradeoff / 短期权衡', '这个选择马上换来什么、牺牲什么、暴露什么风险？', 3],
+                ['longTermConsequence', 'Long-term consequence / 长期后果', '结合真实历史对照，说明后来怎样显现影响。', 3],
+                ['hindsightWarning', 'Hindsight warning / 后见警示', '哪些判断只能由后来的历史得知？不要把它们强加给当事人。', 3],
+                ['finalDecisionMemo', 'Final decision memo / 最终复盘备忘', '用 4-6 句完成选择—约束—后果—证据—复盘。', 5],
+              ] as [keyof Pick<DecisionReplayDraft, 'situationReading' | 'knownAtTheTime' | 'constraints' | 'shortTermTradeoff' | 'longTermConsequence' | 'hindsightWarning' | 'finalDecisionMemo'>, string, string, number][]).map(([field, label, placeholder, rows]) => (
+                <label key={field} className="block">
+                  <span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">{label}</span>
+                  <textarea value={draft[field]} onChange={(event) => updateDraft({ [field]: event.target.value } as Pick<DecisionReplayDraft, typeof field>)} rows={rows} placeholder={placeholder} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-fuchsia-200/50" />
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Confidence / 信心等级</span><select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ChronologyConfidence })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none focus:border-fuchsia-200/50">{(Object.entries(decisionReplayConfidenceLabels) as [ChronologyConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-4 py-3 text-sm font-semibold text-emerald-100"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} className="h-4 w-4 rounded border-white/20 bg-black accent-emerald-300" />完成复盘</label>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Brief preview</h4>
+            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-3 text-xs leading-5 text-stone-400">{brief}</pre>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'copied' ? 'Brief 已复制' : copyStatus === 'failed' ? '复制失败' : '复制 Decision Replay Brief'}</button>
+              <button type="button" onClick={downloadBrief} className="inline-flex items-center gap-2 rounded-full border border-fuchsia-200/25 bg-fuchsia-100/[0.08] px-4 py-2 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-100/[0.14]"><ScrollText size={16} />下载 txt</button>
+              <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.05]">清空草稿</button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[sectionIds.sceneReader, sectionIds.dailyLife, sectionIds.sourceReader, sectionIds.argumentStudio].map((hash) => (
+                <button key={hash} type="button" onClick={() => scrollToSection(hash, prefersReducedMotion)} className="inline-flex items-center gap-2 rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-3 py-1.5 text-xs font-semibold text-teal-100 transition hover:bg-teal-100/[0.12]"><ArrowRight size={14} />打开 #{hash}</button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-stone-500" aria-live="polite">
+              当前选择：{selectedOption ? selectedOption.label : '尚未选择'}。{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '草稿按 scenario.id 本机保存。'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function DecisionPanel({
   scenario,
   selectedOption,
   onSelectOption,
   prefersReducedMotion,
   onOpenDebateStudio,
+  decisionReplayDraftState,
+  onUpdateDecisionReplayDraftState,
 }: {
   scenario: Scenario
   selectedOption: DecisionOption | null
   onSelectOption: (id: string) => void
   prefersReducedMotion: boolean | null
   onOpenDebateStudio: (scenarioId: string) => void
+  decisionReplayDraftState: DecisionReplayDraftState
+  onUpdateDecisionReplayDraftState: Dispatch<SetStateAction<DecisionReplayDraftState>>
 }) {
   const outcomeMotion = prefersReducedMotion
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
@@ -24442,6 +25113,14 @@ function DecisionPanel({
         <h3 className="font-semibold text-stone-50">真实历史对照</h3>
         <p className="mt-2 leading-7 text-stone-400">{scenario.realHistory}</p>
       </div>
+
+      <DecisionReplayDeskPanel
+        scenario={scenario}
+        draftState={decisionReplayDraftState}
+        onUpdateDraftState={onUpdateDecisionReplayDraftState}
+        onSelectOption={onSelectOption}
+        prefersReducedMotion={prefersReducedMotion}
+      />
 
       <SourcesPanel scenario={scenario} />
     </section>
