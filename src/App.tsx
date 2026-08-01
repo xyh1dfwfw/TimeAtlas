@@ -83,6 +83,7 @@ const conceptAtlasDraftStorageKey = 'timeatlas:concept-atlas-drafts'
 const exhibitStudioStorageKey = 'timeatlas:exhibit-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
+const sessionRunnerStorageKey = 'timeatlas:session-runner-drafts'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
 const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
 const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
@@ -1100,6 +1101,37 @@ type GuidedSessionRoute = {
 }
 
 type GuidedSessionProgressState = Record<string, string[]>
+type SessionRunStepStatus = 'not-started' | 'active' | 'completed' | 'skipped'
+
+type SessionRunStep = {
+  id: string
+  routeId: string
+  index: number
+  title: string
+  minutes: number
+  description: string
+  hash: ScenarioSectionId
+}
+
+type SessionRunDraft = {
+  activeStepId: string
+  stepStatuses: Record<string, SessionRunStepStatus>
+  stepNotes: Record<string, string>
+  checkedResourceIds: string[]
+  selectedEvidenceNotes: string
+  finalReflection: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type SessionRunDraftState = Record<string, SessionRunDraft>
+
+type SessionRunnerStats = {
+  activeDrafts: [string, SessionRunDraft][]
+  draftCount: number
+  completedCount: number
+  recentDrafts: [string, SessionRunDraft][]
+}
 
 type TaskModuleAction =
   | { type: 'scenario', scenarioId: string, hash?: ScenarioSectionId }
@@ -2901,6 +2933,58 @@ function parseGuidedSessionProgressState(rawState: string | null) {
 }
 
 
+function parseSessionRunDraftState(rawState: string | null) {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as SessionRunDraftState
+    }
+
+    const validStatuses = new Set<SessionRunStepStatus>(['not-started', 'active', 'completed', 'skipped'])
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([routeId, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<SessionRunDraft>
+        const stepStatuses = draft.stepStatuses && typeof draft.stepStatuses === 'object' && !Array.isArray(draft.stepStatuses)
+          ? Object.fromEntries(
+            Object.entries(draft.stepStatuses).filter((entry): entry is [string, SessionRunStepStatus] =>
+              typeof entry[0] === 'string' && typeof entry[1] === 'string' && validStatuses.has(entry[1] as SessionRunStepStatus),
+            ),
+          )
+          : {}
+        const stepNotes = draft.stepNotes && typeof draft.stepNotes === 'object' && !Array.isArray(draft.stepNotes)
+          ? Object.fromEntries(Object.entries(draft.stepNotes).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+          : {}
+        const checkedResourceIds = Array.isArray(draft.checkedResourceIds)
+          ? draft.checkedResourceIds.filter((item): item is string => typeof item === 'string')
+          : []
+
+        return [[
+          routeId,
+          {
+            activeStepId: typeof draft.activeStepId === 'string' ? draft.activeStepId : '',
+            stepStatuses,
+            stepNotes,
+            checkedResourceIds,
+            selectedEvidenceNotes: typeof draft.selectedEvidenceNotes === 'string' ? draft.selectedEvidenceNotes : '',
+            finalReflection: typeof draft.finalReflection === 'string' ? draft.finalReflection : '',
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies SessionRunDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as SessionRunDraftState
+  }
+}
+
+
 function parseTaskModuleProgressState(rawState: string | null) {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -3659,6 +3743,31 @@ function persistGuidedSessionProgressState(state: GuidedSessionProgressState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(guidedSessionProgressStorageKey, serializedState)
+}
+
+
+function loadSessionRunDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseSessionRunDraftState(localStorage?.getItem(sessionRunnerStorageKey) ?? null)
+
+  if (Object.keys(localState).length > 0) {
+    return localState
+  }
+
+  return parseSessionRunDraftState(sessionStorage?.getItem(sessionRunnerStorageKey) ?? null)
+}
+
+function persistSessionRunDraftState(state: SessionRunDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(sessionRunnerStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(sessionRunnerStorageKey, serializedState)
 }
 
 
@@ -9665,6 +9774,7 @@ function formatLearningArchive(
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
   taskWorkbenchDraftState: TaskWorkbenchState,
+  sessionRunDraftState: SessionRunDraftState,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
@@ -9697,6 +9807,7 @@ function formatLearningArchive(
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
@@ -9740,6 +9851,7 @@ function formatLearningArchive(
     `- Exhibit Studio 展览策展草稿：${exhibitStudioStats.draftCount} drafts，${exhibitStudioStats.completedCount} completed，${exhibitStudioStats.selectedEvidenceCount} selected exhibits`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
+    `- Live Session Runner：${sessionRunnerStats.draftCount} active routes，${sessionRunnerStats.completedCount} completed routes`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
     '',
   ]
@@ -10031,6 +10143,25 @@ function formatLearningArchive(
         `    Claim / explanation：${draft.claimExplanation.trim() || '尚未填写'}`,
         `    Source limits：${draft.sourceLimits.trim() || '尚未填写'}`,
         `    Reflection：${draft.reflection.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (sessionRunnerStats.activeDrafts.length > 0) {
+    const routeMap = new Map(buildGuidedSessionRoutes().map((route) => [route.id, route]))
+    lines.push('Live Session Runner / 课堂运行模式：')
+    sessionRunnerStats.activeDrafts.forEach(([routeId, draft]) => {
+      const route = routeMap.get(routeId)
+      const steps = route ? buildSessionRunSteps(route) : []
+      const completedStepCount = route ? getSessionRunCompletedStepCount(steps, normalizeSessionRunDraft(route, draft)) : 0
+      lines.push(
+        `  - ${route?.title ?? routeId}（${draft.completed ? '已完成' : '运行中'}｜${completedStepCount}/${steps.length || '若干'} steps）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    Active step：${steps.find((step) => step.id === draft.activeStepId)?.title ?? (draft.activeStepId || '未记录')}`,
+        `    Resources checked：${draft.checkedResourceIds.length}`,
+        `    Evidence notes：${draft.selectedEvidenceNotes.trim() || '尚未填写'}`,
+        `    Final reflection：${draft.finalReflection.trim() || '尚未填写'}`,
       )
     })
     lines.push('')
@@ -11817,6 +11948,146 @@ function formatGuidedSessionRoute(route: GuidedSessionRoute, checkedStepIds: str
   ].join('\n')
 }
 
+function buildSessionRunSteps(route: GuidedSessionRoute): SessionRunStep[] {
+  return route.steps.map((step, index) => ({
+    ...step,
+    id: `${route.id}:step:${index}`,
+    routeId: route.id,
+    index,
+  }))
+}
+
+function getEmptySessionRunDraft(route?: GuidedSessionRoute): SessionRunDraft {
+  const steps = route ? buildSessionRunSteps(route) : []
+
+  return {
+    activeStepId: steps[0]?.id ?? '',
+    stepStatuses: steps[0] ? { [steps[0].id]: 'active' } : {},
+    stepNotes: {},
+    checkedResourceIds: [],
+    selectedEvidenceNotes: '',
+    finalReflection: '',
+    completed: false,
+  }
+}
+
+function normalizeSessionRunDraft(route: GuidedSessionRoute, draft: SessionRunDraft | undefined) {
+  const steps = buildSessionRunSteps(route)
+  const stepIds = new Set(steps.map((step) => step.id))
+  const fallback = getEmptySessionRunDraft(route)
+  const activeStepId = draft?.activeStepId && stepIds.has(draft.activeStepId) ? draft.activeStepId : fallback.activeStepId
+  const stepStatuses = Object.fromEntries(
+    Object.entries(draft?.stepStatuses ?? {}).filter(([stepId]) => stepIds.has(stepId)),
+  ) as Record<string, SessionRunStepStatus>
+
+  if (activeStepId && stepStatuses[activeStepId] !== 'completed' && stepStatuses[activeStepId] !== 'skipped') {
+    stepStatuses[activeStepId] = 'active'
+  }
+
+  return {
+    ...fallback,
+    ...draft,
+    activeStepId,
+    stepStatuses,
+    stepNotes: Object.fromEntries(
+      Object.entries(draft?.stepNotes ?? {}).filter(([stepId]) => stepIds.has(stepId)),
+    ),
+    checkedResourceIds: (draft?.checkedResourceIds ?? []).filter((id) => typeof id === 'string'),
+    selectedEvidenceNotes: draft?.selectedEvidenceNotes ?? '',
+    finalReflection: draft?.finalReflection ?? '',
+    completed: Boolean(draft?.completed),
+  } satisfies SessionRunDraft
+}
+
+function hasSessionRunDraftActivity(draft: SessionRunDraft) {
+  return Boolean(
+    draft.completed
+      || Object.values(draft.stepStatuses).some((status) => status === 'completed' || status === 'skipped')
+      || Object.values(draft.stepNotes).some((note) => note.trim())
+      || draft.checkedResourceIds.length
+      || draft.selectedEvidenceNotes.trim()
+      || draft.finalReflection.trim(),
+  )
+}
+
+function getSessionRunnerStats(draftState: SessionRunDraftState) {
+  const activeDrafts = Object.entries(draftState).filter(([, draft]) => hasSessionRunDraftActivity(draft))
+  const recentDrafts = [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '')).slice(0, 3)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    recentDrafts,
+  } satisfies SessionRunnerStats
+}
+
+function getSessionRunCompletedStepCount(steps: SessionRunStep[], draft: SessionRunDraft) {
+  return steps.filter((step) => draft.stepStatuses[step.id] === 'completed').length
+}
+
+function getSessionRunResourceId(route: GuidedSessionRoute, kind: 'resource' | 'source', index: number) {
+  return `${route.id}:${kind}:${index}`
+}
+
+function formatSessionRunBrief(route: GuidedSessionRoute, draft: SessionRunDraft, steps: SessionRunStep[]) {
+  const completedSteps = getSessionRunCompletedStepCount(steps, draft)
+  const checkedResources = route.resources.filter((_, index) => draft.checkedResourceIds.includes(getSessionRunResourceId(route, 'resource', index)))
+  const checkedSources = route.linkedSourceTitles.filter((_, index) => draft.checkedResourceIds.includes(getSessionRunResourceId(route, 'source', index)))
+
+  return [
+    `TimeAtlas Live Session Run Brief：${route.title}`,
+    `生成时间：${new Date().toLocaleString()}`,
+    `建议时长：${route.minutes} 分钟`,
+    `当前场景：${route.scenario.title}（${route.scenario.era}，${route.scenario.location}）`,
+    `目标：${route.purpose}`,
+    `状态：${draft.completed ? '已完成' : hasSessionRunDraftActivity(draft) ? '运行中草稿' : '未开始'}｜完成步骤：${completedSteps}/${steps.length}`,
+    '',
+    '一、Run steps / 课堂运行步骤',
+    ...steps.map((step) => {
+      const status = draft.stepStatuses[step.id] ?? 'not-started'
+      return `- [${status === 'completed' ? 'x' : status === 'skipped' ? '-' : ' '}] ${step.index + 1}. ${step.title}（${step.minutes} 分钟）#${step.hash}
+  状态：${getSessionRunStatusLabel(status)}
+  提示：${step.description}
+  Notes：${draft.stepNotes[step.id]?.trim() || '尚未填写'}`
+    }),
+    '',
+    '二、Checked resources / 已勾选资源',
+    ...(checkedResources.length ? checkedResources.map((resource) => `- ${resource}`) : ['- 尚未勾选场景资源']),
+    '',
+    '三、Checked linked sources / 已勾选来源',
+    ...(checkedSources.length ? checkedSources.map((title) => `- ${title}`) : ['- 尚未勾选关联来源']),
+    '',
+    '四、Evidence notes / 证据记录',
+    draft.selectedEvidenceNotes.trim() || '尚未填写',
+    '',
+    '五、Final reflection / 最终反思',
+    draft.finalReflection.trim() || '尚未填写',
+    '',
+    `交付物：${route.deliverable}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function getSessionRunStatusLabel(status: SessionRunStepStatus) {
+  return {
+    'not-started': '未开始',
+    active: '进行中',
+    completed: '已完成',
+    skipped: '已跳过',
+  }[status]
+}
+
+function getSessionRunStatusStyle(status: SessionRunStepStatus) {
+  return {
+    'not-started': 'border-white/10 bg-white/[0.03] text-stone-400',
+    active: 'border-amber-200/35 bg-amber-100/[0.08] text-amber-100',
+    completed: 'border-emerald-200/35 bg-emerald-100/[0.08] text-emerald-100',
+    skipped: 'border-stone-300/20 bg-stone-100/[0.05] text-stone-300',
+  }[status]
+}
+
+
 function formatCompareLensTemplate(lens: CompareLens) {
   return [
     `TimeAtlas Compare Lens Template：${lens.title}`,
@@ -13390,6 +13661,7 @@ function App() {
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
     loadGuidedSessionProgressState,
   )
+  const [sessionRunDraftState, setSessionRunDraftState] = useState<SessionRunDraftState>(loadSessionRunDraftState)
   const [taskModuleProgressState, setTaskModuleProgressState] = useState<TaskModuleProgressState>(
     loadTaskModuleProgressState,
   )
@@ -13784,6 +14056,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [guidedSessionProgressState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistSessionRunDraftState(sessionRunDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [sessionRunDraftState])
 
 
   useEffect(() => {
@@ -14976,7 +15260,10 @@ function App() {
                 selectedScenarioId={selectedScenario.id}
                 progressState={guidedSessionProgressState}
                 onUpdateProgressState={setGuidedSessionProgressState}
+                runDraftState={sessionRunDraftState}
+                onUpdateRunDraftState={setSessionRunDraftState}
                 onOpenScenario={selectScenario}
+                onStartTask={startTaskWorkbench}
               />
             ) : null}
             {activeTasksSubpage === 'modules' ? (
@@ -15021,6 +15308,7 @@ function App() {
                 dailyLedgerDraftState={dailyLedgerDraftState}
                 exhibitDraftState={exhibitDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
+                sessionRunDraftState={sessionRunDraftState}
               />
             ) : null}
           </>
@@ -20092,6 +20380,7 @@ function PortfolioPanel({
   dailyLedgerDraftState,
   exhibitDraftState,
   taskWorkbenchDraftState,
+  sessionRunDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -20126,6 +20415,7 @@ function PortfolioPanel({
   dailyLedgerDraftState: DailyLedgerDraftState
   exhibitDraftState: ExhibitStudioDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
+  sessionRunDraftState: SessionRunDraftState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
@@ -20156,6 +20446,8 @@ function PortfolioPanel({
   const dailyLedgerStats = getDailyLedgerStats(dailyLedgerDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
+  const sessionRunnerRouteMap = new Map(buildGuidedSessionRoutes().map((route) => [route.id, route]))
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
   const activeScenarioCount = scenarios.filter((scenario) => {
     const hasCompleted = (completedMissionIdsByScenario[scenario.id] ?? []).length > 0
@@ -20194,10 +20486,11 @@ function PortfolioPanel({
   const recentConceptAtlasDrafts = getActiveConceptAtlasDrafts(conceptAtlasDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentSessionRunDrafts = sessionRunnerStats.recentDrafts.slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -20273,6 +20566,8 @@ function PortfolioPanel({
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
               { label: '执行台完成', value: taskWorkbenchStats.completedCount },
+              { label: '运行路线', value: sessionRunnerStats.draftCount },
+              { label: '路线完成', value: sessionRunnerStats.completedCount },
               { label: '模块开始', value: taskModuleStats.startedCount },
               { label: '模块完成', value: taskModuleStats.completedCount },
               { label: '模块步骤', value: taskModuleStats.checkedStepCount },
@@ -20287,7 +20582,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCitationTrailDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCitationTrailDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || recentSessionRunDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -20296,6 +20591,20 @@ function PortfolioPanel({
                     <div className="mt-1 text-stone-500">{assignmentSummary.selectedTasks.map((task) => task.title).join(' → ')}</div>
                   </div>
                 ) : null}
+                {recentSessionRunDrafts.map(([routeId, draft]) => {
+                  const route = sessionRunnerRouteMap.get(routeId)
+                  const steps = route ? buildSessionRunSteps(route) : []
+                  const normalizedDraft = route ? normalizeSessionRunDraft(route, draft) : draft
+                  const completedStepCount = route ? getSessionRunCompletedStepCount(steps, normalizedDraft) : 0
+
+                  return (
+                    <div key={routeId} className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{route?.title ?? routeId}</div>
+                      <div>Live Session Runner · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '运行中'} · {completedStepCount}/{steps.length || '若干'} steps</div>
+                      <div className="mt-1 text-stone-500">{draft.finalReflection.trim() || draft.selectedEvidenceNotes.trim() || '尚未填写 reflection 或 evidence notes'}</div>
+                    </div>
+                  )
+                })}
                 {recentWorkbenchDrafts.map(([taskId, draft]) => {
                   const task = libraryTasksById.get(taskId)
                   const checklist = task ? getTaskWorkbenchChecklist(task) : []
@@ -22816,21 +23125,39 @@ function GuidedSessionPanel({
   selectedScenarioId,
   progressState,
   onUpdateProgressState,
+  runDraftState,
+  onUpdateRunDraftState,
   onOpenScenario,
+  onStartTask,
 }: {
   selectedScenarioId: string
   progressState: GuidedSessionProgressState
   onUpdateProgressState: Dispatch<SetStateAction<GuidedSessionProgressState>>
+  runDraftState: SessionRunDraftState
+  onUpdateRunDraftState: Dispatch<SetStateAction<SessionRunDraftState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onStartTask: (taskId: string) => void
 }) {
   const [durationFilter, setDurationFilter] = useState<'all' | GuidedSessionRoute['minutes']>('all')
   const [scenarioFilter, setScenarioFilter] = useState(selectedScenarioId)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const routes = useMemo(buildGuidedSessionRoutes, [])
+  const selectedScenarioRoutes = routes.filter((route) => route.scenario.id === selectedScenarioId)
+  const [activeRouteId, setActiveRouteId] = useState(selectedScenarioRoutes[0]?.id ?? routes[0]?.id ?? '')
+  const activeRoute = routes.find((route) => route.id === activeRouteId) ?? selectedScenarioRoutes[0] ?? routes[0]
+  const activeSteps = activeRoute ? buildSessionRunSteps(activeRoute) : []
+  const activeDraft = activeRoute ? normalizeSessionRunDraft(activeRoute, runDraftState[activeRoute.id]) : getEmptySessionRunDraft()
+  const activeStep = activeSteps.find((step) => step.id === activeDraft.activeStepId) ?? activeSteps[0]
+  const completedSteps = activeRoute ? getSessionRunCompletedStepCount(activeSteps, activeDraft) : 0
+  const progressPercent = activeSteps.length ? Math.round((completedSteps / activeSteps.length) * 100) : 0
 
   useEffect(() => {
     setScenarioFilter(selectedScenarioId)
-  }, [selectedScenarioId])
+    const routeForScenario = routes.find((route) => route.scenario.id === selectedScenarioId)
+    if (routeForScenario) {
+      setActiveRouteId(routeForScenario.id)
+    }
+  }, [routes, selectedScenarioId])
 
   const visibleRoutes = routes.filter((route) => {
     const matchesScenario = scenarioFilter === 'all' || route.scenario.id === scenarioFilter
@@ -22838,6 +23165,40 @@ function GuidedSessionPanel({
 
     return matchesScenario && matchesDuration
   })
+
+  function updateRunDraft(route: GuidedSessionRoute, patch: Partial<SessionRunDraft>) {
+    onUpdateRunDraftState((currentState) => {
+      const currentDraft = normalizeSessionRunDraft(route, currentState[route.id])
+
+      return {
+        ...currentState,
+        [route.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+    setCopyStatus(null)
+  }
+
+  function openRunner(route: GuidedSessionRoute) {
+    setActiveRouteId(route.id)
+    const steps = buildSessionRunSteps(route)
+    const currentDraft = normalizeSessionRunDraft(route, runDraftState[route.id])
+
+    if (!runDraftState[route.id]) {
+      onUpdateRunDraftState((currentState) => ({
+        ...currentState,
+        [route.id]: {
+          ...currentDraft,
+          activeStepId: steps[0]?.id ?? '',
+          stepStatuses: steps[0] ? { [steps[0].id]: 'active' } : {},
+          updatedAt: new Date().toISOString(),
+        },
+      }))
+    }
+  }
 
   function toggleStep(routeId: string, stepIndex: number) {
     const stepId = `${routeId}:step:${stepIndex}`
@@ -22855,6 +23216,73 @@ function GuidedSessionPanel({
     })
   }
 
+  function setActiveStep(stepId: string) {
+    if (!activeRoute) return
+    updateRunDraft(activeRoute, {
+      activeStepId: stepId,
+      stepStatuses: {
+        ...activeDraft.stepStatuses,
+        [stepId]: activeDraft.stepStatuses[stepId] === 'completed' || activeDraft.stepStatuses[stepId] === 'skipped' ? activeDraft.stepStatuses[stepId] : 'active',
+      },
+    })
+  }
+
+  function completeActiveStep(status: 'completed' | 'skipped') {
+    if (!activeRoute || !activeStep) return
+    const nextStep = activeSteps.find((step) => step.index > activeStep.index && activeDraft.stepStatuses[step.id] !== 'completed' && activeDraft.stepStatuses[step.id] !== 'skipped')
+    const nextStatuses = {
+      ...activeDraft.stepStatuses,
+      [activeStep.id]: status,
+    }
+
+    if (nextStep) {
+      nextStatuses[nextStep.id] = 'active'
+    }
+
+    updateRunDraft(activeRoute, {
+      activeStepId: nextStep?.id ?? activeStep.id,
+      stepStatuses: nextStatuses,
+      completed: activeSteps.every((step) => step.id === activeStep.id ? status === 'completed' : nextStatuses[step.id] === 'completed'),
+    })
+  }
+
+  function updateActiveStepNote(note: string) {
+    if (!activeRoute || !activeStep) return
+    updateRunDraft(activeRoute, {
+      stepNotes: {
+        ...activeDraft.stepNotes,
+        [activeStep.id]: note,
+      },
+    })
+  }
+
+  function toggleResource(resourceId: string) {
+    if (!activeRoute) return
+    updateRunDraft(activeRoute, {
+      checkedResourceIds: activeDraft.checkedResourceIds.includes(resourceId)
+        ? activeDraft.checkedResourceIds.filter((id) => id !== resourceId)
+        : [...activeDraft.checkedResourceIds, resourceId],
+    })
+  }
+
+  function clearRunDraft() {
+    if (!activeRoute) return
+    onUpdateRunDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[activeRoute.id]
+      return nextState
+    })
+    setCopyStatus(null)
+  }
+
+  function findWorkbenchTaskId(route: GuidedSessionRoute) {
+    const mission = route.scenario.missions.find((candidate) => route.resources.includes(candidate.title))
+      ?? route.scenario.missions.find((candidate) => route.steps.some((step) => step.description.includes(candidate.instruction) || step.description.includes(candidate.title)))
+      ?? route.scenario.missions[0]
+
+    return mission ? `mission:${route.scenario.id}:${mission.id}` : ''
+  }
+
   async function copyRoute(route: GuidedSessionRoute) {
     try {
       await copyTextToClipboard(formatGuidedSessionRoute(route, progressState[route.id] ?? []))
@@ -22863,6 +23291,29 @@ function GuidedSessionPanel({
       setCopyStatus('failed')
     }
   }
+
+  async function copyRunBrief() {
+    if (!activeRoute) return
+
+    try {
+      await copyTextToClipboard(formatSessionRunBrief(activeRoute, activeDraft, activeSteps))
+      setCopyStatus('run-brief')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadRunBrief() {
+    if (!activeRoute) return
+    const safeTitle = activeRoute.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'session-run'
+    downloadTextFile(`timeatlas-${safeTitle}-session-run-brief.txt`, formatSessionRunBrief(activeRoute, activeDraft, activeSteps))
+  }
+
+  if (!activeRoute) {
+    return null
+  }
+
+  const workbenchTaskId = findWorkbenchTaskId(activeRoute)
 
   return (
     <section id="guided-session-builder" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="guided-session-builder-title">
@@ -22874,43 +23325,30 @@ function GuidedSessionPanel({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 id="guided-session-builder-title" className="text-3xl font-semibold tracking-tight text-stone-50">
-              Guided Session Builder / Healthy Chunking
+              Guided Session Builder + Live Session Runner
             </h2>
             <p className="mt-3 max-w-3xl leading-7 text-stone-400">
-              从现有 scenario、Scene Reader、Lesson Pack、Activity Packs、Mission Board、Source Reader 与 Compare Lab 自动生成 15/30/45/75 分钟路线卡，帮你把一次历史学习切成健康小块。
+              路线卡仍由现有 scenario、任务和来源数据自动生成；下方 Live Session Runner 把选中的路线变成逐步执行台，保存 active step、notes、资源勾选、证据记录和最终反思。
             </p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
-            {visibleRoutes.length}/{routes.length} 条路线 · 勾选进度本机保存
+            {visibleRoutes.length}/{routes.length} 条路线 · Runner 草稿 {getSessionRunnerStats(runDraftState).draftCount}
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_0.55fr]">
           <label className="block">
             <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">场景</span>
-            <select
-              value={scenarioFilter}
-              onChange={(event) => setScenarioFilter(event.target.value)}
-              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-violet-200/60"
-            >
+            <select value={scenarioFilter} onChange={(event) => setScenarioFilter(event.target.value)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-violet-200/60">
               <option value="all">全部场景</option>
-              {scenarios.map((scenario) => (
-                <option key={scenario.id} value={scenario.id}>{scenario.title}</option>
-              ))}
+              {scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}
             </select>
           </label>
           <label className="block">
             <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">健康时长</span>
-            <select
-              value={durationFilter}
-              onChange={(event) => setDurationFilter(event.target.value === 'all' ? 'all' : Number(event.target.value) as GuidedSessionRoute['minutes'])}
-              className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-violet-200/60"
-            >
+            <select value={durationFilter} onChange={(event) => setDurationFilter(event.target.value === 'all' ? 'all' : Number(event.target.value) as GuidedSessionRoute['minutes'])} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-violet-200/60">
               <option value="all">全部时长</option>
-              <option value={15}>15 分钟</option>
-              <option value={30}>30 分钟</option>
-              <option value={45}>45 分钟</option>
-              <option value={75}>75 分钟</option>
+              <option value={15}>15 分钟</option><option value={30}>30 分钟</option><option value={45}>45 分钟</option><option value={75}>75 分钟</option>
             </select>
           </label>
         </div>
@@ -22918,11 +23356,14 @@ function GuidedSessionPanel({
         <div className="mt-6 grid gap-4 xl:grid-cols-2">
           {visibleRoutes.slice(0, 12).map((route) => {
             const checkedStepIds = progressState[route.id] ?? []
+            const routeDraft = normalizeSessionRunDraft(route, runDraftState[route.id])
+            const routeSteps = buildSessionRunSteps(route)
             const completedCount = route.steps.filter((_, index) => checkedStepIds.includes(`${route.id}:step:${index}`)).length
+            const runnerCompleted = getSessionRunCompletedStepCount(routeSteps, routeDraft)
             const firstStepHash = route.steps[0]?.hash ?? defaultScenarioSectionId
 
             return (
-              <article key={route.id} className="flex min-h-full flex-col overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/20">
+              <article key={route.id} className={`flex min-h-full flex-col overflow-hidden rounded-[1.5rem] border bg-black/20 ${activeRoute.id === route.id ? 'border-violet-200/50' : 'border-white/10'}`}>
                 <div className="h-1.5" style={{ backgroundColor: route.scenario.accent }} />
                 <div className="flex flex-1 flex-col p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -22930,86 +23371,38 @@ function GuidedSessionPanel({
                       <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
                         <span className="rounded-full border border-violet-200/20 bg-violet-100/[0.06] px-3 py-1 text-violet-100">{route.minutes} min</span>
                         <span>{route.scenario.era}</span>
-                        <span>{completedCount}/{route.steps.length} steps</span>
+                        <span>card {completedCount}/{route.steps.length}</span>
+                        <span>runner {runnerCompleted}/{routeSteps.length}</span>
                       </div>
                       <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">{route.title}</h3>
                       <p className="mt-2 text-sm leading-6 text-stone-400">{route.purpose}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onOpenScenario(route.scenario.id, firstStepHash)}
-                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"
-                    >
-                      开始路线
-                      <ArrowRight size={16} />
-                    </button>
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <button type="button" onClick={() => openRunner(route)} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+                        {hasSessionRunDraftActivity(routeDraft) ? '继续运行' : '运行此路线'} <ArrowRight size={16} />
+                      </button>
+                      <button type="button" onClick={() => onOpenScenario(route.scenario.id, firstStepHash)} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:border-violet-100/30">打开首步</button>
+                    </div>
                   </div>
 
                   <div className="mt-4 space-y-2">
                     {route.steps.map((step, index) => {
                       const stepId = `${route.id}:step:${index}`
                       const isChecked = checkedStepIds.includes(stepId)
-
                       return (
                         <label key={stepId} className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-6 text-stone-400 transition hover:border-violet-100/25">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleStep(route.id, index)}
-                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-violet-300 focus:ring-violet-200"
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="block font-semibold text-stone-100">{index + 1}. {step.title} · {step.minutes}m</span>
-                            <span className="block">{step.description}</span>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.preventDefault()
-                                onOpenScenario(route.scenario.id, step.hash)
-                              }}
-                              className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-violet-100 transition hover:bg-white/[0.06]"
-                            >
-                              跳到 #{step.hash}
-                              <ArrowRight size={13} />
-                            </button>
-                          </span>
+                          <input type="checkbox" checked={isChecked} onChange={() => toggleStep(route.id, index)} className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-violet-300 focus:ring-violet-200" />
+                          <span className="min-w-0 flex-1"><span className="block font-semibold text-stone-100">{index + 1}. {step.title} · {step.minutes}m</span><span className="block">{step.description}</span></span>
                         </label>
                       )
                     })}
                   </div>
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                      <h4 className="font-semibold text-violet-100">当前场景资源</h4>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {route.resources.map((resource) => <Tag key={resource}>{resource}</Tag>)}
-                      </div>
-                    </div>
-                    <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
-                      <h4 className="font-semibold text-amber-100">Linked sources</h4>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {route.linkedSourceTitles.map((title) => (
-                          <span key={title} className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1.5 text-xs text-amber-100">{title}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4 text-sm leading-6 text-stone-300">
-                    <span className="font-semibold text-teal-100">交付物：</span>{route.deliverable}
-                  </div>
-
+                  <div className="mt-4 rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-teal-100">交付物：</span>{route.deliverable}</div>
                   <div className="mt-auto flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm text-stone-500" aria-live="polite">
-                      {copyStatus === route.id ? '路线卡已复制。' : copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : '复制会包含勾选状态、步骤 hash、资源与来源。'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void copyRoute(route)}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-violet-200/25 bg-violet-100/[0.08] px-5 py-3 font-semibold text-violet-100 transition hover:bg-violet-100/[0.14]"
-                    >
-                      {copyStatus === route.id ? <Check size={18} /> : <Copy size={18} />}
-                      {copyStatus === route.id ? '路线卡已复制' : '复制 / 导出路线卡'}
+                    <p className="text-sm text-stone-500" aria-live="polite">{copyStatus === route.id ? '路线卡已复制。' : copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : '复制路线卡或进入 Runner 逐步执行。'}</p>
+                    <button type="button" onClick={() => void copyRoute(route)} className="inline-flex items-center justify-center gap-2 rounded-full border border-violet-200/25 bg-violet-100/[0.08] px-5 py-3 font-semibold text-violet-100 transition hover:bg-violet-100/[0.14]">
+                      {copyStatus === route.id ? <Check size={18} /> : <Copy size={18} />}{copyStatus === route.id ? '路线卡已复制' : '复制路线卡'}
                     </button>
                   </div>
                 </div>
@@ -23018,9 +23411,88 @@ function GuidedSessionPanel({
           })}
         </div>
 
-        {visibleRoutes.length > 12 ? (
-          <p className="mt-4 text-sm text-stone-500">已显示前 12 条路线；可按场景或时长继续收窄。</p>
-        ) : null}
+        {visibleRoutes.length > 12 ? <p className="mt-4 text-sm text-stone-500">已显示前 12 条路线；可按场景或时长继续收窄。</p> : null}
+      </div>
+
+      <div className="mt-6 rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5" aria-labelledby="session-runner-title">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.28em] text-amber-100"><Clock3 size={18} /> live session runner</div>
+            <h3 id="session-runner-title" className="mt-2 text-3xl font-semibold tracking-tight text-stone-50">{activeRoute.title}</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">{activeRoute.purpose}</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-400"><Tag>{activeRoute.minutes} min</Tag><Tag>{activeRoute.scenario.title}</Tag><Tag>{progressPercent}% complete</Tag><Tag>{activeDraft.completed ? 'completed' : 'running draft'}</Tag></div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void copyRunBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"><Copy size={16} />{copyStatus === 'run-brief' ? 'Run Brief 已复制' : '复制 Session Run Brief'}</button>
+            <button type="button" onClick={downloadRunBrief} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-amber-100/30"><ScrollText size={16} />下载 txt</button>
+            <button type="button" onClick={clearRunDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-400 transition hover:border-red-200/30 hover:text-red-100">清空当前路线运行草稿</button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.72fr_1.28fr]">
+          <aside className="rounded-[1.75rem] border border-white/10 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-3"><h4 className="font-semibold text-stone-50">Step rail</h4><span className="text-xs text-stone-500">{completedSteps}/{activeSteps.length} done</span></div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-amber-300" style={{ width: `${progressPercent}%` }} /></div>
+            <div className="mt-4 space-y-2">
+              {activeSteps.map((step) => {
+                const status = activeDraft.stepStatuses[step.id] ?? 'not-started'
+                return (
+                  <button key={step.id} type="button" onClick={() => setActiveStep(step.id)} className={`w-full rounded-2xl border p-3 text-left transition ${activeStep?.id === step.id ? 'border-amber-200/50 bg-amber-100/[0.1]' : 'border-white/10 bg-white/[0.025] hover:border-amber-100/25'}`}>
+                    <div className="flex items-start justify-between gap-3"><div className="font-semibold text-stone-100">{step.index + 1}. {step.title}</div><span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${getSessionRunStatusStyle(status)}`}>{getSessionRunStatusLabel(status)}</span></div>
+                    <div className="mt-1 text-xs text-stone-500">{step.minutes} min · #{step.hash}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+            <div className="space-y-4">
+              <div className="rounded-[1.75rem] border border-amber-200/15 bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-amber-100">current step focus</div>
+                <h4 className="mt-2 text-2xl font-semibold text-stone-50">{activeStep ? `${activeStep.index + 1}. ${activeStep.title}` : 'No step'}</h4>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{activeStep?.description}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => activeStep && onOpenScenario(activeRoute.scenario.id, activeStep.hash)} className="inline-flex items-center gap-2 rounded-full bg-violet-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-violet-200"><ArrowRight size={16} />打开相关 Scenario section</button>
+                  <button type="button" disabled={!workbenchTaskId} onClick={() => workbenchTaskId && onStartTask(workbenchTaskId)} className="inline-flex items-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14] disabled:opacity-45"><ClipboardList size={16} />启动 Task Workbench</button>
+                  <button type="button" onClick={() => completeActiveStep('completed')} className="inline-flex items-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]"><CheckCircle2 size={16} />完成 step</button>
+                  <button type="button" onClick={() => completeActiveStep('skipped')} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.05]">跳过 step</button>
+                </div>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-4">
+                <h4 className="font-semibold text-stone-50">Notes / evidence / reflection workspace</h4>
+                <label className="mt-3 block text-sm font-medium text-stone-300">当前 step notes<textarea value={activeStep ? activeDraft.stepNotes[activeStep.id] ?? '' : ''} onChange={(event) => updateActiveStepNote(event.target.value)} rows={5} placeholder="记录教师提示、学生回应、完成证据或下一步提醒" className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-amber-200/40" /></label>
+                <label className="mt-3 block text-sm font-medium text-stone-300">Selected evidence notes<textarea value={activeDraft.selectedEvidenceNotes} onChange={(event) => updateRunDraft(activeRoute, { selectedEvidenceNotes: event.target.value })} rows={4} placeholder="写下本次运行中真正使用的来源、scene、任务证据与解释边界" className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-amber-200/40" /></label>
+                <label className="mt-3 block text-sm font-medium text-stone-300">Final reflection<textarea value={activeDraft.finalReflection} onChange={(event) => updateRunDraft(activeRoute, { finalReflection: event.target.value })} rows={4} placeholder="最后总结：学生能带走什么判断？还缺什么证据？下一次从哪里继续？" className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-amber-200/40" /></label>
+                <label className="mt-3 flex items-center gap-2 text-sm text-stone-300"><input type="checkbox" checked={activeDraft.completed} onChange={(event) => updateRunDraft(activeRoute, { completed: event.target.checked })} />标记整条路线完成</label>
+                <p className="mt-3 text-xs text-stone-500" aria-live="polite">{activeDraft.updatedAt ? `已保存：${new Date(activeDraft.updatedAt).toLocaleString()}` : '任意填写或选择会保存到本机；localStorage 不可用时回退 sessionStorage。'}</p>
+              </div>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="rounded-[1.75rem] border border-violet-200/15 bg-violet-100/[0.045] p-4">
+                <h4 className="font-semibold text-violet-100">Resource / action drawer</h4>
+                <div className="mt-3 space-y-2">
+                  {activeRoute.resources.map((resource, index) => {
+                    const resourceId = getSessionRunResourceId(activeRoute, 'resource', index)
+                    return <label key={resourceId} className="flex gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-stone-300"><input type="checkbox" checked={activeDraft.checkedResourceIds.includes(resourceId)} onChange={() => toggleResource(resourceId)} />{resource}</label>
+                  })}
+                </div>
+              </div>
+              <div className="rounded-[1.75rem] border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                <h4 className="font-semibold text-amber-100">Linked sources</h4>
+                <div className="mt-3 space-y-2">
+                  {activeRoute.linkedSourceTitles.length ? activeRoute.linkedSourceTitles.map((title, index) => {
+                    const sourceId = getSessionRunResourceId(activeRoute, 'source', index)
+                    return <label key={sourceId} className="flex gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-stone-300"><input type="checkbox" checked={activeDraft.checkedResourceIds.includes(sourceId)} onChange={() => toggleResource(sourceId)} />{title}</label>
+                  }) : <p className="text-sm text-stone-500">当前路线未指定来源，使用 Scenario Source Reader。</p>}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => onOpenScenario(activeRoute.scenario.id, sectionIds.sourceReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-amber-100/30 hover:text-amber-100">Source Reader</button><button type="button" onClick={() => onOpenScenario(activeRoute.scenario.id, sectionIds.missionBoard)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-amber-100/30 hover:text-amber-100">Mission Board</button><button type="button" onClick={() => onOpenScenario(activeRoute.scenario.id, sectionIds.argumentStudio)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-amber-100/30 hover:text-amber-100">Argument Studio</button></div>
+              </div>
+            </aside>
+          </div>
+        </div>
       </div>
     </section>
   )
