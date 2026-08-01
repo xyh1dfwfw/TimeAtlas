@@ -86,6 +86,7 @@ const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
 const dispatchBoardDraftStorageKey = 'timeatlas:dispatch-board-drafts'
 const decisionReplayDraftStorageKey = 'timeatlas:decision-replay-drafts'
+const dailyLedgerDraftStorageKey = 'timeatlas:daily-ledger-drafts'
 const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
 const questionBankStorageKey = 'timeatlas:question-bank-drafts'
 const questionSetDraftStorageKey = 'timeatlas:question-set-draft'
@@ -691,6 +692,7 @@ type SynthesisEvidenceOrigin =
   | 'material-culture'
   | 'dispatch'
   | 'decision-replay'
+  | 'daily-ledger'
   | 'source-annotation'
   | 'mission-work'
   | 'workspace'
@@ -817,7 +819,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -1025,6 +1027,45 @@ type DecisionReplayDraft = {
 
 type DecisionReplayDraftState = Record<string, DecisionReplayDraft>
 
+type DailyLedgerAllocationKey = 'work' | 'care' | 'learning' | 'exchange' | 'safety'
+type DailyLedgerPressureLevel = 'low' | 'medium' | 'high' | 'extreme'
+type DailyLedgerEvidenceType = 'daily-life' | 'scene-beat' | 'decision-context' | 'decision-option' | 'source' | 'timeline' | 'real-history' | 'source-limit'
+
+type DailyLedgerEvidence = {
+  id: string
+  scenario: Scenario
+  type: DailyLedgerEvidenceType
+  typeLabel: string
+  title: string
+  text: string
+  tags: string[]
+  ctaHash: ScenarioSectionId
+}
+
+type DailyLedgerDraft = {
+  selectedEvidenceIds: string[]
+  allocation: Record<DailyLedgerAllocationKey, DailyLedgerPressureLevel>
+  resourcePressure: string
+  dependencyMap: string
+  tradeoffClaim: string
+  choiceBoundary: string
+  sourceLimitNote: string
+  finalLedgerBrief: string
+  confidence: ChronologyConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type DailyLedgerDraftState = Record<string, DailyLedgerDraft>
+
+type DailyLedgerStats = {
+  activeDrafts: [string, DailyLedgerDraft][]
+  draftCount: number
+  completedCount: number
+  selectedEvidenceCount: number
+  recentDrafts: [string, DailyLedgerDraft][]
+}
+
 type LibraryTask = {
   id: string
   title: string
@@ -1221,6 +1262,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'material-culture', label: 'Material Culture' },
   { value: 'dispatch', label: 'Scenario Dispatch' },
   { value: 'decision-replay', label: 'Decision Replay Desk' },
+  { value: 'daily-ledger', label: 'Daily Ledger Desk' },
   { value: 'source-annotation', label: 'Source Annotation Notebook' },
   { value: 'vocabulary-clinic', label: 'Vocabulary Clinic' },
   { value: 'question-bank', label: 'Question Bank' },
@@ -1586,6 +1628,7 @@ const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corrobo
 const conceptAtlasConfidenceLabels: Record<ConceptAtlasConfidence, string> = corroborationConfidenceLabels
 const counterfactualConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const decisionReplayConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
+const dailyLedgerConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const exhibitStudioConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
@@ -3491,6 +3534,299 @@ function persistDecisionReplayDraftState(state: DecisionReplayDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(decisionReplayDraftStorageKey, serializedState)
+}
+
+const dailyLedgerAllocationKeys: DailyLedgerAllocationKey[] = ['work', 'care', 'learning', 'exchange', 'safety']
+
+const dailyLedgerAllocationLabels: Record<DailyLedgerAllocationKey, string> = {
+  work: 'Labor / work',
+  care: 'Care / household',
+  learning: 'Learning / knowledge access',
+  exchange: 'Exchange / market ties',
+  safety: 'Safety / risk management',
+}
+
+const dailyLedgerPressureLabels: Record<DailyLedgerPressureLevel, string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+  extreme: '极高',
+}
+
+function getDailyLedgerEvidenceTypeLabel(type: DailyLedgerEvidenceType) {
+  return {
+    'daily-life': 'Daily life / 日常线索',
+    'scene-beat': 'Scene beat / 现场压力',
+    'decision-context': 'Decision context / 选择情境',
+    'decision-option': 'Decision option / 可选行动',
+    source: 'Source / 来源线索',
+    timeline: 'Timeline / 时间背景',
+    'real-history': 'Outcome boundary / 历史后果',
+    'source-limit': 'Source limit / 来源边界',
+  }[type]
+}
+
+function buildDailyLedgerEvidence(scenario: Scenario): DailyLedgerEvidence[] {
+  const baseTags = [scenario.era, scenario.location, scenario.region, scenario.theme, 'daily ledger']
+
+  return [
+    ...scenario.dailyLife.map((section) => ({
+      id: `${scenario.id}:ledger:daily:${section.key}`,
+      scenario,
+      type: 'daily-life' as const,
+      typeLabel: `${getDailyLedgerEvidenceTypeLabel('daily-life')} · ${section.label}`,
+      title: section.title,
+      text: section.text,
+      tags: [...baseTags, section.key, section.label],
+      ctaHash: sectionIds.dailyLife,
+    } satisfies DailyLedgerEvidence)),
+    ...scenario.sceneBeats.slice(0, 4).map((beat, index) => ({
+      id: `${scenario.id}:ledger:scene:${index}`,
+      scenario,
+      type: 'scene-beat' as const,
+      typeLabel: getDailyLedgerEvidenceTypeLabel('scene-beat'),
+      title: `${beat.timeLabel} · ${beat.title}`,
+      text: `${beat.sensoryDetail}｜${beat.historicalTension}｜${beat.evidenceHook}`,
+      tags: [...baseTags, ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+      ctaHash: sectionIds.sceneReader,
+    } satisfies DailyLedgerEvidence)),
+    {
+      id: `${scenario.id}:ledger:decision:context`,
+      scenario,
+      type: 'decision-context',
+      typeLabel: getDailyLedgerEvidenceTypeLabel('decision-context'),
+      title: scenario.decision.prompt,
+      text: scenario.decision.context,
+      tags: [...baseTags, 'decision', 'choice boundary'],
+      ctaHash: sectionIds.decisionPanel,
+    },
+    ...scenario.decision.options.slice(0, 3).map((option) => ({
+      id: `${scenario.id}:ledger:decision:${option.id}`,
+      scenario,
+      type: 'decision-option' as const,
+      typeLabel: getDailyLedgerEvidenceTypeLabel('decision-option'),
+      title: option.label,
+      text: `${option.stance}：${option.description}｜即时：${option.immediate}｜长期：${option.longTerm}`,
+      tags: [...baseTags, 'tradeoff', option.stance],
+      ctaHash: sectionIds.decisionPanel,
+    } satisfies DailyLedgerEvidence)),
+    ...scenario.sources.slice(0, 4).map((source, index) => ({
+      id: `${scenario.id}:ledger:source:${index}`,
+      scenario,
+      type: 'source' as const,
+      typeLabel: sourceTypeLabels[source.sourceType],
+      title: source.title,
+      text: `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}`,
+      tags: [...baseTags, source.creator, ...source.evidenceTags],
+      ctaHash: sectionIds.sourceReader,
+    } satisfies DailyLedgerEvidence)),
+    ...scenario.timeline.slice(0, 2).map((event, index) => ({
+      id: `${scenario.id}:ledger:timeline:${index}`,
+      scenario,
+      type: 'timeline' as const,
+      typeLabel: getDailyLedgerEvidenceTypeLabel('timeline'),
+      title: event.title,
+      text: `${event.year}｜${event.text}`,
+      tags: [...baseTags, 'timeline', event.year],
+      ctaHash: sectionIds.experience,
+    } satisfies DailyLedgerEvidence)),
+    {
+      id: `${scenario.id}:ledger:real-history`,
+      scenario,
+      type: 'real-history',
+      typeLabel: getDailyLedgerEvidenceTypeLabel('real-history'),
+      title: '真实历史对照',
+      text: scenario.realHistory,
+      tags: [...baseTags, 'outcome', 'not precise accounting'],
+      ctaHash: sectionIds.decisionPanel,
+    },
+    {
+      id: `${scenario.id}:ledger:source-limit`,
+      scenario,
+      type: 'source-limit',
+      typeLabel: getDailyLedgerEvidenceTypeLabel('source-limit'),
+      title: '证据使用边界',
+      text: scenario.sourceEvidenceUse || scenario.interpretationNote,
+      tags: [...baseTags, 'source limits', 'learning analysis'],
+      ctaHash: sectionIds.sourceReader,
+    },
+  ]
+}
+
+function getEmptyDailyLedgerDraft(scenario: Scenario): DailyLedgerDraft {
+  return {
+    selectedEvidenceIds: buildDailyLedgerEvidence(scenario).slice(0, 6).map((entry) => entry.id),
+    allocation: {
+      work: 'high',
+      care: 'medium',
+      learning: 'medium',
+      exchange: 'medium',
+      safety: 'high',
+    },
+    resourcePressure: '',
+    dependencyMap: '',
+    tradeoffClaim: '',
+    choiceBoundary: '',
+    sourceLimitNote: '',
+    finalLedgerBrief: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function parseDailyLedgerAllocation(value: unknown): Record<DailyLedgerAllocationKey, DailyLedgerPressureLevel> {
+  const fallback = getEmptyDailyLedgerDraft(scenarios[0]).allocation
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback
+  const record = value as Partial<Record<DailyLedgerAllocationKey, DailyLedgerPressureLevel>>
+  return Object.fromEntries(dailyLedgerAllocationKeys.map((key) => [
+    key,
+    record[key] && record[key] in dailyLedgerPressureLabels ? record[key] : fallback[key],
+  ])) as Record<DailyLedgerAllocationKey, DailyLedgerPressureLevel>
+}
+
+function parseDailyLedgerDraftState(rawState: string | null): DailyLedgerDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) return {}
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+        const draft = value as Partial<DailyLedgerDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in dailyLedgerConfidenceLabels ? draft.confidence : 'uncertain'
+
+        return [[
+          key,
+          {
+            selectedEvidenceIds,
+            allocation: parseDailyLedgerAllocation(draft.allocation),
+            resourcePressure: typeof draft.resourcePressure === 'string' ? draft.resourcePressure : '',
+            dependencyMap: typeof draft.dependencyMap === 'string' ? draft.dependencyMap : '',
+            tradeoffClaim: typeof draft.tradeoffClaim === 'string' ? draft.tradeoffClaim : '',
+            choiceBoundary: typeof draft.choiceBoundary === 'string' ? draft.choiceBoundary : '',
+            sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+            finalLedgerBrief: typeof draft.finalLedgerBrief === 'string' ? draft.finalLedgerBrief : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies DailyLedgerDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {}
+  }
+}
+
+function hasDailyLedgerDraftActivity(draft: DailyLedgerDraft) {
+  const emptyAllocation = getEmptyDailyLedgerDraft(scenarios[0]).allocation
+  return Boolean(
+    draft.selectedEvidenceIds.length
+      || dailyLedgerAllocationKeys.some((key) => draft.allocation[key] !== emptyAllocation[key])
+      || draft.resourcePressure.trim()
+      || draft.dependencyMap.trim()
+      || draft.tradeoffClaim.trim()
+      || draft.choiceBoundary.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.finalLedgerBrief.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveDailyLedgerDrafts(dailyLedgerDraftState: DailyLedgerDraftState) {
+  return Object.entries(dailyLedgerDraftState).filter((entry): entry is [string, DailyLedgerDraft] => hasDailyLedgerDraftActivity(entry[1]))
+}
+
+function getDailyLedgerStats(dailyLedgerDraftState: DailyLedgerDraftState): DailyLedgerStats {
+  const activeDrafts = getActiveDailyLedgerDrafts(dailyLedgerDraftState)
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceIds.length, 0),
+    recentDrafts: [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '')).slice(0, 4),
+  }
+}
+
+function loadDailyLedgerDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseDailyLedgerDraftState(localStorage?.getItem(dailyLedgerDraftStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasDailyLedgerDraftActivity)) {
+    return localState
+  }
+
+  return parseDailyLedgerDraftState(sessionStorage?.getItem(dailyLedgerDraftStorageKey) ?? null)
+}
+
+function persistDailyLedgerDraftState(state: DailyLedgerDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(dailyLedgerDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(dailyLedgerDraftStorageKey, serializedState)
+}
+
+function formatDailyLedgerAllocationSummary(allocation: Record<DailyLedgerAllocationKey, DailyLedgerPressureLevel>) {
+  return dailyLedgerAllocationKeys.map((key) => `${dailyLedgerAllocationLabels[key]}=${dailyLedgerPressureLabels[allocation[key]]}`).join('；')
+}
+
+function formatDailyLedgerBrief(scenario: Scenario, draft: DailyLedgerDraft, selectedEvidence: DailyLedgerEvidence[]) {
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : buildDailyLedgerEvidence(scenario).slice(0, 8)
+
+  return [
+    'TimeAtlas Daily Economy & Time Budget Desk / 日常资源与时间账本工作台',
+    `生成时间：${new Date().toLocaleString()}`,
+    `场景：${scenario.title}（${scenario.era}｜${scenario.location}）`,
+    `身份：${scenario.identity}`,
+    '',
+    '边界提醒：这是学习性的资源压力分析，用轻量等级讨论时间、劳动、风险与交换依赖；不是精确历史收支表，也不是一份真实小时制时间表。',
+    '',
+    '一、Allocation pressure / 资源与时间压力等级',
+    formatDailyLedgerAllocationSummary(draft.allocation),
+    '',
+    '二、Selected evidence / 已选证据',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.typeLabel}｜${entry.title}
+   ${entry.text}
+   标签：${entry.tags.slice(0, 8).join('、') || '无'}`),
+    '',
+    '三、Ledger memo / 账本草稿',
+    `Resource pressure：${draft.resourcePressure.trim() || '尚未填写'}`,
+    `Dependency map：${draft.dependencyMap.trim() || '尚未填写'}`,
+    `Tradeoff claim：${draft.tradeoffClaim.trim() || '尚未填写'}`,
+    `Choice boundary：${draft.choiceBoundary.trim() || '尚未填写'}`,
+    `Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `Final ledger brief：${draft.finalLedgerBrief.trim() || '尚未填写'}`,
+    `Confidence：${dailyLedgerConfidenceLabels[draft.confidence]}`,
+    `完成状态：${draft.completed ? '完成' : '草稿'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatDailyLedgerTaskSheet(scenario: Scenario) {
+  const evidence = buildDailyLedgerEvidence(scenario).slice(0, 8)
+  return [
+    `TimeAtlas Daily Economy & Time Budget Desk Assignment：${scenario.title}`,
+    `身份：${scenario.identity}｜${scenario.era}｜${scenario.location}`,
+    '',
+    '任务：不用真实小时数或精确收支，使用低/中/高/极高等级，分析这个身份的一天中资源、时间、劳动、照护、学习、交换依赖与风险如何限制选择。',
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.typeLabel}｜${entry.title}：${entry.text}`),
+    '',
+    '工作区字段：allocation levels；resourcePressure；dependencyMap；tradeoffClaim；choiceBoundary；sourceLimitNote；finalLedgerBrief；confidence。',
+    '自检：□ 没有写成真实小时制日程  □ 至少引用 3 条 daily/source/scene 证据  □ 明确交换依赖与风险  □ 说明来源限制',
+    '交付物：一份 Daily Ledger Brief。',
+  ].join('\n')
 }
 
 function getEmptyTaskWorkbenchDraft(taskId: string): TaskWorkbenchDraft {
@@ -7624,6 +7960,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'material-culture': 'Material Culture draft / 物件证据草稿',
     dispatch: 'Scenario Dispatch draft / 情境简报草稿',
     'decision-replay': 'Decision Replay draft / 历史选择复盘草稿',
+    'daily-ledger': 'Daily Ledger draft / 日常资源账本草稿',
     'source-annotation': 'Source Annotation draft / 来源注释草稿',
     'question-bank': 'Question Bank draft / 形成性问题草稿',
     'mission-work': 'Mission work / 场景任务草稿',
@@ -7660,6 +7997,7 @@ function buildSynthesisEvidencePool({
   materialCultureDraftState,
   dispatchDraftState,
   decisionReplayDraftState,
+  dailyLedgerDraftState,
   exhibitDraftState,
   vocabularyClinicDraftState,
   questionBankDraftState,
@@ -7683,6 +8021,7 @@ function buildSynthesisEvidencePool({
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
   decisionReplayDraftState: DecisionReplayDraftState
+  dailyLedgerDraftState: DailyLedgerDraftState
   exhibitDraftState: ExhibitStudioDraftState
   vocabularyClinicDraftState: VocabularyClinicDraftState
   questionBankDraftState: QuestionBankDraftState
@@ -8019,6 +8358,28 @@ function buildSynthesisEvidencePool({
       scenarioTitle: scenario.title,
       scenarioId: scenario.id,
       inquiryTitle: scenario.decision.prompt,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveDailyLedgerDrafts(dailyLedgerDraftState).forEach(([scenarioId, draft]) => {
+    const scenario = getScenarioById(scenarioId)
+    if (!scenario) return
+    const evidence = buildDailyLedgerEvidence(scenario)
+    const selectedEvidence = draft.selectedEvidenceIds
+      .map((id) => evidence.find((entry) => entry.id === id))
+      .filter((entry): entry is DailyLedgerEvidence => Boolean(entry))
+
+    entries.push({
+      id: makeSynthesisEvidenceId('daily-ledger', scenarioId),
+      origin: 'daily-ledger',
+      originLabel: getSynthesisOriginLabel('daily-ledger'),
+      title: `Daily Ledger：${scenario.title}`,
+      text: [`资源压力：${draft.resourcePressure}`, `依赖地图：${draft.dependencyMap}`, `权衡主张：${draft.tradeoffClaim}`, `选择边界：${draft.choiceBoundary}`, `来源限制：${draft.sourceLimitNote}`, `Final brief：${draft.finalLedgerBrief}`].filter((line) => !line.match(/：\s*$|:\s*$/)).join('｜'),
+      tags: ['daily ledger', 'resource pressure', 'time budget', scenario.region, scenario.theme, ...selectedEvidence.slice(0, 4).map((entry) => entry.typeLabel), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: scenario.title,
+      scenarioId: scenario.id,
+      inquiryTitle: 'Daily Economy & Time Budget Desk',
       updatedAt: draft.updatedAt,
     })
   })
@@ -8490,6 +8851,7 @@ function formatLearningArchive(
   materialCultureDraftState: MaterialCultureDraftState,
   dispatchDraftState: DispatchDraftState,
   decisionReplayDraftState: DecisionReplayDraftState,
+  dailyLedgerDraftState: DailyLedgerDraftState,
   exhibitDraftState: ExhibitStudioDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
@@ -8521,6 +8883,7 @@ function formatLearningArchive(
   const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
   const decisionReplayStats = getDecisionReplayStats(decisionReplayDraftState)
   const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
+  const dailyLedgerStats = getDailyLedgerStats(dailyLedgerDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -8530,7 +8893,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -8561,6 +8924,7 @@ function formatLearningArchive(
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
     `- Scenario Dispatch 草稿：${dispatchDraftStats.activeCount} drafts，${dispatchDraftStats.completedCount} completed，${dispatchDraftStats.selectedEvidenceCount} selected evidence`,
     `- Decision Replay 历史选择复盘草稿：${decisionReplayStats.draftCount} drafts，${decisionReplayStats.completedCount} completed，${decisionReplayStats.selectedEvidenceCount} selected evidence`,
+    `- Daily Ledger 日常资源账本草稿：${dailyLedgerStats.draftCount} drafts，${dailyLedgerStats.completedCount} completed，${dailyLedgerStats.selectedEvidenceCount} selected evidence`,
     `- Exhibit Studio 展览策展草稿：${exhibitStudioStats.draftCount} drafts，${exhibitStudioStats.completedCount} completed，${exhibitStudioStats.selectedEvidenceCount} selected exhibits`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
@@ -8655,6 +9019,34 @@ function formatLearningArchive(
   })
 
 
+
+  if (dailyLedgerStats.activeDrafts.length > 0) {
+    lines.push('Daily Economy & Time Budget Desk / 日常资源与时间账本：')
+    dailyLedgerStats.activeDrafts.forEach(([scenarioId, draft]) => {
+      const scenario = getScenarioById(scenarioId)
+      if (!scenario) return
+      const evidence = buildDailyLedgerEvidence(scenario)
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((id) => evidence.find((entry) => entry.id === id))
+        .filter((entry): entry is DailyLedgerEvidence => Boolean(entry))
+        .map((entry) => `${entry.typeLabel}｜${entry.title}`)
+
+      lines.push(
+        `  - ${scenario.title}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    Allocation：${formatDailyLedgerAllocationSummary(draft.allocation)}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    Resource pressure：${draft.resourcePressure.trim() || '尚未填写'}`,
+        `    Dependency map：${draft.dependencyMap.trim() || '尚未填写'}`,
+        `    Tradeoff claim：${draft.tradeoffClaim.trim() || '尚未填写'}`,
+        `    Choice boundary：${draft.choiceBoundary.trim() || '尚未填写'}`,
+        `    Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    Final brief：${draft.finalLedgerBrief.trim() || '尚未填写'}`,
+        `    Confidence：${dailyLedgerConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
 
   if (decisionReplayStats.activeDrafts.length > 0) {
     lines.push('Decision Replay Desk / 历史选择复盘工作台：')
@@ -9902,6 +10294,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.decisionPanel
   }
 
+  if (source === 'daily-ledger') {
+    return sectionIds.dailyLife
+  }
+
   if (source === 'question-bank' || source === 'vocabulary-clinic') {
     return sectionIds.lessonPack
   }
@@ -10705,6 +11101,36 @@ function buildTaskLibraryTasks({
 
     decisionReplayTask.searchText = [decisionReplayTask.title, decisionReplayTask.context, decisionReplayTask.category, decisionReplayTask.sourceLabel, decisionReplayTask.summary, decisionReplayTask.deliverable, scenario.decision.context, scenario.realHistory, scenario.interpretationNote, ...decisionReplayTask.tags, ...decisionReplayEvidence.flatMap((entry) => [entry.typeLabel, entry.title, entry.text, ...entry.tags])].join(' ').toLowerCase()
     tasks.push(decisionReplayTask)
+
+    const dailyLedgerEvidence = buildDailyLedgerEvidence(scenario)
+    const dailyLedgerTask: LibraryTask = {
+      id: `daily-ledger:${scenario.id}`,
+      title: `${scenario.title} · Daily Economy & Time Budget Desk`,
+      context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+      scenarioId: scenario.id,
+      category: 'Daily Ledger / 日常资源与时间账本',
+      source: 'daily-ledger',
+      sourceLabel: 'Daily Ledger Desk',
+      durationMinutes: 25,
+      durationBand: getDurationBand(25),
+      summary: `分析 ${scenario.identity} 一天中的资源压力、劳动/照护/学习/交换/安全负担和选择边界。`,
+      deliverable: 'Daily Ledger Brief：压力等级、证据、依赖地图、权衡主张、选择边界、来源限制与 confidence',
+      tags: ['Daily Ledger', 'resource pressure', 'time budget', 'daily life', 'labor', 'exchange', 'risk', scenario.region, scenario.theme],
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Daily Ledger Desk',
+      secondaryActionLabel: '打开来源层',
+      onPrimaryAction: () => onOpenScenario(scenario.id, sectionIds.dailyLife),
+      onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.sourceReader),
+      onStartTask: onStartTask ? () => onStartTask(dailyLedgerTask.id) : undefined,
+      workbenchPrompts: ['使用低/中/高/极高等级，不写真实小时数', '说明资源压力与交换依赖如何限制选择', `身份：${scenario.identity}`],
+      checklist: ['勾选至少 3 条 daily / scene / source evidence', '设置 work/care/learning/exchange/safety 压力等级', '写出 resource pressure 与 dependency map', '形成 tradeoff claim 和 choice boundary', '说明 source limit 并完成 Daily Ledger Brief'],
+      evidencePrompts: dailyLedgerEvidence.slice(0, 8).map((entry) => `${entry.typeLabel}｜${entry.title}：${entry.text}`),
+      formatSheet: () => formatDailyLedgerTaskSheet(scenario),
+    }
+
+    dailyLedgerTask.searchText = [dailyLedgerTask.title, dailyLedgerTask.context, dailyLedgerTask.category, dailyLedgerTask.sourceLabel, dailyLedgerTask.summary, dailyLedgerTask.deliverable, ...dailyLedgerTask.tags, ...dailyLedgerEvidence.flatMap((entry) => [entry.typeLabel, entry.title, entry.text, ...entry.tags])].join(' ').toLowerCase()
+    tasks.push(dailyLedgerTask)
 
 
     buildVocabularyPracticeItems().filter((item) => item.scenario.id === scenario.id).forEach((item) => {
@@ -12028,6 +12454,7 @@ function App() {
   const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
   const [dispatchDraftState, setDispatchDraftState] = useState<DispatchDraftState>(loadDispatchDraftState)
   const [decisionReplayDraftState, setDecisionReplayDraftState] = useState<DecisionReplayDraftState>(loadDecisionReplayDraftState)
+  const [dailyLedgerDraftState, setDailyLedgerDraftState] = useState<DailyLedgerDraftState>(loadDailyLedgerDraftState)
   const [exhibitDraftState, setExhibitDraftState] = useState<ExhibitStudioDraftState>(loadExhibitStudioDraftState)
   const [selectedExhibitThemeId, setSelectedExhibitThemeId] = useState(exhibitThemes[0]?.id ?? '')
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
@@ -12061,7 +12488,7 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
@@ -12472,6 +12899,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [decisionReplayDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistDailyLedgerDraftState(dailyLedgerDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [dailyLedgerDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -13129,6 +13568,7 @@ function App() {
             materialCultureDraftState={materialCultureDraftState}
             dispatchDraftState={dispatchDraftState}
             decisionReplayDraftState={decisionReplayDraftState}
+            dailyLedgerDraftState={dailyLedgerDraftState}
             onToggleMission={toggleMission}
             onUpdateMissionWork={setMissionWorkState}
             onUpdateArgumentDraft={setArgumentDraftState}
@@ -13136,8 +13576,11 @@ function App() {
             onUpdateMaterialCultureDraftState={setMaterialCultureDraftState}
             onUpdateDispatchDraftState={setDispatchDraftState}
             onUpdateDecisionReplayDraftState={setDecisionReplayDraftState}
+            onUpdateDailyLedgerDraftState={setDailyLedgerDraftState}
             prefersReducedMotion={prefersReducedMotion}
             onOpenDebateStudio={openDebateStudio}
+            onOpenScenario={selectScenario}
+            onStartTask={startTaskWorkbench}
           />
         ) : null}
 
@@ -13514,6 +13957,7 @@ function App() {
                 materialCultureDraftState={materialCultureDraftState}
                 dispatchDraftState={dispatchDraftState}
                 decisionReplayDraftState={decisionReplayDraftState}
+                dailyLedgerDraftState={dailyLedgerDraftState}
                 exhibitDraftState={exhibitDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
@@ -18380,6 +18824,7 @@ function PortfolioPanel({
   materialCultureDraftState,
   dispatchDraftState,
   decisionReplayDraftState,
+  dailyLedgerDraftState,
   exhibitDraftState,
   taskWorkbenchDraftState,
 }: {
@@ -18411,6 +18856,7 @@ function PortfolioPanel({
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
   decisionReplayDraftState: DecisionReplayDraftState
+  dailyLedgerDraftState: DailyLedgerDraftState
   exhibitDraftState: ExhibitStudioDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
@@ -18438,6 +18884,7 @@ function PortfolioPanel({
   const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
   const decisionReplayStats = getDecisionReplayStats(decisionReplayDraftState)
   const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
+  const dailyLedgerStats = getDailyLedgerStats(dailyLedgerDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
@@ -18468,6 +18915,7 @@ function PortfolioPanel({
   const recentDispatchDrafts = dispatchDraftStats.recentDrafts.slice(0, 3)
   const recentDecisionReplayDrafts = decisionReplayStats.recentDrafts.slice(0, 3)
   const recentExhibitDrafts = exhibitStudioStats.recentDrafts.slice(0, 3)
+  const recentDailyLedgerDrafts = dailyLedgerStats.recentDrafts.slice(0, 3)
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
@@ -18478,7 +18926,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -18542,6 +18990,8 @@ function PortfolioPanel({
               { label: '简报完成', value: dispatchDraftStats.completedCount },
               { label: '选择复盘', value: decisionReplayStats.draftCount },
               { label: '复盘完成', value: decisionReplayStats.completedCount },
+              { label: '日常账本', value: dailyLedgerStats.draftCount },
+              { label: '账本完成', value: dailyLedgerStats.completedCount },
               { label: '展览策展', value: exhibitStudioStats.draftCount },
               { label: '展览完成', value: exhibitStudioStats.completedCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
@@ -18562,7 +19012,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -18697,6 +19147,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{scenario?.title ?? scenarioId}</div>
                       <div>Decision Replay · {option?.label ?? '未选择'} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条证据</div>
                       <div className="mt-1 text-stone-500">{draft.finalDecisionMemo.trim() || draft.constraints.trim() || draft.situationReading.trim() || '尚未填写 decision memo'}</div>
+                    </div>
+                  )
+                })}
+                {recentDailyLedgerDrafts.map(([scenarioId, draft]) => {
+                  const scenario = getScenarioById(scenarioId)
+
+                  return (
+                    <div key={`daily-ledger:${scenarioId}`} className="rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{scenario?.title ?? scenarioId}</div>
+                      <div>Daily Ledger · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条证据</div>
+                      <div className="mt-1 text-stone-500">{draft.finalLedgerBrief.trim() || draft.tradeoffClaim.trim() || draft.resourcePressure.trim() || '尚未填写 ledger brief'}</div>
                     </div>
                   )
                 })}
@@ -22506,6 +22967,7 @@ function ScenarioExperience({
   materialCultureDraftState,
   dispatchDraftState,
   decisionReplayDraftState,
+  dailyLedgerDraftState,
   onToggleMission,
   onUpdateMissionWork,
   onUpdateArgumentDraft,
@@ -22513,8 +22975,11 @@ function ScenarioExperience({
   onUpdateMaterialCultureDraftState,
   onUpdateDispatchDraftState,
   onUpdateDecisionReplayDraftState,
+  onUpdateDailyLedgerDraftState,
   prefersReducedMotion,
   onOpenDebateStudio,
+  onOpenScenario,
+  onStartTask,
 }: {
   scenario: Scenario
   selectedTab: ScenarioExperienceTab
@@ -22529,6 +22994,7 @@ function ScenarioExperience({
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
   decisionReplayDraftState: DecisionReplayDraftState
+  dailyLedgerDraftState: DailyLedgerDraftState
   onToggleMission: (scenarioId: string, missionId: string) => void
   onUpdateMissionWork: Dispatch<SetStateAction<MissionWorkState>>
   onUpdateArgumentDraft: Dispatch<SetStateAction<ArgumentDraftState>>
@@ -22536,8 +23002,11 @@ function ScenarioExperience({
   onUpdateMaterialCultureDraftState: Dispatch<SetStateAction<MaterialCultureDraftState>>
   onUpdateDispatchDraftState: Dispatch<SetStateAction<DispatchDraftState>>
   onUpdateDecisionReplayDraftState: Dispatch<SetStateAction<DecisionReplayDraftState>>
+  onUpdateDailyLedgerDraftState: Dispatch<SetStateAction<DailyLedgerDraftState>>
   prefersReducedMotion: boolean | null
   onOpenDebateStudio: (scenarioId: string) => void
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onStartTask: (taskId: string) => void
 }) {
   const scenarioMotion = prefersReducedMotion
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
@@ -22617,7 +23086,18 @@ function ScenarioExperience({
           ) : null}
 
           {selectedTab === 'scenes' ? <SceneReaderPanel scenario={scenario} /> : null}
-          {selectedTab === 'daily' ? <DailyLifeGrid scenario={scenario} /> : null}
+          {selectedTab === 'daily' ? (
+            <div className="space-y-5">
+              <DailyLedgerDeskPanel
+                scenario={scenario}
+                draftState={dailyLedgerDraftState}
+                onUpdateDraftState={onUpdateDailyLedgerDraftState}
+                onOpenScenario={onOpenScenario}
+                onStartTask={onStartTask}
+              />
+              <DailyLifeGrid scenario={scenario} />
+            </div>
+          ) : null}
           {selectedTab === 'dispatches' ? (
             <DispatchBoardPanel
               scenario={scenario}
@@ -23279,6 +23759,187 @@ function SceneReaderPanel({ scenario }: { scenario: Scenario }) {
     </section>
   )
 }
+
+function DailyLedgerDeskPanel({
+  scenario,
+  draftState,
+  onUpdateDraftState,
+  onOpenScenario,
+  onStartTask,
+}: {
+  scenario: Scenario
+  draftState: DailyLedgerDraftState
+  onUpdateDraftState: Dispatch<SetStateAction<DailyLedgerDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onStartTask: (taskId: string) => void
+}) {
+  const [evidenceTypeFilter, setEvidenceTypeFilter] = useState<'all' | DailyLedgerEvidenceType>('all')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const evidence = useMemo(() => buildDailyLedgerEvidence(scenario), [scenario])
+  const draft = draftState[scenario.id] ?? getEmptyDailyLedgerDraft(scenario)
+  const selectedEvidence = evidence.filter((entry) => draft.selectedEvidenceIds.includes(entry.id))
+  const visibleEvidence = evidenceTypeFilter === 'all' ? evidence : evidence.filter((entry) => entry.type === evidenceTypeFilter)
+  const completedFields = [draft.resourcePressure, draft.dependencyMap, draft.tradeoffClaim, draft.choiceBoundary, draft.sourceLimitNote, draft.finalLedgerBrief].filter((value) => value.trim()).length
+  const evidenceTypes = Array.from(new Set(evidence.map((entry) => entry.type)))
+
+  useEffect(() => {
+    setCopyStatus('idle')
+    setEvidenceTypeFilter('all')
+  }, [scenario.id])
+
+  function updateDraft(patch: Partial<DailyLedgerDraft>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [scenario.id]: {
+        ...(currentState[scenario.id] ?? getEmptyDailyLedgerDraft(scenario)),
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const selectedEvidenceIds = draft.selectedEvidenceIds.includes(evidenceId)
+      ? draft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...draft.selectedEvidenceIds, evidenceId]
+    updateDraft({ selectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[scenario.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatDailyLedgerBrief(scenario, draft, selectedEvidence))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    downloadTextFile(`timeatlas-${scenario.id}-daily-ledger-brief.txt`, formatDailyLedgerBrief(scenario, draft, selectedEvidence))
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-teal-200/15 bg-teal-100/[0.045] p-5 shadow-2xl shadow-black/20" aria-labelledby="daily-ledger-title">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3 text-teal-100">
+            <Scale size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">Daily Economy & Time Budget Desk</span>
+          </div>
+          <h2 id="daily-ledger-title" className="text-3xl font-semibold tracking-tight text-stone-50">日常资源与时间账本</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-stone-400">用低/中/高/极高等级分析资源、时间、劳动、风险与交换依赖如何限制选择。边界：这是学习性资源压力分析，不是精确历史收支或真实小时制时间表。</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-teal-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-teal-200">
+            {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+            {copyStatus === 'copied' ? '已复制 Brief' : copyStatus === 'failed' ? '复制失败' : '复制 Daily Ledger Brief'}
+          </button>
+          <button type="button" onClick={downloadBrief} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-teal-100/30 hover:bg-white/[0.05]">下载 txt</button>
+          <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-400 transition hover:border-red-200/30 hover:text-red-100">清空草稿</button>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
+        <aside className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-teal-100">Compact summary</h3>
+            <p className="mt-2 text-sm leading-6 text-stone-400">{scenario.identity} · {scenario.location}</p>
+            <p className="mt-2 text-xs text-stone-500">fields {completedFields}/6 · evidence {selectedEvidence.length}/{evidence.length} · {draft.completed ? '已完成' : '草稿'}</p>
+            <p className="mt-2 text-xs text-stone-500">{formatDailyLedgerAllocationSummary(draft.allocation)}</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-stone-50">Evidence & pressure rail</h3>
+              <select value={evidenceTypeFilter} onChange={(event) => setEvidenceTypeFilter(event.target.value as 'all' | DailyLedgerEvidenceType)} className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs text-stone-100 outline-none">
+                <option value="all">All types</option>
+                {evidenceTypes.map((type) => <option key={type} value={type}>{getDailyLedgerEvidenceTypeLabel(type)}</option>)}
+              </select>
+            </div>
+            <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+              {visibleEvidence.map((entry) => (
+                <button key={entry.id} type="button" onClick={() => toggleEvidence(entry.id)} className={`w-full rounded-2xl border p-3 text-left transition ${draft.selectedEvidenceIds.includes(entry.id) ? 'border-teal-200/45 bg-teal-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-teal-100/25'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.14em] text-teal-100/80">{entry.typeLabel}</div>
+                      <div className="mt-1 font-semibold text-stone-50">{entry.title}</div>
+                    </div>
+                    {draft.selectedEvidenceIds.includes(entry.id) ? <CheckCircle2 size={16} className="shrink-0 text-teal-100" /> : <Circle size={16} className="shrink-0 text-stone-600" />}
+                  </div>
+                  <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-500">{entry.text}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="grid gap-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-stone-50">Resource / time allocation controls</h3>
+            <p className="mt-1 text-xs text-stone-500">只标轻量等级，不填写真实小时数。</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {dailyLedgerAllocationKeys.map((key) => (
+                <label key={key} className="block rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                  <span className="block text-xs uppercase tracking-[0.14em] text-stone-500">{dailyLedgerAllocationLabels[key]}</span>
+                  <select value={draft.allocation[key]} onChange={(event) => updateDraft({ allocation: { ...draft.allocation, [key]: event.target.value as DailyLedgerPressureLevel } })} className="mt-2 w-full rounded-full border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none">
+                    {(Object.entries(dailyLedgerPressureLabels) as [DailyLedgerPressureLevel, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {([
+              ['resourcePressure', 'Resource pressure', '哪些资源/时间压力最紧？证据是什么？'],
+              ['dependencyMap', 'Dependency map', '依赖谁、什么制度、市场或家庭劳动才能行动？'],
+              ['tradeoffClaim', 'Tradeoff claim', '一个选择会牺牲或挤压什么？'],
+              ['choiceBoundary', 'Choice boundary', '这个身份可选与不可选的边界在哪里？'],
+              ['sourceLimitNote', 'Source limit note', '来源看不到哪些账本细节或劳动？'],
+              ['finalLedgerBrief', 'Final ledger brief', '用 2-4 句总结资源压力如何限制选择。'],
+            ] as [keyof Omit<DailyLedgerDraft, 'selectedEvidenceIds' | 'allocation' | 'confidence' | 'completed' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+              <label key={field} className="block rounded-3xl border border-white/10 bg-black/20 p-4">
+                <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+                <textarea value={draft[field]} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<DailyLedgerDraft>)} placeholder={placeholder} rows={field === 'finalLedgerBrief' ? 4 : 3} className="mt-2 w-full resize-y rounded-2xl border border-white/10 bg-stone-950/70 px-3 py-2 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-700 focus:border-teal-100/50" />
+              </label>
+            ))}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <span className="text-xs uppercase tracking-[0.18em] text-stone-500">Confidence</span>
+                <select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ChronologyConfidence })} className="mt-2 w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none">
+                  {(Object.entries(dailyLedgerConfidenceLabels) as [ChronologyConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label className="mt-6 inline-flex cursor-pointer items-center gap-3 rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-4 py-3 text-sm text-teal-100">
+                <input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} className="h-4 w-4 rounded border-white/20 bg-black text-teal-300 focus:ring-teal-200" />标记完成
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-stone-300 transition hover:border-teal-100/30 hover:text-teal-100">打开 Scene Reader</button>
+              <button type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.decisionPanel)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-stone-300 transition hover:border-teal-100/30 hover:text-teal-100">打开 Decision Replay</button>
+              <button type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sourceReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-stone-300 transition hover:border-teal-100/30 hover:text-teal-100">打开 Source Reader</button>
+              <button type="button" onClick={() => onStartTask(`daily-ledger:${scenario.id}`)} className="rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]">打开 Task Workbench</button>
+            </div>
+            <p className="mt-3 text-xs text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : 'Daily Ledger Brief 会进入 Portfolio、Learning Archive 与 Synthesis evidence pool。'}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 
 function DailyLifeGrid({ scenario }: { scenario: Scenario }) {
   return (
