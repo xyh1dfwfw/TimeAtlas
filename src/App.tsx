@@ -32,6 +32,7 @@ import {
   conceptAtlasTopics,
   exhibitThemes,
   placeInquiries,
+  communicationInquiries,
   scenarios,
   type AtlasInquiryPath,
   type AtlasMapRoute,
@@ -41,6 +42,7 @@ import {
   type ConceptAtlasTopic,
   type ExhibitTheme,
   type PlaceInquiry,
+  type CommunicationInquiry,
   type DailyLifeKey,
   type ActivityPack,
   type ActivityPackMode,
@@ -75,6 +77,7 @@ const sourceAnnotationStorageKey = 'timeatlas:source-annotation-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const chronologyDeskStorageKey = 'timeatlas:chronology-desk-drafts'
 const placeDeskStorageKey = 'timeatlas:place-desk-drafts'
+const messageFlowDeskStorageKey = 'timeatlas:message-flow-desk-drafts'
 const conceptAtlasDraftStorageKey = 'timeatlas:concept-atlas-drafts'
 const exhibitStudioStorageKey = 'timeatlas:exhibit-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
@@ -106,6 +109,7 @@ const sectionIds = {
   sourceReader: 'source-reader',
   evidenceCaseFiles: 'case-files',
   sourceAnnotationStudio: 'source-annotation-studio',
+  messageFlowDesk: 'message-flow-desk',
   causationLab: 'causation-lab',
   periodizationLab: 'periodization-lab',
   perspectivesLab: 'perspectives-agency-lab',
@@ -561,6 +565,48 @@ type PlaceDeskStats = {
   recentDrafts: [string, PlaceDraft][]
 }
 
+type MessageFlowEvidenceType = 'scene-message' | 'timeline' | 'source' | 'decision' | 'daily-life' | 'key-term' | 'real-history' | 'interpretation-boundary'
+
+type MessageFlowEvidence = {
+  id: string
+  inquiryId: string
+  scenario: Scenario
+  type: MessageFlowEvidenceType
+  typeLabel: string
+  title: string
+  text: string
+  routeHint: string
+  accessHint: string
+  distortionHint: string
+  tags: string[]
+  ctaHash: ScenarioSectionId
+}
+
+type MessageFlowDraft = {
+  selectedEvidenceIds: string[]
+  messageOrClaim: string
+  mediumAndRoute: string
+  accessAndGatekeepers: string
+  distortionOrRisk: string
+  whatSurvivesAsEvidence: string
+  responseOrConsequence: string
+  sourceLimitNote: string
+  finalCommunicationBrief: string
+  confidence: ChronologyConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type MessageFlowDraftState = Record<string, MessageFlowDraft>
+
+type MessageFlowDeskStats = {
+  activeDrafts: [string, MessageFlowDraft][]
+  draftCount: number
+  completedCount: number
+  selectedEvidenceCount: number
+  recentDrafts: [string, MessageFlowDraft][]
+}
+
 type ConceptAtlasConfidence = 'high' | 'medium' | 'low' | 'uncertain'
 
 type ConceptAtlasEvidence = {
@@ -674,6 +720,7 @@ type SynthesisInquiryPreset = {
 }
 
 type SynthesisEvidenceOrigin =
+  | 'message-flow'
   | 'counterfactual'
   | 'vocabulary-clinic'
   | 'question-bank'
@@ -819,7 +866,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'message-flow' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -855,7 +902,7 @@ type SubpageNavItem<T extends string> = {
 }
 
 type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'missions' | 'pathways' | 'compare'
-type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'case-files'
+type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'message-flow' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
 type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'questions' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
@@ -864,6 +911,7 @@ type DebateDuration = 15 | 30 | 45
 const evidenceSubpages: SubpageNavItem<EvidenceSubpage>[] = [
   { id: 'source-atlas', label: 'Source Atlas', eyebrow: 'Atlas', description: '全站来源搜索、证据篮与互证', hash: 'source-atlas' },
   { id: 'source-annotation', label: '来源注释', eyebrow: 'Notebook', description: '单条来源精读、摘记、释义与证据标签化', hash: sectionIds.sourceAnnotationStudio },
+  { id: 'message-flow', label: '信息流', eyebrow: 'Media', description: '消息、媒介、传闻、接触门槛与证据幸存', hash: sectionIds.messageFlowDesk },
   { id: 'case-files', label: 'Case Files', eyebrow: 'Quests', description: '6 个来源任务档案与证据包', hash: sectionIds.evidenceCaseFiles },
 ]
 
@@ -1264,6 +1312,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'decision-replay', label: 'Decision Replay Desk' },
   { value: 'daily-ledger', label: 'Daily Ledger Desk' },
   { value: 'source-annotation', label: 'Source Annotation Notebook' },
+  { value: 'message-flow', label: 'Message Flow Desk' },
   { value: 'vocabulary-clinic', label: 'Vocabulary Clinic' },
   { value: 'question-bank', label: 'Question Bank' },
   { value: 'inquiry', label: 'Inquiry Paths' },
@@ -2216,6 +2265,52 @@ function parseChronologyDraftState(rawState: string | null): ChronologyDraftStat
   }
 }
 
+function parseMessageFlowDraftState(rawState: string | null): MessageFlowDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as MessageFlowDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<MessageFlowDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in chronologyConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            selectedEvidenceIds,
+            messageOrClaim: typeof draft.messageOrClaim === 'string' ? draft.messageOrClaim : '',
+            mediumAndRoute: typeof draft.mediumAndRoute === 'string' ? draft.mediumAndRoute : '',
+            accessAndGatekeepers: typeof draft.accessAndGatekeepers === 'string' ? draft.accessAndGatekeepers : '',
+            distortionOrRisk: typeof draft.distortionOrRisk === 'string' ? draft.distortionOrRisk : '',
+            whatSurvivesAsEvidence: typeof draft.whatSurvivesAsEvidence === 'string' ? draft.whatSurvivesAsEvidence : '',
+            responseOrConsequence: typeof draft.responseOrConsequence === 'string' ? draft.responseOrConsequence : '',
+            sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+            finalCommunicationBrief: typeof draft.finalCommunicationBrief === 'string' ? draft.finalCommunicationBrief : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies MessageFlowDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as MessageFlowDraftState
+  }
+}
+
 function parseCounterfactualDraftState(rawState: string | null): CounterfactualDraftState {
   try {
     const parsedState = rawState ? JSON.parse(rawState) : {}
@@ -2985,6 +3080,30 @@ function persistChronologyDraftState(state: ChronologyDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(chronologyDeskStorageKey, serializedState)
+}
+
+function loadMessageFlowDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseMessageFlowDraftState(localStorage?.getItem(messageFlowDeskStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasMessageFlowDraftActivity)) {
+    return localState
+  }
+
+  return parseMessageFlowDraftState(sessionStorage?.getItem(messageFlowDeskStorageKey) ?? null)
+}
+
+function persistMessageFlowDraftState(state: MessageFlowDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(messageFlowDeskStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(messageFlowDeskStorageKey, serializedState)
 }
 
 function loadCounterfactualDraftState() {
@@ -5801,6 +5920,41 @@ function getActiveChronologyDrafts(chronologyDraftState: ChronologyDraftState) {
   return Object.entries(chronologyDraftState).filter(([, draft]) => hasChronologyDraftActivity(draft))
 }
 
+function hasMessageFlowDraftActivity(draft: MessageFlowDraft) {
+  return Boolean(
+    draft.selectedEvidenceIds.length
+      || draft.messageOrClaim.trim()
+      || draft.mediumAndRoute.trim()
+      || draft.accessAndGatekeepers.trim()
+      || draft.distortionOrRisk.trim()
+      || draft.whatSurvivesAsEvidence.trim()
+      || draft.responseOrConsequence.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.finalCommunicationBrief.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveMessageFlowDrafts(messageFlowDraftState: MessageFlowDraftState) {
+  return Object.entries(messageFlowDraftState).filter((entry): entry is [string, MessageFlowDraft] => hasMessageFlowDraftActivity(entry[1]))
+}
+
+function getMessageFlowDeskStats(messageFlowDraftState: MessageFlowDraftState): MessageFlowDeskStats {
+  const activeDrafts = getActiveMessageFlowDrafts(messageFlowDraftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => new Date(second[1].updatedAt ?? 0).getTime() - new Date(first[1].updatedAt ?? 0).getTime())
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceIds.length, 0),
+    recentDrafts,
+  }
+}
+
 function getEmptyCounterfactualDraft(challenge?: CounterfactualChallenge): CounterfactualDraft {
   return {
     selectedEvidenceIds: challenge ? buildCounterfactualEvidence(challenge).slice(0, 5).map((entry) => entry.id) : [],
@@ -7769,6 +7923,236 @@ function formatPlaceTaskSheet(inquiry: PlaceInquiry) {
   ].join('\n')
 }
 
+const messageFlowEvidenceTypeLabels: Record<MessageFlowEvidenceType, string> = {
+  'scene-message': 'Scene message / 现场消息',
+  timeline: 'Timeline / 背景时间',
+  source: 'Source / 来源媒介',
+  decision: 'Decision / 行动判断',
+  'daily-life': 'Daily life / 日常接触',
+  'key-term': 'Key term / 术语线索',
+  'real-history': 'Real history / 后果边界',
+  'interpretation-boundary': 'Interpretation boundary / 解释边界',
+}
+
+function scoreMessageFlowEvidence(inquiry: CommunicationInquiry, text: string) {
+  const normalizedText = text.toLowerCase()
+  return inquiry.tags.reduce((score, tag) => {
+    const words = tag.toLowerCase().split(/\s+|、|\/|-/).filter((word) => word.length > 2)
+    return score + words.reduce((innerScore, word) => innerScore + (normalizedText.includes(word) ? 1 : 0), 0)
+  }, 0)
+}
+
+function rankMessageFlowEvidence<T extends MessageFlowEvidence>(inquiry: CommunicationInquiry, entries: T[]) {
+  return [...entries].sort((first, second) => scoreMessageFlowEvidence(inquiry, [second.title, second.text, second.routeHint, second.accessHint, second.distortionHint, ...second.tags].join(' ')) - scoreMessageFlowEvidence(inquiry, [first.title, first.text, first.routeHint, first.accessHint, first.distortionHint, ...first.tags].join(' ')))
+}
+
+function buildMessageFlowEvidence(inquiry: CommunicationInquiry): MessageFlowEvidence[] {
+  return inquiry.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+    if (!scenario) return []
+    const baseTags = [scenario.era, scenario.location, scenario.region, scenario.theme, ...inquiry.tags.slice(0, 4)]
+    const sceneEntries = rankMessageFlowEvidence(inquiry, scenario.sceneBeats.map((beat, index): MessageFlowEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:scene:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'scene-message',
+      typeLabel: messageFlowEvidenceTypeLabels['scene-message'],
+      title: `${beat.timeLabel} · ${beat.title}`,
+      text: `${beat.sensoryDetail}｜${beat.historicalTension}｜${beat.evidenceHook}`,
+      routeHint: beat.learnerPrompt,
+      accessHint: `Linked daily contexts：${beat.linkedDailyLifeKeys.join(' / ') || 'scene context'}`,
+      distortionHint: '现场叙事只能提示消息接触点，不能当作单一史料逐字复原。',
+      tags: [...baseTags, 'scene beat', ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)].slice(0, 12),
+      ctaHash: sectionIds.sceneReader,
+    }))).slice(0, 3)
+    const timelineEntries = scenario.timeline.slice(0, 2).map((event, index): MessageFlowEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:timeline:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'timeline',
+      typeLabel: messageFlowEvidenceTypeLabels.timeline,
+      title: `${event.year} · ${event.title}`,
+      text: event.text,
+      routeHint: '时间线帮助定位消息出现、制度变化或危机背景的先后。',
+      accessHint: '普通人未必能同时知道完整时间线；需区分当时可知与后世整理。',
+      distortionHint: '长时段摘要可能压缩了消息延迟、传闻和地方差异。',
+      tags: [...baseTags, 'timeline', event.year].slice(0, 12),
+      ctaHash: sectionIds.experience,
+    }))
+    const sourceEntries = rankMessageFlowEvidence(inquiry, scenario.sources.slice(0, 4).map((source, index): MessageFlowEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:source:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'source',
+      typeLabel: messageFlowEvidenceTypeLabels.source,
+      title: source.title,
+      text: `${source.excerpt}｜视角：${source.perspective}`,
+      routeHint: source.sourceQuestion,
+      accessHint: `媒介/保存者：${source.creator}；类型：${sourceTypeLabels[source.sourceType]}`,
+      distortionHint: source.reliabilityNote,
+      tags: [...baseTags, sourceTypeLabels[source.sourceType], source.creator, ...source.evidenceTags].slice(0, 12),
+      ctaHash: sectionIds.sourceReader,
+    }))).slice(0, 3)
+    const decisionEntry: MessageFlowEvidence = {
+      id: `${inquiry.id}:${scenario.id}:decision`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'decision',
+      typeLabel: messageFlowEvidenceTypeLabels.decision,
+      title: scenario.decision.prompt,
+      text: `${scenario.decision.context}｜可选行动：${scenario.decision.options.slice(0, 2).map((option) => `${option.label}（${option.stance}）`).join(' / ')}`,
+      routeHint: '把消息转化为等待、避险、交易、通报或记录等行动判断。',
+      accessHint: '比较不同 option 暗含的可得信息、守门人和行动窗口。',
+      distortionHint: '不要用真实结局倒推当事人当时已经知道全部信息。',
+      tags: [...baseTags, 'decision', 'available knowledge', 'consequence'].slice(0, 12),
+      ctaHash: sectionIds.decisionPanel,
+    }
+    const dailyEntries = rankMessageFlowEvidence(inquiry, scenario.dailyLife.map((section): MessageFlowEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:daily:${section.key}`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'daily-life',
+      typeLabel: messageFlowEvidenceTypeLabels['daily-life'],
+      title: section.title,
+      text: section.text,
+      routeHint: `日常接触面：${section.label}。`,
+      accessHint: '日常空间说明谁可能听见、误听、被排除或被迫依赖他人转述。',
+      distortionHint: '日常切片是综合学习叙事，需用来源层校准。',
+      tags: [...baseTags, section.key, section.label].slice(0, 12),
+      ctaHash: sectionIds.dailyLife,
+    }))).slice(0, 2)
+    const termEntries = scenario.keyTerms.slice(0, 2).map((term, index): MessageFlowEvidence => ({
+      id: `${inquiry.id}:${scenario.id}:term:${index}`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'key-term',
+      typeLabel: messageFlowEvidenceTypeLabels['key-term'],
+      title: term.term,
+      text: term.definition,
+      routeHint: '术语帮助命名媒介、规则、身份或信息门槛。',
+      accessHint: '能否理解术语本身也是一种知识接触门槛。',
+      distortionHint: '术语不能替代具体证据；需说明其历史语境。',
+      tags: [...baseTags, 'key term', term.term].slice(0, 12),
+      ctaHash: sectionIds.experience,
+    }))
+    const realHistoryEntry: MessageFlowEvidence = {
+      id: `${inquiry.id}:${scenario.id}:real-history`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'real-history',
+      typeLabel: messageFlowEvidenceTypeLabels['real-history'],
+      title: '真实历史对照',
+      text: scenario.realHistory,
+      routeHint: '用真实后果检查消息流动的后续影响。',
+      accessHint: '真实后果多为后世可知，不等于当事人当时可知。',
+      distortionHint: '警惕以后见之明替代当时信息环境。',
+      tags: [...baseTags, 'real history', 'consequence'].slice(0, 12),
+      ctaHash: sectionIds.decisionPanel,
+    }
+    const boundaryEntry: MessageFlowEvidence = {
+      id: `${inquiry.id}:${scenario.id}:interpretation-boundary`,
+      inquiryId: inquiry.id,
+      scenario,
+      type: 'interpretation-boundary',
+      typeLabel: messageFlowEvidenceTypeLabels['interpretation-boundary'],
+      title: '解释与来源边界',
+      text: scenario.sourceEvidenceUse || scenario.interpretationNote,
+      routeHint: '说明哪些证据能支持消息流动分析，哪些只是解释性边界。',
+      accessHint: '来源幸存与解释边界会影响我们能看见谁接触了消息。',
+      distortionHint: scenario.interpretationNote,
+      tags: [...baseTags, 'source limits', 'interpretation boundary'].slice(0, 12),
+      ctaHash: sectionIds.sourceReader,
+    }
+
+    return [...sceneEntries, ...timelineEntries, ...sourceEntries, decisionEntry, ...dailyEntries, ...termEntries, realHistoryEntry, boundaryEntry]
+  })
+}
+
+function getMessageFlowEvidenceByInquiryMap() {
+  return Object.fromEntries(communicationInquiries.map((inquiry) => [inquiry.id, buildMessageFlowEvidence(inquiry)])) as Record<string, MessageFlowEvidence[]>
+}
+
+function getEmptyMessageFlowDraft(inquiry?: CommunicationInquiry): MessageFlowDraft {
+  return {
+    selectedEvidenceIds: inquiry ? buildMessageFlowEvidence(inquiry).slice(0, 5).map((entry) => entry.id) : [],
+    messageOrClaim: '',
+    mediumAndRoute: '',
+    accessAndGatekeepers: '',
+    distortionOrRisk: '',
+    whatSurvivesAsEvidence: '',
+    responseOrConsequence: '',
+    sourceLimitNote: '',
+    finalCommunicationBrief: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function formatMessageFlowBrief(inquiry: CommunicationInquiry, draft: MessageFlowDraft, selectedEvidence: MessageFlowEvidence[]) {
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : buildMessageFlowEvidence(inquiry).slice(0, 8)
+  const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  return [
+    'TimeAtlas Information Flow & Media Reliability Desk / 消息、媒介与传闻工作台',
+    `生成时间：${new Date().toLocaleString()}`,
+    `Inquiry：${inquiry.title}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    '总问题：消息如何流动、谁能接触、哪里失真、留下什么证据。',
+    `媒介焦点：${inquiry.mediumFocus}`,
+    `接触问题：${inquiry.accessQuestion}`,
+    `失真风险：${inquiry.distortionRisk}`,
+    `关联场景：${inquiryScenarios.map((scenario) => `${scenario.title}（${scenario.location}）`).join(' × ')}`,
+    '',
+    '一、Selected message evidence / 已选消息证据',
+    ...evidenceForExport.map((entry, index) => [
+      `${index + 1}. ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}`,
+      `   证据：${entry.text}`,
+      `   路线：${entry.routeHint}`,
+      `   接触：${entry.accessHint}`,
+      `   失真/边界：${entry.distortionHint}`,
+      `   标签：${entry.tags.slice(0, 8).join('、')}`,
+    ].join('\n')),
+    '',
+    '二、Workspace draft / 信息流工作区',
+    `Message or claim：${draft.messageOrClaim.trim() || '尚未填写'}`,
+    `Medium and route：${draft.mediumAndRoute.trim() || '尚未填写'}`,
+    `Access and gatekeepers：${draft.accessAndGatekeepers.trim() || '尚未填写'}`,
+    `Distortion or risk：${draft.distortionOrRisk.trim() || '尚未填写'}`,
+    `What survives as evidence：${draft.whatSurvivesAsEvidence.trim() || '尚未填写'}`,
+    `Response or consequence：${draft.responseOrConsequence.trim() || '尚未填写'}`,
+    `Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `Final Communication Brief：${draft.finalCommunicationBrief.trim() || '尚未填写'}`,
+    `Confidence：${chronologyConfidenceLabels[draft.confidence]}`,
+    `完成状态：${draft.completed ? '完成' : hasMessageFlowDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatMessageFlowTaskSheet(inquiry: CommunicationInquiry) {
+  const evidence = buildMessageFlowEvidence(inquiry).slice(0, 8)
+  const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  return [
+    `TimeAtlas Message Flow Desk Task：${inquiry.title}`,
+    inquiry.subtitle,
+    `核心问题：${inquiry.drivingQuestion}`,
+    '总问题：消息如何流动、谁能接触、哪里失真、留下什么证据。',
+    `媒介焦点：${inquiry.mediumFocus}`,
+    `接触问题：${inquiry.accessQuestion}`,
+    `失真风险：${inquiry.distortionRisk}`,
+    `场景：${inquiryScenarios.map((scenario) => `${scenario.title}｜${scenario.location}`).join(' × ')}`,
+    '',
+    '证据追问：',
+    ...inquiry.evidencePrompts.map((prompt, index) => `${index + 1}. ${prompt}`),
+    '',
+    '建议消息证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}：${entry.routeHint}`),
+    '',
+    '工作区字段：messageOrClaim；mediumAndRoute；accessAndGatekeepers；distortionOrRisk；whatSurvivesAsEvidence；responseOrConsequence；sourceLimitNote；finalCommunicationBrief；confidence。',
+    `交付物：${inquiry.deliverable}`,
+  ].join('\n')
+}
+
 const exhibitEvidenceTypeLabels: Record<ExhibitEvidenceType, string> = {
   source: 'Source / 来源',
   scene: 'Scene beat / 现场',
@@ -7962,6 +8346,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'decision-replay': 'Decision Replay draft / 历史选择复盘草稿',
     'daily-ledger': 'Daily Ledger draft / 日常资源账本草稿',
     'source-annotation': 'Source Annotation draft / 来源注释草稿',
+    'message-flow': 'Message Flow Desk draft / 信息流草稿',
     'question-bank': 'Question Bank draft / 形成性问题草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
@@ -7982,6 +8367,7 @@ function makeSynthesisEvidenceId(origin: SynthesisEvidenceOrigin, key: string) {
 function buildSynthesisEvidencePool({
   chronologyDraftState,
   placeDraftState,
+  messageFlowDraftState,
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
@@ -8006,6 +8392,7 @@ function buildSynthesisEvidencePool({
 }: {
   chronologyDraftState: ChronologyDraftState
   placeDraftState: PlaceDraftState
+  messageFlowDraftState: MessageFlowDraftState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
@@ -8035,6 +8422,7 @@ function buildSynthesisEvidencePool({
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
   const counterfactualEvidenceByChallenge = Object.fromEntries(counterfactualChallenges.map((challenge) => [challenge.id, buildCounterfactualEvidence(challenge)])) as Record<string, CounterfactualEvidence[]>
+  const messageFlowEvidenceByInquiry = getMessageFlowEvidenceByInquiryMap()
   const vocabularyPracticeItems = buildVocabularyPracticeItems()
   const questionBankItems = buildQuestionBankItems()
   const entries: SynthesisEvidence[] = []
@@ -8069,6 +8457,25 @@ function buildSynthesisEvidencePool({
       scenarioTitle: item.scenario.title,
       scenarioId: item.scenario.id,
       inquiryTitle: item.question,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveMessageFlowDrafts(messageFlowDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = communicationInquiries.find((candidate) => candidate.id === inquiryId)
+    if (!inquiry) return
+    const evidence = messageFlowEvidenceByInquiry[inquiryId] ?? []
+    const selectedEvidence = draft.selectedEvidenceIds
+      .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+      .filter((entry): entry is MessageFlowEvidence => Boolean(entry))
+    entries.push({
+      id: makeSynthesisEvidenceId('message-flow', inquiryId),
+      origin: 'message-flow',
+      originLabel: getSynthesisOriginLabel('message-flow'),
+      title: inquiry.title,
+      text: [`消息/主张：${draft.messageOrClaim}`, `媒介路线：${draft.mediumAndRoute}`, `接触/守门人：${draft.accessAndGatekeepers}`, `失真风险：${draft.distortionOrRisk}`, `幸存证据：${draft.whatSurvivesAsEvidence}`, `回应/后果：${draft.responseOrConsequence}`, `来源限制：${draft.sourceLimitNote}`, `最终简报：${draft.finalCommunicationBrief}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['message flow', 'media reliability', ...inquiry.tags, ...selectedEvidence.slice(0, 3).map((entry) => `${entry.scenario.title} ${entry.typeLabel}`), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      inquiryTitle: inquiry.drivingQuestion,
       updatedAt: draft.updatedAt,
     })
   })
@@ -8818,7 +9225,7 @@ function formatSynthesisTaskSheet(preset: SynthesisInquiryPreset) {
     `论证范围：${preset.claimScope}`,
     `分析焦点：${preset.focus}`,
     '',
-    '任务：从已有互证、因果、分期、多视角、情境化、意义、任务草稿和工作区条目中选择证据，写出一份综合历史论证。',
+    '任务：从已有互证、信息流、因果、分期、多视角、情境化、意义、任务草稿和工作区条目中选择证据，写出一份综合历史论证。',
     '',
     '建议段落计划：',
     ...preset.paragraphFrame.map((item, index) => `${index + 1}. ${item}`),
@@ -8833,6 +9240,7 @@ function formatLearningArchive(
   workspaceState: WorkspaceState,
   chronologyDraftState: ChronologyDraftState,
   placeDraftState: PlaceDraftState,
+  messageFlowDraftState: MessageFlowDraftState,
   corroborationDraftState: CorroborationDraftState,
   causationDraftState: CausationDraftState,
   periodizationDraftState: PeriodizationDraftState,
@@ -8861,6 +9269,7 @@ function formatLearningArchive(
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
   const placeDeskStats = getPlaceDeskStats(placeDraftState)
+  const messageFlowDeskStats = getMessageFlowDeskStats(messageFlowDraftState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
   const activePeriodizationDrafts = getActivePeriodizationDrafts(periodizationDraftState)
@@ -8893,7 +9302,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -8906,6 +9315,7 @@ function formatLearningArchive(
     `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
     `- Chronology Desk 时间证据草稿：${activeChronologyDrafts.length}`,
     `- Place Evidence Studio 空间证据草稿：${placeDeskStats.draftCount} drafts，${placeDeskStats.completedCount} completed，${placeDeskStats.selectedEvidenceCount} selected evidence`,
+    `- Message Flow Desk 信息流草稿：${messageFlowDeskStats.draftCount} drafts，${messageFlowDeskStats.completedCount} completed，${messageFlowDeskStats.selectedEvidenceCount} selected evidence`,
     `- 史料互证草稿：${activeCorroborationDrafts.length}`,
     `- 因果变化草稿：${activeCausationDrafts.length}`,
     `- 历史分期草稿：${activePeriodizationDrafts.length}`,
@@ -9103,6 +9513,34 @@ function formatLearningArchive(
   }
 
   const workspaceEntries = getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry))
+
+  if (messageFlowDeskStats.activeDrafts.length > 0) {
+    lines.push('Information Flow & Media Reliability Desk / 消息、媒介与传闻工作台：')
+    messageFlowDeskStats.activeDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = communicationInquiries.find((candidate) => candidate.id === inquiryId)
+      const evidence = inquiry ? buildMessageFlowEvidence(inquiry) : []
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is MessageFlowEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选消息证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    Message / claim：${draft.messageOrClaim.trim() || '尚未填写'}`,
+        `    Medium / route：${draft.mediumAndRoute.trim() || '尚未填写'}`,
+        `    Access / gatekeepers：${draft.accessAndGatekeepers.trim() || '尚未填写'}`,
+        `    Distortion / risk：${draft.distortionOrRisk.trim() || '尚未填写'}`,
+        `    Surviving evidence：${draft.whatSurvivesAsEvidence.trim() || '尚未填写'}`,
+        `    Response / consequence：${draft.responseOrConsequence.trim() || '尚未填写'}`,
+        `    Source limits：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    Final brief：${draft.finalCommunicationBrief.trim() || '尚未填写'}`,
+        `    Confidence：${chronologyConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
 
   if (placeDeskStats.activeDrafts.length > 0) {
     lines.push('Place Evidence Studio / 空间证据工作台：')
@@ -10302,6 +10740,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
     return sectionIds.lessonPack
   }
 
+  if (source === 'message-flow') {
+    return sectionIds.sourceReader
+  }
+
   if (source === 'chronology' || source === 'place-desk') {
     return sectionIds.sceneReader
   }
@@ -10968,6 +11410,7 @@ function buildTaskLibraryTasks({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenMessageFlowInquiry,
   onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
@@ -10989,6 +11432,7 @@ function buildTaskLibraryTasks({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge?: (challengeId: string) => void
   onOpenPlaceInquiry?: (inquiryId: string) => void
+  onOpenMessageFlowInquiry?: (inquiryId: string) => void
   onOpenCounterfactualChallenge?: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
@@ -11777,6 +12221,40 @@ function buildTaskLibraryTasks({
     tasks.push(task)
   })
 
+  communicationInquiries.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 35
+    const evidence = buildMessageFlowEvidence(inquiry)
+    const task: LibraryTask = {
+      id: `message-flow:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || 'Message Flow Desk',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: 'Message Flow / 信息流可靠性',
+      source: 'message-flow',
+      sourceLabel: 'Message Flow Desk',
+      durationMinutes,
+      durationBand: getDurationBand(durationMinutes),
+      summary: inquiry.drivingQuestion,
+      deliverable: inquiry.deliverable,
+      tags: ['Message Flow Desk', 'media reliability', ...inquiry.tags],
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Message Flow Desk',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onOpenMessageFlowInquiry?.(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sourceReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.mediumFocus, inquiry.accessQuestion, inquiry.distortionRisk],
+      checklist: ['确定一条 message / claim', '勾选至少 3 条 message evidence', '写出 medium and route', '说明 access / gatekeepers', '标出 distortion risk', '说明 what survives as evidence 与 source limit', '完成 Communication Brief'],
+      evidencePrompts: [...inquiry.evidencePrompts, ...evidence.slice(0, 5).map((entry) => `${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}：${entry.routeHint}`)],
+      formatSheet: () => formatMessageFlowTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.subtitle, inquiry.mediumFocus, inquiry.accessQuestion, inquiry.distortionRisk, ...task.tags, ...inquiry.evidencePrompts, ...evidence.flatMap((entry) => [entry.typeLabel, entry.title, entry.text, entry.routeHint, entry.accessHint, entry.distortionHint, ...entry.tags])].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
   exhibitThemes.forEach((theme) => {
     const themeScenarios = theme.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
     const durationMinutes = 45
@@ -12418,9 +12896,11 @@ function App() {
   const [chronologyDraftState, setChronologyDraftState] = useState<ChronologyDraftState>(loadChronologyDraftState)
   const [counterfactualDraftState, setCounterfactualDraftState] = useState<CounterfactualDraftState>(loadCounterfactualDraftState)
   const [placeDraftState, setPlaceDraftState] = useState<PlaceDraftState>(loadPlaceDraftState)
+  const [messageFlowDraftState, setMessageFlowDraftState] = useState<MessageFlowDraftState>(loadMessageFlowDraftState)
   const [selectedChronologyChallengeId, setSelectedChronologyChallengeId] = useState(chronologyChallenges[0]?.id ?? '')
   const [selectedCounterfactualChallengeId, setSelectedCounterfactualChallengeId] = useState(counterfactualChallenges[0]?.id ?? '')
   const [selectedPlaceInquiryId, setSelectedPlaceInquiryId] = useState(placeInquiries[0]?.id ?? '')
+  const [selectedMessageFlowInquiryId, setSelectedMessageFlowInquiryId] = useState(communicationInquiries[0]?.id ?? '')
   const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
   const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
   const [selectedPerspectivesInquiryId, setSelectedPerspectivesInquiryId] = useState(perspectivesInquiryDefinitions[0]?.id ?? '')
@@ -12488,8 +12968,9 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
+  const messageFlowEvidenceByInquiry = useMemo(getMessageFlowEvidenceByInquiryMap, [])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -12657,6 +13138,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [placeDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistMessageFlowDraftState(messageFlowDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [messageFlowDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -13324,6 +13817,21 @@ function App() {
     scrollToSection('place-desk', prefersReducedMotion)
   }
 
+  function openMessageFlowInquiry(inquiryId: string = selectedMessageFlowInquiryId) {
+    if (communicationInquiries.some((inquiry) => inquiry.id === inquiryId)) {
+      setSelectedMessageFlowInquiryId(inquiryId)
+    }
+
+    setActivePage('evidence')
+    setActiveEvidenceSubpage('message-flow')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('evidence', sectionIds.messageFlowDesk))
+    }
+
+    scrollToSection(sectionIds.messageFlowDesk, prefersReducedMotion)
+  }
+
   function loadCausationInquiry(inquiryId: string) {
     if (!causationInquiryDefinitions.some((inquiry) => inquiry.id === inquiryId)) {
       return
@@ -13675,6 +14183,16 @@ function App() {
                 onOpenScenario={selectScenario}
               />
             ) : null}
+            {activeEvidenceSubpage === 'message-flow' ? (
+              <MessageFlowDeskPanel
+                selectedInquiryId={selectedMessageFlowInquiryId}
+                evidenceByInquiry={messageFlowEvidenceByInquiry}
+                draftState={messageFlowDraftState}
+                onSelectInquiry={setSelectedMessageFlowInquiryId}
+                onUpdateDraftState={setMessageFlowDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
             {activeEvidenceSubpage === 'case-files' ? (
               <EvidenceCaseFilesPanel
                 selectedCaseFileId={selectedCaseFileId}
@@ -13810,6 +14328,7 @@ function App() {
                 onLoadCompareLens={loadCompareLens}
                 onOpenChronologyChallenge={openChronologyChallenge}
                 onOpenPlaceInquiry={openPlaceInquiry}
+                onOpenMessageFlowInquiry={openMessageFlowInquiry}
                 onOpenCounterfactualChallenge={openCounterfactualChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
                 onLoadPeriodizationInquiry={loadPeriodizationInquiry}
@@ -13836,6 +14355,7 @@ function App() {
                 onLoadCompareLens={loadCompareLens}
                 onOpenChronologyChallenge={openChronologyChallenge}
                 onOpenPlaceInquiry={openPlaceInquiry}
+                onOpenMessageFlowInquiry={openMessageFlowInquiry}
                 onOpenCounterfactualChallenge={openCounterfactualChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
                 onLoadPeriodizationInquiry={loadPeriodizationInquiry}
@@ -13939,6 +14459,7 @@ function App() {
                 assignmentLibraryTasks={assignmentLibraryTasks}
                 chronologyDraftState={chronologyDraftState}
                 placeDraftState={placeDraftState}
+                messageFlowDraftState={messageFlowDraftState}
                 corroborationDraftState={corroborationDraftState}
                 causationDraftState={causationDraftState}
                 periodizationDraftState={periodizationDraftState}
@@ -18806,6 +19327,7 @@ function PortfolioPanel({
   assignmentLibraryTasks,
   chronologyDraftState,
   placeDraftState,
+  messageFlowDraftState,
   corroborationDraftState,
   causationDraftState,
   periodizationDraftState,
@@ -18838,6 +19360,7 @@ function PortfolioPanel({
   assignmentLibraryTasks: LibraryTask[]
   chronologyDraftState: ChronologyDraftState
   placeDraftState: PlaceDraftState
+  messageFlowDraftState: MessageFlowDraftState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
   periodizationDraftState: PeriodizationDraftState
@@ -18865,6 +19388,7 @@ function PortfolioPanel({
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
   const chronologyDraftCount = getActiveChronologyDrafts(chronologyDraftState).length
   const placeDeskStats = getPlaceDeskStats(placeDraftState)
+  const messageFlowDeskStats = getMessageFlowDeskStats(messageFlowDraftState)
   const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
   const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
   const periodizationDraftCount = getActivePeriodizationDrafts(periodizationDraftState).length
@@ -18906,6 +19430,7 @@ function PortfolioPanel({
     .slice(0, 3)
   const recentWorkbenchDrafts = taskWorkbenchStats.recentDrafts.slice(0, 3)
   const recentPlaceDrafts = placeDeskStats.recentDrafts.slice(0, 3)
+  const recentMessageFlowDrafts = messageFlowDeskStats.recentDrafts.slice(0, 3)
   const recentActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
@@ -18926,7 +19451,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -18968,6 +19493,8 @@ function PortfolioPanel({
               { label: '时间证据', value: chronologyDraftCount },
               { label: '空间证据', value: placeDeskStats.draftCount },
               { label: '空间完成', value: placeDeskStats.completedCount },
+              { label: '信息流', value: messageFlowDeskStats.draftCount },
+              { label: '信息流完成', value: messageFlowDeskStats.completedCount },
               { label: '互证草稿', value: corroborationDraftCount },
               { label: '因果草稿', value: causationDraftCount },
               { label: '分期草稿', value: periodizationDraftCount },
@@ -19012,7 +19539,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -19088,6 +19615,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{inquiry?.title ?? inquiryId}</div>
                       <div>Place Evidence Studio · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条空间证据</div>
                       <div className="mt-1 text-stone-500">{draft.finalPlaceBrief.trim() || draft.boundaryOrControlPoint.trim() || draft.placeSketchNotes.trim() || '尚未填写 place brief'}</div>
+                    </div>
+                  )
+                })}
+                {recentMessageFlowDrafts.map(([inquiryId, draft]) => {
+                  const inquiry = communicationInquiries.find((candidate) => candidate.id === inquiryId)
+
+                  return (
+                    <div key={inquiryId} className="rounded-2xl border border-blue-200/15 bg-blue-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{inquiry?.title ?? inquiryId}</div>
+                      <div>Message Flow Desk · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条消息证据</div>
+                      <div className="mt-1 text-stone-500">{draft.finalCommunicationBrief.trim() || draft.distortionOrRisk.trim() || draft.mediumAndRoute.trim() || '尚未填写 communication brief'}</div>
                     </div>
                   )
                 })}
@@ -19302,6 +19840,7 @@ function TaskDiscoveryPanel({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenMessageFlowInquiry,
   onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
@@ -19326,6 +19865,7 @@ function TaskDiscoveryPanel({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge: (challengeId: string) => void
   onOpenPlaceInquiry: (inquiryId: string) => void
+  onOpenMessageFlowInquiry: (inquiryId: string) => void
   onOpenCounterfactualChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
@@ -19344,8 +19884,8 @@ function TaskDiscoveryPanel({
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -20588,6 +21128,7 @@ function TaskLibraryPanel({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenMessageFlowInquiry,
   onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
@@ -20611,6 +21152,7 @@ function TaskLibraryPanel({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge: (challengeId: string) => void
   onOpenPlaceInquiry: (inquiryId: string) => void
+  onOpenMessageFlowInquiry: (inquiryId: string) => void
   onOpenCounterfactualChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
@@ -20635,8 +21177,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -21326,6 +21868,183 @@ function PlaceEvidenceStudioPanel({
   )
 }
 
+
+function MessageFlowDeskPanel({
+  selectedInquiryId,
+  evidenceByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedInquiryId: string
+  evidenceByInquiry: Record<string, MessageFlowEvidence[]>
+  draftState: MessageFlowDraftState
+  onSelectInquiry: (inquiryId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<MessageFlowDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [typeFilter, setTypeFilter] = useState<'all' | MessageFlowEvidenceType>('all')
+  const selectedInquiry = communicationInquiries.find((inquiry) => inquiry.id === selectedInquiryId) ?? communicationInquiries[0]
+  const evidence = selectedInquiry ? evidenceByInquiry[selectedInquiry.id] ?? [] : []
+  const draft = selectedInquiry ? draftState[selectedInquiry.id] ?? getEmptyMessageFlowDraft(selectedInquiry) : getEmptyMessageFlowDraft()
+  const selectedEvidence = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is MessageFlowEvidence => Boolean(entry))
+  const filteredEvidence = evidence.filter((entry) => typeFilter === 'all' || entry.type === typeFilter)
+  const inquiryScenarios = selectedInquiry?.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario)) ?? []
+  const stats = getMessageFlowDeskStats(draftState)
+
+  function updateDraft(patch: Partial<MessageFlowDraft>) {
+    if (!selectedInquiry) return
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[selectedInquiry.id] ?? getEmptyMessageFlowDraft(selectedInquiry)
+      return { ...currentState, [selectedInquiry.id]: { ...currentDraft, ...patch, updatedAt: new Date().toISOString() } }
+    })
+    setCopyStatus('idle')
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    updateDraft({ selectedEvidenceIds: draft.selectedEvidenceIds.includes(evidenceId) ? draft.selectedEvidenceIds.filter((id) => id !== evidenceId) : [...draft.selectedEvidenceIds, evidenceId] })
+  }
+
+  function clearDraft() {
+    if (!selectedInquiry) return
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyBrief() {
+    if (!selectedInquiry) return
+    try {
+      await copyTextToClipboard(formatMessageFlowBrief(selectedInquiry, draft, selectedEvidence))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    if (!selectedInquiry) return
+    downloadTextFile(`timeatlas-${selectedInquiry.id}-message-flow-brief.txt`, formatMessageFlowBrief(selectedInquiry, draft, selectedEvidence))
+  }
+
+  if (!selectedInquiry) return null
+
+  return (
+    <section id={sectionIds.messageFlowDesk} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="message-flow-desk-title">
+      <div className="rounded-[2rem] border border-blue-200/15 bg-blue-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-blue-100"><Volume2 size={20} /><span className="text-sm uppercase tracking-[0.3em]">media reliability desk</span></div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="message-flow-desk-title" className="text-3xl font-semibold tracking-tight text-stone-50">Information Flow & Media Reliability Desk / 消息、媒介与传闻工作台</h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">Evidence 内部子页面：分析消息如何产生、传播、被限制、被误读、留下什么证据。核心问题是“消息如何流动、谁能接触、哪里失真、留下什么证据”，不是单条来源释义。</p>
+          </div>
+          <div className="rounded-3xl border border-blue-200/20 bg-blue-100/[0.08] px-4 py-3 text-sm text-blue-100">{communicationInquiries.length} inquiries · {stats.draftCount} drafts · {stats.completedCount} completed</div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.64fr_1.36fr]">
+          <aside className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {communicationInquiries.map((inquiry) => {
+              const inquiryDraft = draftState[inquiry.id] ?? getEmptyMessageFlowDraft(inquiry)
+              const isActive = inquiry.id === selectedInquiry.id
+              return (
+                <button key={inquiry.id} type="button" onClick={() => onSelectInquiry(inquiry.id)} className={`rounded-3xl border p-4 text-left transition ${isActive ? 'border-blue-200/50 bg-blue-100/[0.1]' : 'border-white/10 bg-black/20 hover:border-blue-100/25'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="text-xs uppercase tracking-[0.18em] text-blue-100">{inquiryDraft.completed ? '已完成' : hasMessageFlowDraftActivity(inquiryDraft) ? '草稿' : 'inquiry'}</p><h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3></div>
+                    <span className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-stone-400">{inquiry.scenarioIds.length} scenes</span>
+                  </div>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                </button>
+              )
+            })}
+          </aside>
+
+          <div className="space-y-4">
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.28em] text-blue-200/70">message inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-7 text-stone-400">{selectedInquiry.drivingQuestion}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"><Copy size={16} />{copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制 Message Flow Brief'}</button>
+                  <button type="button" onClick={downloadBrief} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-blue-100/30"><ScrollText size={16} />下载 txt</button>
+                  <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-400 transition hover:border-red-200/30 hover:text-red-100">清空草稿</button>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-3xl border border-blue-200/15 bg-blue-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-blue-100">Medium：</span>{selectedInquiry.mediumFocus}</div>
+                <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-amber-100">Access：</span>{selectedInquiry.accessQuestion}</div>
+                <div className="rounded-3xl border border-red-200/15 bg-red-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-red-100">Distortion：</span>{selectedInquiry.distortionRisk}</div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[0.98fr_1.02fr]">
+              <div className="rounded-[2rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div><h4 className="font-semibold text-stone-50">Message evidence board</h4><p className="mt-1 text-xs text-stone-500">按类型过滤，勾选用于追踪消息路线、接触门槛、失真点和证据幸存。</p></div>
+                  <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | MessageFlowEvidenceType)} className="rounded-full border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-100 outline-none"><option value="all">全部类型</option>{(Object.entries(messageFlowEvidenceTypeLabels) as [MessageFlowEvidenceType, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+                </div>
+                <div className="mt-4 grid max-h-[44rem] gap-3 overflow-y-auto pr-1">
+                  {filteredEvidence.map((entry) => {
+                    const selected = draft.selectedEvidenceIds.includes(entry.id)
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 text-sm transition ${selected ? 'border-blue-200/40 bg-blue-100/[0.08]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start justify-between gap-3"><button type="button" onClick={() => toggleEvidence(entry.id)} className="text-left font-medium text-stone-100">{selected ? '✓ ' : ''}{entry.title}</button><button type="button" onClick={() => onOpenScenario(entry.scenario.id, entry.ctaHash)} className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-stone-400 hover:text-blue-100">打开</button></div>
+                        <div className="mt-1 text-xs text-blue-100/80">{entry.scenario.title} · {entry.typeLabel}</div>
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-500">{entry.text}</p>
+                        <p className="mt-2 text-xs leading-5 text-amber-100/80">Route：{entry.routeHint}</p>
+                        <p className="mt-1 text-xs leading-5 text-stone-500">Access：{entry.accessHint}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">{entry.tags.slice(0, 5).map((tag) => <span key={`${entry.id}-${tag}`} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-stone-500">{tag}</span>)}</div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                  <h4 className="font-semibold text-amber-100">Selected evidence</h4>
+                  <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">{(selectedEvidence.length ? selectedEvidence : evidence.slice(0, 4)).map((entry) => <li key={`selected-message-${entry.id}`}><span className="font-semibold text-stone-100">{entry.scenario.title}</span> — {entry.typeLabel}｜{entry.title}</li>)}</ol>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {inquiryScenarios.slice(0, 3).map((scenario) => <button key={scenario.id} type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-blue-100/30 hover:text-blue-100">打开 {scenario.title}</button>)}
+                    <button type="button" onClick={() => selectedEvidence[0] ? onOpenScenario(selectedEvidence[0].scenario.id, sectionIds.sourceReader) : inquiryScenarios[0] && onOpenScenario(inquiryScenarios[0].id, sectionIds.sourceReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-blue-100/30 hover:text-blue-100">Source Reader</button>
+                    <button type="button" onClick={() => selectedEvidence[0] ? onOpenScenario(selectedEvidence[0].scenario.id, sectionIds.sceneReader) : inquiryScenarios[0] && onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-blue-100/30 hover:text-blue-100">Scene Reader</button>
+                  </div>
+                </div>
+
+                <div className="rounded-[2rem] border border-blue-200/15 bg-blue-100/[0.045] p-4">
+                  <div className="flex items-center justify-between gap-3"><h4 className="font-semibold text-blue-100">Workspace draft fields</h4><label className="flex items-center gap-2 text-xs text-stone-400"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} />完成</label></div>
+                  <div className="mt-3 grid gap-3">
+                    {([
+                      ['messageOrClaim', 'Message or claim / 消息或主张', 2],
+                      ['mediumAndRoute', 'Medium and route / 媒介与路线', 3],
+                      ['accessAndGatekeepers', 'Access and gatekeepers / 接触门槛与守门人', 3],
+                      ['distortionOrRisk', 'Distortion or risk / 失真或误读风险', 3],
+                      ['whatSurvivesAsEvidence', 'What survives as evidence / 留下什么证据', 3],
+                      ['responseOrConsequence', 'Response or consequence / 回应或后果', 3],
+                      ['sourceLimitNote', 'Source limit note / 来源限制', 3],
+                      ['finalCommunicationBrief', 'Final Communication Brief / 最终信息流简报', 5],
+                    ] as [keyof MessageFlowDraft, string, number][]).map(([field, label, rows]) => (
+                      <label key={field} className="block text-sm font-medium text-stone-300">{label}<textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<MessageFlowDraft>)} rows={rows} placeholder={field === 'finalCommunicationBrief' ? selectedInquiry.deliverable : '围绕“消息如何流动、谁能接触、哪里失真、留下什么证据”填写'} className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-blue-200/40" /></label>
+                    ))}
+                    <label className="block text-sm font-medium text-stone-300">Confidence<select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ChronologyConfidence })} className="mt-2 w-full rounded-2xl border border-white/10 bg-stone-950 p-3 text-sm text-stone-100 outline-none focus:border-blue-200/40">{(Object.entries(chronologyConfidenceLabels) as [ChronologyConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  </div>
+                  <p className="mt-3 text-xs text-stone-500" aria-live="polite">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '任意填写或选择会保存到本机；localStorage 不可用时回退 sessionStorage。'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 function GuidedSessionPanel({
   selectedScenarioId,

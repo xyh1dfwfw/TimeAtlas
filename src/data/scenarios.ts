@@ -197,6 +197,20 @@ export type PlaceInquiry = {
   tags: string[]
 }
 
+export type CommunicationInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  drivingQuestion: string
+  mediumFocus: string
+  accessQuestion: string
+  distortionRisk: string
+  evidencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type ConceptAtlasTopic = {
   id: string
   title: string
@@ -1385,6 +1399,111 @@ export const placeInquiries: PlaceInquiry[] = [
     ],
     deliverable: '一份 Records Visibility Place Brief：记录地点、可见/不可见对象、控制点、尺度连接、来源限制与信心等级。',
     tags: ['empire records', 'archive silence', 'spatial visibility', 'khipu', 'colonial records', 'source limits'],
+  },
+]
+
+export const communicationInquiries: CommunicationInquiry[] = [
+  {
+    id: 'crisis-news-ordinary-safety',
+    title: 'Crisis news and ordinary safety',
+    subtitle: 'Track warnings, rumors, alarms and market talk as they turn distant crisis into everyday safety decisions.',
+    scenarioIds: ['tang-changan-merchant', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'wwii-london-civilian'],
+    drivingQuestion: '消息如何流动、谁能接触、哪里失真、留下什么证据：危机消息何时从远方事件变成普通人的安全判断？',
+    mediumFocus: '口耳传闻、市场消息、港口通报、口岸文书、警报系统和事后公共记忆。',
+    accessQuestion: '谁先听见或发布消息？谁只能从市场、街区、通译、买办或警报中间接获知？',
+    distortionRisk: '恐慌、延迟、官方过滤、翻译转述、敌情误读和后见之明会把当时的不确定性写得过于清楚。',
+    evidencePrompts: [
+      '哪条 evidence 显示消息已经改变了日常行动，而不只是背景事件？',
+      '消息的路线中有哪些守门人、延迟点或转译点？',
+      '哪些证据来自当时可知信息，哪些是后来保存或解释出来的？',
+    ],
+    deliverable: '一份 Crisis Message Flow Brief：message / medium route / access / distortion risk / surviving evidence / consequence / source limit / confidence。',
+    tags: ['crisis news', 'ordinary safety', 'rumor', 'alarm', 'risk', 'public memory'],
+  },
+  {
+    id: 'letters-credit-trust',
+    title: 'Letters, credit, and trust',
+    subtitle: 'Follow letters, contracts, reputation and account records as media that move trust before goods arrive.',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    drivingQuestion: '消息如何流动、谁能接触、哪里失真、留下什么证据：书信和信用如何把远距离信任变成可行动的信息？',
+    mediumFocus: '商人书信、合约、账簿、担保、口岸记录、名声网络与带信人。',
+    accessQuestion: '谁能读写、携带、验证或解释信用信息？谁依赖中介、通译、行商或雇主转述？',
+    distortionRisk: '信件迟到、合约语义差异、名声夸大、信用失败、翻译误差和档案只保存成功交易。',
+    evidencePrompts: [
+      '哪条证据显示信息先于货物或工资安排移动？',
+      '谁有能力验证信用，谁只能承担信息失败后的风险？',
+      '幸存书信/账簿会不会让信任网络看起来比实际更稳定？',
+    ],
+    deliverable: '一份 Credit Message Flow Brief：claim route、信用媒介、守门人、风险转嫁、幸存证据与可靠边界。',
+    tags: ['letters', 'credit', 'trust', 'contracts', 'ports', 'archival survival'],
+  },
+  {
+    id: 'market-rumor-price-information',
+    title: 'Market rumor and price information',
+    subtitle: 'Compare prices, rules, gossip and notices as market information that shapes bargaining and risk.',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    drivingQuestion: '消息如何流动、谁能接触、哪里失真、留下什么证据：市场传闻、价格与规则信息如何改变交易判断？',
+    mediumFocus: '摊位/店铺口头消息、价格信号、行规、税册、报刊/公告、工厂和口岸通知。',
+    accessQuestion: '谁能进入市场核心信息圈，谁只能在边缘听到价格、需求、规则或危机的二手说法？',
+    distortionRisk: '囤积、操纵价格、误听规则、跨语言转述、监管信息不对称和后世市场概念套用。',
+    evidencePrompts: [
+      '哪条证据说明价格或规则信息影响了选择？',
+      '信息从市场、官府、行会、港口或雇主到普通人的路线是什么？',
+      '哪些市场信息容易留下记录，哪些只可能以传闻形式存在？',
+    ],
+    deliverable: '一份 Market Rumor Flow Brief：价格/规则消息、传播路线、信息不平等、失真风险、证据幸存与后果。',
+    tags: ['market rumor', 'price information', 'market rules', 'taxation', 'information asymmetry'],
+  },
+  {
+    id: 'bureaucratic-records-visibility',
+    title: 'Bureaucratic records and visibility',
+    subtitle: 'Ask how khipu, lists, tax records, office papers and archives make people visible or disappear.',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker', 'qing-guangzhou-comprador'],
+    drivingQuestion: '消息如何流动、谁能接触、哪里失真、留下什么证据：行政记录如何把人的经验转成可见、可数或不可见的信息？',
+    mediumFocus: 'khipu/quipu、市场监管记录、港口税册、种植园清单、商人档案、殖民编年与后世目录。',
+    accessQuestion: '谁能制造、读取、保存或挑战记录？被记录者是否能接触记录或只被记录为数量/职责/风险？',
+    distortionRisk: '记录压缩个人经验、殖民转译、非文字证据误读、管理者视角偏差和档案沉默。',
+    evidencePrompts: [
+      '哪条证据显示记录媒介改变了谁被看见？',
+      '记录在现场、行政节点、档案保存点和后世研究之间如何移动？',
+      '哪些声音在记录中被压缩、翻译、缺席或只以数字出现？',
+    ],
+    deliverable: '一份 Records Visibility Flow Brief：记录媒介、可接触者、压缩/失真点、幸存证据、不可见者与来源边界。',
+    tags: ['bureaucratic records', 'visibility', 'archive silence', 'khipu', 'colonial records', 'source limits'],
+  },
+  {
+    id: 'port-interpreters-multilingual-mediation',
+    title: 'Port interpreters and multilingual mediation',
+    subtitle: 'Study interpreters, brokers and multilingual port spaces as routes and filters for commercial and political messages.',
+    scenarioIds: ['malacca-monsoon-port-broker', 'kilwa-swahili-gold-merchant', 'fustat-geniza-merchant-apprentice', 'qing-guangzhou-comprador', 'tang-changan-merchant'],
+    drivingQuestion: '消息如何流动、谁能接触、哪里失真、留下什么证据：港口通译和多语中介如何同时连接与过滤信息？',
+    mediumFocus: '通译口头转述、港口经纪、商人书信、税册/口岸文件、宗教/族群网络和贸易名声。',
+    accessQuestion: '谁掌握多语能力、港口关系或官方许可？谁必须通过中介才知道价格、规则、危险和政治压力？',
+    distortionRisk: '翻译选择、利益冲突、文化误读、官方审查、征服者叙述和后世把中介写成单纯工具。',
+    evidencePrompts: [
+      '哪条证据显示中介不仅传话，也改变消息的可理解性或可信度？',
+      '多语信息在哪些节点被过滤、收费、延迟或重新包装？',
+      '哪些来源保留了中介声音，哪些只从外部权力视角描述他们？',
+    ],
+    deliverable: '一份 Port Mediation Flow Brief：消息路线、多语守门人、转译风险、权力关系、幸存证据与信心等级。',
+    tags: ['port interpreters', 'multilingual mediation', 'brokers', 'translation', 'Indian Ocean', 'trust'],
+  },
+  {
+    id: 'print-manuscript-access-knowledge',
+    title: 'Print, manuscript, and access to knowledge',
+    subtitle: 'Compare paper, manuscript copying, study circles, exams and printed or archival access as knowledge media.',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice', 'song-bianjing-apprentice', 'tang-changan-merchant'],
+    drivingQuestion: '消息如何流动、谁能接触、哪里失真、留下什么证据：纸张、手稿、印刷和学习网络如何扩大又限制知识接触？',
+    mediumFocus: '纸张、抄写、手稿课堂、书信档案、书坊/印本、考试文本、师承和口头讲授。',
+    accessQuestion: '谁能读写、购买、复制、拜师、入学或保存文本？谁被性别、身份、财富、语言或制度排除？',
+    distortionRisk: '抄写误差、摘录脱境、考试导向、师承过滤、文本幸存偏差和把“有媒介”误读成“人人可得”。',
+    evidencePrompts: [
+      '哪条证据显示知识通过具体媒介移动，而不是抽象传播？',
+      '媒介降低了哪种成本，又制造或保留了哪种进入门槛？',
+      '保存下来的文本会让哪些学习者、读者或听众消失？',
+    ],
+    deliverable: '一份 Knowledge Media Flow Brief：知识媒介、传播路线、进入门槛、误读风险、幸存证据与来源限制。',
+    tags: ['print', 'manuscript', 'paper', 'knowledge access', 'copying', 'education', 'archives'],
   },
 ]
 
