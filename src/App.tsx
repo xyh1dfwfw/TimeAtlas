@@ -83,6 +83,8 @@ const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
 const dispatchBoardDraftStorageKey = 'timeatlas:dispatch-board-drafts'
 const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
+const questionBankStorageKey = 'timeatlas:question-bank-drafts'
+const questionSetDraftStorageKey = 'timeatlas:question-set-draft'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -629,6 +631,7 @@ type SynthesisInquiryPreset = {
 
 type SynthesisEvidenceOrigin =
   | 'vocabulary-clinic'
+  | 'question-bank'
   | 'place-desk'
   | 'case-file'
   | 'corroboration'
@@ -769,7 +772,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'vocabulary-clinic' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -807,7 +810,7 @@ type SubpageNavItem<T extends string> = {
 type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'missions' | 'pathways' | 'compare'
 type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'questions' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
 
@@ -841,6 +844,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
   { id: 'workbench', label: '任务执行台', eyebrow: 'Workbench', description: '按单个任务记录清单、证据、主张与反思', hash: 'task-workbench' },
+  { id: 'questions', label: '问题库', eyebrow: 'Questions', description: '短答、来源追问、出口票与轻量题组', hash: 'question-bank-studio' },
   { id: 'practice', label: '术语练习', eyebrow: 'Clinic', description: '历史术语、误区纠正与证据标签匹配短练习', hash: 'vocabulary-clinic' },
   { id: 'assessment', label: '评价反馈', eyebrow: 'Assessment', description: '按任务、组合或模块生成 rubric、评分指南与反馈句式', hash: 'assessment-studio' },
   { id: 'debate', label: '辩论工作台', eyebrow: 'Debate', description: '角色卡、证据卡、回合计划与可复制指南', hash: 'debate-studio' },
@@ -1142,6 +1146,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'dispatch', label: 'Scenario Dispatch' },
   { value: 'source-annotation', label: 'Source Annotation Notebook' },
   { value: 'vocabulary-clinic', label: 'Vocabulary Clinic' },
+  { value: 'question-bank', label: 'Question Bank' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'place-desk', label: 'Place Evidence Studio' },
@@ -1233,6 +1238,53 @@ type VocabularyClinicStats = {
   selectedEvidenceTagCount: number
   recentDrafts: [string, VocabularyClinicDraft][]
 }
+
+type QuestionBankMode = 'scene-check' | 'source-check' | 'daily-life-check' | 'decision-check' | 'concept-check' | 'exit-ticket'
+
+type QuestionBankItem = {
+  id: string
+  scenario: Scenario
+  mode: QuestionBankMode
+  title: string
+  question: string
+  context: string
+  evidenceHints: string[]
+  answerGuide: string
+  teacherHint: string
+  sourceTitle?: string
+  sceneTitle?: string
+  relatedHash: ScenarioSectionId
+  tags: string[]
+  estimatedMinutes: number
+}
+
+type QuestionBankDraft = {
+  answer: string
+  evidenceNote: string
+  uncertaintyNote: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type QuestionBankDraftState = Record<string, QuestionBankDraft>
+
+type QuestionSetDraft = {
+  selectedQuestionIds: string[]
+  title: string
+  audience: string
+  timeBox: string
+  instructions: string
+  teacherNotes: string
+  updatedAt?: string
+}
+
+type QuestionBankStats = {
+  activeDrafts: [string, QuestionBankDraft][]
+  draftCount: number
+  completedCount: number
+  recentDrafts: [string, QuestionBankDraft][]
+}
+
 
 const evidenceCaseFiles: EvidenceCaseFile[] = [
   {
@@ -3830,6 +3882,360 @@ function persistVocabularyClinicDraftState(state: VocabularyClinicDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(vocabularyClinicStorageKey, serializedState)
+}
+
+function getQuestionBankModeLabel(mode: QuestionBankMode) {
+  return {
+    'scene-check': 'Scene check / 场景短答',
+    'source-check': 'Source check / 来源追问',
+    'daily-life-check': 'Daily-life check / 日常理解',
+    'decision-check': 'Decision check / 选择追问',
+    'concept-check': 'Concept check / 概念核查',
+    'exit-ticket': 'Exit ticket / 出口票',
+  }[mode]
+}
+
+function getEmptyQuestionBankDraft(): QuestionBankDraft {
+  return {
+    answer: '',
+    evidenceNote: '',
+    uncertaintyNote: '',
+    completed: false,
+  }
+}
+
+function getEmptyQuestionSetDraft(): QuestionSetDraft {
+  return {
+    selectedQuestionIds: [],
+    title: 'TimeAtlas 形成性题组',
+    audience: '中学历史课堂 / 自主学习小组',
+    timeBox: '10–20 分钟',
+    instructions: '选择 3–5 个问题作答；每题至少写一句证据说明和一条仍不确定或来源限制。',
+    teacherNotes: '用于课堂中段检查、来源追问、出口票或轻量题组；不包含自动评分。',
+  }
+}
+
+function hasQuestionBankDraftActivity(draft: QuestionBankDraft) {
+  return Boolean(draft.answer.trim() || draft.evidenceNote.trim() || draft.uncertaintyNote.trim() || draft.completed)
+}
+
+function getActiveQuestionBankDrafts(draftState: QuestionBankDraftState) {
+  return Object.entries(draftState).filter((entry): entry is [string, QuestionBankDraft] => hasQuestionBankDraftActivity(entry[1]))
+}
+
+function getQuestionBankStats(draftState: QuestionBankDraftState): QuestionBankStats {
+  const activeDrafts = getActiveQuestionBankDrafts(draftState)
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    recentDrafts: [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '')).slice(0, 5),
+  }
+}
+
+function hasQuestionSetDraftActivity(draft: QuestionSetDraft) {
+  const emptyDraft = getEmptyQuestionSetDraft()
+  return Boolean(
+    draft.selectedQuestionIds.length
+      || draft.title.trim() !== emptyDraft.title
+      || draft.audience.trim() !== emptyDraft.audience
+      || draft.timeBox.trim() !== emptyDraft.timeBox
+      || draft.instructions.trim() !== emptyDraft.instructions
+      || draft.teacherNotes.trim() !== emptyDraft.teacherNotes,
+  )
+}
+
+function parseQuestionBankDraftState(rawState: string | null): QuestionBankDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) return {}
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+        const draft = value as Partial<QuestionBankDraft>
+        return [[key, {
+          answer: typeof draft.answer === 'string' ? draft.answer : '',
+          evidenceNote: typeof draft.evidenceNote === 'string' ? draft.evidenceNote : '',
+          uncertaintyNote: typeof draft.uncertaintyNote === 'string' ? draft.uncertaintyNote : '',
+          completed: Boolean(draft.completed),
+          updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+        } satisfies QuestionBankDraft]]
+      }),
+    )
+  } catch {
+    return {}
+  }
+}
+
+function parseQuestionSetDraft(rawState: string | null): QuestionSetDraft {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) return getEmptyQuestionSetDraft()
+    const draft = parsedState as Partial<QuestionSetDraft>
+    return {
+      ...getEmptyQuestionSetDraft(),
+      selectedQuestionIds: Array.isArray(draft.selectedQuestionIds) ? draft.selectedQuestionIds.filter((item): item is string => typeof item === 'string').slice(0, 8) : [],
+      title: typeof draft.title === 'string' ? draft.title : getEmptyQuestionSetDraft().title,
+      audience: typeof draft.audience === 'string' ? draft.audience : getEmptyQuestionSetDraft().audience,
+      timeBox: typeof draft.timeBox === 'string' ? draft.timeBox : getEmptyQuestionSetDraft().timeBox,
+      instructions: typeof draft.instructions === 'string' ? draft.instructions : getEmptyQuestionSetDraft().instructions,
+      teacherNotes: typeof draft.teacherNotes === 'string' ? draft.teacherNotes : getEmptyQuestionSetDraft().teacherNotes,
+      updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+    }
+  } catch {
+    return getEmptyQuestionSetDraft()
+  }
+}
+
+function loadQuestionBankDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseQuestionBankDraftState(localStorage?.getItem(questionBankStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasQuestionBankDraftActivity)) {
+    return localState
+  }
+
+  return parseQuestionBankDraftState(sessionStorage?.getItem(questionBankStorageKey) ?? null)
+}
+
+function persistQuestionBankDraftState(state: QuestionBankDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(questionBankStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(questionBankStorageKey, serializedState)
+}
+
+function loadQuestionSetDraft() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localDraft = parseQuestionSetDraft(localStorage?.getItem(questionSetDraftStorageKey) ?? null)
+
+  if (hasQuestionSetDraftActivity(localDraft)) {
+    return localDraft
+  }
+
+  return parseQuestionSetDraft(sessionStorage?.getItem(questionSetDraftStorageKey) ?? null)
+}
+
+function persistQuestionSetDraft(draft: QuestionSetDraft) {
+  const serializedState = JSON.stringify(draft)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(questionSetDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(questionSetDraftStorageKey, serializedState)
+}
+
+function buildQuestionBankItems(): QuestionBankItem[] {
+  return scenarios.flatMap((scenario) => {
+    const baseTags = [scenario.region, scenario.theme, scenario.era]
+    const lessonQuestions = scenario.lessonPack.checkQuestions.map((checkQuestion, index) => ({
+      id: `question:${scenario.id}:lesson-check:${index + 1}`,
+      scenario,
+      mode: 'scene-check' as const,
+      title: `Lesson check ${index + 1} · ${scenario.title}`,
+      question: checkQuestion.question,
+      context: scenario.lessonPack.inquiryQuestion,
+      evidenceHints: [scenario.sceneBeats[index % scenario.sceneBeats.length]?.evidenceHook, scenario.lessonPack.quickStart[index % scenario.lessonPack.quickStart.length]].filter((item): item is string => Boolean(item)),
+      answerGuide: checkQuestion.answer,
+      teacherHint: checkQuestion.teacherNote,
+      relatedHash: sectionIds.lessonPack,
+      tags: ['lesson check', 'short answer', ...baseTags],
+      estimatedMinutes: 5,
+    } satisfies QuestionBankItem))
+
+    const exitTickets = scenario.lessonPack.exitTickets.map((ticket, index) => ({
+      id: `question:${scenario.id}:exit-ticket:${index + 1}`,
+      scenario,
+      mode: 'exit-ticket' as const,
+      title: `Exit ticket ${index + 1} · ${scenario.title}`,
+      question: ticket,
+      context: scenario.lessonPack.inquiryQuestion,
+      evidenceHints: [scenario.sources[index % scenario.sources.length]?.title, scenario.sceneBeats[index % scenario.sceneBeats.length]?.title].filter((item): item is string => Boolean(item)),
+      answerGuide: '学生应给出一句清晰判断，并至少连接一条场景或来源证据；允许写出仍不确定的问题。',
+      teacherHint: '用作课末出口票，不需要复杂评分；重点看是否有证据、情境和来源限制。',
+      relatedHash: sectionIds.lessonPack,
+      tags: ['exit ticket', 'formative check', ...baseTags],
+      estimatedMinutes: 4,
+    } satisfies QuestionBankItem))
+
+    const sceneQuestions = scenario.sceneBeats.map((beat, index) => ({
+      id: `question:${scenario.id}:scene:${index + 1}`,
+      scenario,
+      mode: 'scene-check' as const,
+      title: `${beat.timeLabel} · ${beat.title}`,
+      question: beat.learnerPrompt,
+      context: `${beat.sensoryDetail}｜${beat.historicalTension}`,
+      evidenceHints: [beat.evidenceHook, ...beat.linkedSourceTitles.slice(0, 2)],
+      answerGuide: '用 2-3 句回答现场追问，必须把感官/张力细节转成历史证据，而不是复述剧情。',
+      teacherHint: '关注学生是否能从场景细节推出身份、制度、风险或知识边界。',
+      sceneTitle: beat.title,
+      relatedHash: sectionIds.sceneReader,
+      tags: ['scene reader', ...beat.linkedDailyLifeKeys, ...baseTags],
+      estimatedMinutes: 6,
+    } satisfies QuestionBankItem))
+
+    const sourceQuestions = scenario.sources.map((source) => ({
+      id: `question:${scenario.id}:source:${normalizeSourceTitleForId(source.title)}`,
+      scenario,
+      mode: 'source-check' as const,
+      title: `Source follow-up · ${source.title}`,
+      question: source.sourceQuestion,
+      context: `${source.excerpt}｜视角：${source.perspective}`,
+      evidenceHints: [source.title, source.reliabilityNote, ...source.evidenceTags.slice(0, 3)],
+      answerGuide: source.relevance,
+      teacherHint: `追问可靠边界：${source.reliabilityNote}`,
+      sourceTitle: source.title,
+      relatedHash: sectionIds.sourceReader,
+      tags: ['source check', source.sourceType, ...source.evidenceTags, ...baseTags],
+      estimatedMinutes: 7,
+    } satisfies QuestionBankItem))
+
+    const dailyQuestions = scenario.dailyLife.slice(0, 3).map((section) => ({
+      id: `question:${scenario.id}:daily:${section.key}`,
+      scenario,
+      mode: 'daily-life-check' as const,
+      title: `${section.label} check · ${scenario.title}`,
+      question: `根据“${section.title}”，这个日常细节怎样说明 ${scenario.identity} 的机会、限制或风险？`,
+      context: section.text,
+      evidenceHints: [section.title, ...scenario.sceneBeats.filter((beat) => beat.linkedDailyLifeKeys.includes(section.key)).map((beat) => beat.title).slice(0, 2)],
+      answerGuide: '回答应把一个日常细节连接到身份、制度、劳动、知识或风险，不只描述生活条件。',
+      teacherHint: '适合作为短答检查，提醒学生区分 everyday detail 与 historical explanation。',
+      relatedHash: sectionIds.dailyLife,
+      tags: ['daily life', section.key, ...baseTags],
+      estimatedMinutes: 5,
+    } satisfies QuestionBankItem))
+
+    const decisionQuestion: QuestionBankItem = {
+      id: `question:${scenario.id}:decision`,
+      scenario,
+      mode: 'decision-check',
+      title: `Decision check · ${scenario.title}`,
+      question: `面对“${scenario.decision.prompt}”，哪一个选择最能体现当事人的限制？请用一个选项后果和一条来源/场景证据说明。`,
+      context: scenario.decision.context,
+      evidenceHints: [scenario.decision.options.map((option) => `${option.label}：${option.immediate}`).join('；'), scenario.realHistory],
+      answerGuide: '学生不必选“正确答案”；关键是说明选择依据、即时后果和真实历史之间的关系。',
+      teacherHint: '避免把后来的结果当作当时人的已知信息，追问可得知识和风险。',
+      relatedHash: sectionIds.decisionPanel,
+      tags: ['decision check', 'agency', 'uncertainty', ...baseTags],
+      estimatedMinutes: 8,
+    }
+
+    const conceptQuestions = scenario.keyTerms.slice(0, 2).map((term) => ({
+      id: `question:${scenario.id}:concept:${normalizeSourceTitleForId(term.term)}`,
+      scenario,
+      mode: 'concept-check' as const,
+      title: `Concept check · ${term.term}`,
+      question: `用 ${scenario.title} 的一个具体证据解释“${term.term}”，并指出这个概念容易被怎样误解。`,
+      context: term.definition,
+      evidenceHints: [term.definition, scenario.sources.find((source) => source.evidenceTags.some((tag) => tag.toLowerCase().includes(term.term.toLowerCase())))?.title ?? scenario.sources[0]?.title].filter((item): item is string => Boolean(item)),
+      answerGuide: '回答应包含概念解释、场景证据和一个误区提醒。',
+      teacherHint: '轻量概念核查，不要求背诵定义；看学生是否能把概念放回历史情境。',
+      relatedHash: sectionIds.lessonPack,
+      tags: ['concept check', term.term, ...baseTags],
+      estimatedMinutes: 6,
+    } satisfies QuestionBankItem))
+
+    return [...lessonQuestions, ...exitTickets, ...sceneQuestions, ...sourceQuestions, ...dailyQuestions, decisionQuestion, ...conceptQuestions]
+  })
+}
+
+function formatQuestionBrief(item: QuestionBankItem, draft: QuestionBankDraft) {
+  return [
+    `TimeAtlas Question Brief：${item.title}`,
+    `场景：${item.scenario.title}｜${item.scenario.era}｜${item.scenario.location}`,
+    `模式：${getQuestionBankModeLabel(item.mode)}`,
+    `状态：${draft.completed ? '已完成' : hasQuestionBankDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `问题：${item.question}`,
+    `情境：${item.context}`,
+    '',
+    'Evidence hints：',
+    ...(item.evidenceHints.length ? item.evidenceHints.map((hint) => `- ${hint}`) : ['- 打开相关场景或来源补充证据。']),
+    '',
+    `Answer guide：${item.answerGuide}`,
+    `Teacher hint：${item.teacherHint}`,
+    '',
+    'Student workspace：',
+    `- Answer：${draft.answer.trim() || '尚未填写'}`,
+    `- Evidence note：${draft.evidenceNote.trim() || '尚未填写'}`,
+    `- Uncertainty / source limit：${draft.uncertaintyNote.trim() || '尚未填写'}`,
+    `- 更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatQuestionBankTaskSheet(item: QuestionBankItem) {
+  return [
+    `TimeAtlas Question Bank Task Sheet：${item.title}`,
+    `场景：${item.scenario.title}｜${item.scenario.era}｜${item.scenario.location}`,
+    `模式：${getQuestionBankModeLabel(item.mode)}`,
+    `建议时长：${item.estimatedMinutes} 分钟`,
+    '',
+    `问题：${item.question}`,
+    `情境：${item.context}`,
+    '',
+    '作答要求：',
+    '1. 用 2-4 句直接回答问题。',
+    '2. 写出至少一条 evidence note，说明证据来自场景、来源、选择或关键术语。',
+    '3. 写出 uncertainty / source limit note：哪些信息还不确定？哪些声音或材料缺席？',
+    '',
+    'Evidence hints：',
+    ...(item.evidenceHints.length ? item.evidenceHints.map((hint) => `- ${hint}`) : ['- 打开相关场景或来源补充证据。']),
+    '',
+    `Teacher hint：${item.teacherHint}`,
+  ].join('\n')
+}
+
+function getQuestionSetItems(draft: QuestionSetDraft, items: QuestionBankItem[]) {
+  const itemsById = new Map(items.map((item) => [item.id, item]))
+  return draft.selectedQuestionIds.map((id) => itemsById.get(id)).filter((item): item is QuestionBankItem => Boolean(item))
+}
+
+function formatStudentQuestionSet(draft: QuestionSetDraft, items: QuestionBankItem[]) {
+  const selectedItems = getQuestionSetItems(draft, items)
+  return [
+    `TimeAtlas Student Question Set：${draft.title.trim() || '形成性题组'}`,
+    `对象：${draft.audience.trim() || '未填写'}`,
+    `时间：${draft.timeBox.trim() || `${selectedItems.reduce((total, item) => total + item.estimatedMinutes, 0)} 分钟`}`,
+    '',
+    '学生说明：',
+    draft.instructions.trim() || getEmptyQuestionSetDraft().instructions,
+    '',
+    '题目：',
+    ...(selectedItems.length ? selectedItems.map((item, index) => `${index + 1}. ${item.question}
+   场景：${item.scenario.title}｜模式：${getQuestionBankModeLabel(item.mode)}
+   Evidence hints：${item.evidenceHints.slice(0, 3).join('；') || '打开相关场景/来源'}`) : ['1. 尚未选择问题。']),
+    '',
+    '每题作答框：Answer / Evidence note / Uncertainty or source limit note',
+  ].join('\n')
+}
+
+function formatTeacherQuestionSet(draft: QuestionSetDraft, items: QuestionBankItem[]) {
+  const selectedItems = getQuestionSetItems(draft, items)
+  return [
+    `TimeAtlas Teacher Question Set Guide：${draft.title.trim() || '形成性题组'}`,
+    `对象：${draft.audience.trim() || '未填写'}`,
+    `时间：${draft.timeBox.trim() || `${selectedItems.reduce((total, item) => total + item.estimatedMinutes, 0)} 分钟`}`,
+    `教师备注：${draft.teacherNotes.trim() || getEmptyQuestionSetDraft().teacherNotes}`,
+    '',
+    '教师版题组：',
+    ...(selectedItems.length ? selectedItems.map((item, index) => `${index + 1}. ${item.question}
+   模式：${getQuestionBankModeLabel(item.mode)}｜场景：${item.scenario.title}
+   Answer guide：${item.answerGuide}
+   Teacher hint：${item.teacherHint}
+   Evidence hints：${item.evidenceHints.join('；') || '无'}`) : ['1. 尚未选择问题。']),
+    '',
+    '使用建议：只做形成性反馈，不自动评分；优先追问证据、情境和来源限制。',
+  ].join('\n')
 }
 
 function getVocabularyPracticeModeLabel(mode: VocabularyPracticeMode) {
@@ -6731,6 +7137,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'material-culture': 'Material Culture draft / 物件证据草稿',
     dispatch: 'Scenario Dispatch draft / 情境简报草稿',
     'source-annotation': 'Source Annotation draft / 来源注释草稿',
+    'question-bank': 'Question Bank draft / 形成性问题草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     'place-desk': 'Place Evidence Studio draft / 空间证据草稿',
@@ -6765,6 +7172,7 @@ function buildSynthesisEvidencePool({
   dispatchDraftState,
   exhibitDraftState,
   vocabularyClinicDraftState,
+  questionBankDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -6785,6 +7193,7 @@ function buildSynthesisEvidencePool({
   dispatchDraftState: DispatchDraftState
   exhibitDraftState: ExhibitStudioDraftState
   vocabularyClinicDraftState: VocabularyClinicDraftState
+  questionBankDraftState: QuestionBankDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -6795,6 +7204,7 @@ function buildSynthesisEvidencePool({
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
   const vocabularyPracticeItems = buildVocabularyPracticeItems()
+  const questionBankItems = buildQuestionBankItems()
   const entries: SynthesisEvidence[] = []
 
   getActiveVocabularyClinicDrafts(vocabularyClinicDraftState).forEach(([itemId, draft]) => {
@@ -6810,6 +7220,23 @@ function buildSynthesisEvidencePool({
       scenarioTitle: item.scenario.title,
       scenarioId: item.scenario.id,
       inquiryTitle: item.prompt,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveQuestionBankDrafts(questionBankDraftState).forEach(([itemId, draft]) => {
+    const item = questionBankItems.find((candidate) => candidate.id === itemId)
+    if (!item) return
+    entries.push({
+      id: makeSynthesisEvidenceId('question-bank', itemId),
+      origin: 'question-bank',
+      originLabel: getSynthesisOriginLabel('question-bank'),
+      title: item.title,
+      text: [`答案：${draft.answer}`, `证据：${draft.evidenceNote}`, `限制：${draft.uncertaintyNote}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['question bank', item.mode, ...item.tags.slice(0, 5), draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: item.scenario.title,
+      scenarioId: item.scenario.id,
+      inquiryTitle: item.question,
       updatedAt: draft.updatedAt,
     })
   })
@@ -7332,6 +7759,7 @@ function formatLearningArchive(
   caseFileDraftState: EvidenceCaseFileDraftState,
   sourceAnnotationDraftState: SourceAnnotationDraftState,
   vocabularyClinicDraftState: VocabularyClinicDraftState,
+  questionBankDraftState: QuestionBankDraftState,
   compareDraftState: CompareDraftState,
   actorNetworkDraftState: ActorNetworkDraftState,
   materialCultureDraftState: MaterialCultureDraftState,
@@ -7357,6 +7785,8 @@ function formatLearningArchive(
   const activeSourceAnnotationDrafts = getActiveSourceAnnotationDrafts(sourceAnnotationDraftState)
   const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
   const vocabularyClinicStats = getVocabularyClinicStats(vocabularyClinicDraftState)
+  const questionBankStats = getQuestionBankStats(questionBankDraftState)
+  const questionBankItems = buildQuestionBankItems()
   const vocabularyPracticeItems = buildVocabularyPracticeItems()
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
@@ -7372,7 +7802,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -7396,6 +7826,7 @@ function formatLearningArchive(
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
     `- Source Annotation Notebook 草稿：${sourceAnnotationStats.draftCount} drafts，${sourceAnnotationStats.completedCount} completed，${sourceAnnotationStats.taggedDraftCount} tagged`,
     `- Vocabulary Clinic 术语练习草稿：${vocabularyClinicStats.draftCount} drafts，${vocabularyClinicStats.completedCount} completed，${vocabularyClinicStats.selectedEvidenceTagCount} selected tags`,
+    `- Question Bank 形成性问题草稿：${questionBankStats.draftCount} drafts，${questionBankStats.completedCount} completed`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
@@ -7879,6 +8310,23 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (questionBankStats.activeDrafts.length > 0) {
+    lines.push('Question Bank / 形成性问题库与出口票：')
+    questionBankStats.activeDrafts.forEach(([itemId, draft]) => {
+      const item = questionBankItems.find((candidate) => candidate.id === itemId)
+      if (!item) return
+      lines.push(
+        `  - ${item.title}（${draft.completed ? '已完成' : '草稿'}｜${item.scenario.title}｜${getQuestionBankModeLabel(item.mode)}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    问题：${item.question}`,
+        `    Answer：${draft.answer.trim() || '尚未填写'}`,
+        `    Evidence note：${draft.evidenceNote.trim() || '尚未填写'}`,
+        `    Uncertainty / source limit：${draft.uncertaintyNote.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCompareDrafts.length > 0) {
     lines.push('Compare Lab Workspace / 跨场景比较工作区：')
     activeCompareDrafts.forEach(([, draft]) => {
@@ -7961,7 +8409,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Question Bank 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -8051,6 +8499,7 @@ function formatLearningCoachPlan(recommendations: LearningCoachRecommendation[],
     `- Compare Lab 草稿：${snapshot.compareDraftCount}`,
     `- Synthesis 草稿：${snapshot.synthesisDraftCount}`,
     `- Case Files 草稿：${snapshot.caseFileDraftCount}`,
+    `- Question Bank：${buildQuestionBankItems().length} 个可用短题 / exit tickets`,
     '',
     '推荐下一步：',
     ...(visibleRecommendations.length
@@ -8626,6 +9075,10 @@ function getOpenScenarioHash(source?: TaskLibrarySource): ScenarioSectionId {
 
   if (source === 'dispatch') {
     return sectionIds.dispatchBoard
+  }
+
+  if (source === 'question-bank' || source === 'vocabulary-clinic') {
+    return sectionIds.lessonPack
   }
 
   if (source === 'chronology' || source === 'place-desk') {
@@ -9306,6 +9759,7 @@ function buildTaskLibraryTasks({
   onOpenDebateStudio,
   onOpenExhibitTheme,
   onOpenVocabularyClinic,
+  onOpenQuestionBank,
   onStartTask,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
@@ -9325,6 +9779,7 @@ function buildTaskLibraryTasks({
   onOpenDebateStudio?: (scenarioId: string) => void
   onOpenExhibitTheme?: (themeId: string) => void
   onOpenVocabularyClinic?: (itemId?: string) => void
+  onOpenQuestionBank?: (itemId?: string) => void
   onStartTask?: (taskId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
@@ -9423,6 +9878,39 @@ function buildTaskLibraryTasks({
       }
 
       task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, item.term, item.definition, item.misconception, item.correction, item.contextHint, item.sourceLimitHint, ...tags, ...item.sourceTitles].filter(Boolean).join(' ').toLowerCase()
+      tasks.push(task)
+    })
+
+
+    buildQuestionBankItems().filter((item) => item.scenario.id === scenario.id).forEach((item) => {
+      const tags = ['Question Bank', getQuestionBankModeLabel(item.mode), ...item.tags, ...item.evidenceHints.slice(0, 2)]
+      const task: LibraryTask = {
+        id: item.id,
+        title: item.title,
+        context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+        scenarioId: scenario.id,
+        category: getQuestionBankModeLabel(item.mode),
+        source: 'question-bank',
+        sourceLabel: 'Question Bank',
+        durationMinutes: item.estimatedMinutes,
+        durationBand: getDurationBand(item.estimatedMinutes),
+        summary: item.question,
+        deliverable: 'Question Brief：学生短答、证据说明、不确定性/来源限制与完成状态',
+        tags,
+        sourceBased: item.mode === 'source-check' || item.evidenceHints.length > 0,
+        searchText: '',
+        primaryActionLabel: '打开问题库',
+        secondaryActionLabel: '打开相关场景',
+        onPrimaryAction: () => onOpenQuestionBank?.(item.id),
+        onSecondaryAction: () => onOpenScenario(scenario.id, item.relatedHash),
+        onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+        workbenchPrompts: [item.question, item.context, `模式：${getQuestionBankModeLabel(item.mode)}`],
+        checklist: ['阅读问题与情境', '写出短答', '补充 evidence note', '补充 uncertainty / source limit note', '标记完成或加入题组'],
+        evidencePrompts: item.evidenceHints.length ? item.evidenceHints : [item.teacherHint],
+        formatSheet: () => formatQuestionBankTaskSheet(item),
+      }
+
+      task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, item.answerGuide, item.teacherHint, item.sourceTitle, item.sceneTitle, ...tags].filter(Boolean).join(' ').toLowerCase()
       tasks.push(task)
     })
 
@@ -10624,7 +11112,10 @@ function App() {
   const [caseFileDraftState, setCaseFileDraftState] = useState<EvidenceCaseFileDraftState>(loadEvidenceCaseFileDraftState)
   const [sourceAnnotationDraftState, setSourceAnnotationDraftState] = useState<SourceAnnotationDraftState>(loadSourceAnnotationDraftState)
   const [vocabularyClinicDraftState, setVocabularyClinicDraftState] = useState<VocabularyClinicDraftState>(loadVocabularyClinicDraftState)
+  const [questionBankDraftState, setQuestionBankDraftState] = useState<QuestionBankDraftState>(loadQuestionBankDraftState)
+  const [questionSetDraft, setQuestionSetDraft] = useState<QuestionSetDraft>(loadQuestionSetDraft)
   const [selectedVocabularyPracticeItemId, setSelectedVocabularyPracticeItemId] = useState(buildVocabularyPracticeItems()[0]?.id ?? '')
+  const [selectedQuestionBankItemId, setSelectedQuestionBankItemId] = useState(buildQuestionBankItems()[0]?.id ?? '')
   const [selectedSourceAnnotationSourceId, setSelectedSourceAnnotationSourceId] = useState(buildSourceAnnotationSourceIndex()[0]?.sourceId ?? '')
   const [selectedCaseFileId, setSelectedCaseFileId] = useState(evidenceCaseFiles[0]?.id ?? '')
   const [selectedSynthesisPresetId, setSelectedSynthesisPresetId] = useState(synthesisInquiryPresets[0]?.id ?? '')
@@ -10674,8 +11165,8 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -10926,6 +11417,30 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [vocabularyClinicDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistQuestionBankDraftState(questionBankDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [questionBankDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistQuestionSetDraft(questionSetDraft)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [questionSetDraft])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -11285,6 +11800,25 @@ function App() {
     setActiveTasksSubpage('practice')
 
     const hash = getHashForTasksSubpage('practice')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openQuestionBank(itemId: string = selectedQuestionBankItemId) {
+    const item = buildQuestionBankItems().find((candidate) => candidate.id === itemId) ?? buildQuestionBankItems()[0]
+
+    if (item) {
+      setSelectedQuestionBankItemId(item.id)
+    }
+
+    setActivePage('tasks')
+    setActiveTasksSubpage('questions')
+
+    const hash = getHashForTasksSubpage('questions')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -11890,6 +12424,7 @@ function App() {
                 onOpenDebateStudio={openDebateStudio}
                 onOpenExhibitTheme={openExhibitTheme}
                 onOpenVocabularyClinic={openVocabularyClinic}
+                onOpenQuestionBank={openQuestionBank}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -11914,6 +12449,7 @@ function App() {
                 onOpenDebateStudio={openDebateStudio}
                 onOpenExhibitTheme={openExhibitTheme}
                 onOpenVocabularyClinic={openVocabularyClinic}
+                onOpenQuestionBank={openQuestionBank}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -11933,6 +12469,18 @@ function App() {
                 activeTaskId={activeWorkbenchTaskId}
                 onSelectTask={setActiveWorkbenchTaskId}
                 onUpdateDraftState={setTaskWorkbenchDraftState}
+              />
+            ) : null}
+            {activeTasksSubpage === 'questions' ? (
+              <QuestionBankStudioPanel
+                selectedItemId={selectedQuestionBankItemId}
+                draftState={questionBankDraftState}
+                questionSetDraft={questionSetDraft}
+                onSelectItem={setSelectedQuestionBankItemId}
+                onUpdateDraftState={setQuestionBankDraftState}
+                onUpdateQuestionSetDraft={setQuestionSetDraft}
+                onOpenScenario={selectScenario}
+                onStartTask={startTaskWorkbench}
               />
             ) : null}
             {activeTasksSubpage === 'practice' ? (
@@ -12002,6 +12550,7 @@ function App() {
                 caseFileDraftState={caseFileDraftState}
                 sourceAnnotationDraftState={sourceAnnotationDraftState}
                 vocabularyClinicDraftState={vocabularyClinicDraftState}
+                questionBankDraftState={questionBankDraftState}
                 compareDraftState={compareDraftState}
                 actorNetworkDraftState={actorNetworkDraftState}
                 materialCultureDraftState={materialCultureDraftState}
@@ -16639,6 +17188,199 @@ function VocabularyClinicPanel({
   )
 }
 
+function QuestionBankStudioPanel({
+  selectedItemId,
+  draftState,
+  questionSetDraft,
+  onSelectItem,
+  onUpdateDraftState,
+  onUpdateQuestionSetDraft,
+  onOpenScenario,
+  onStartTask,
+}: {
+  selectedItemId: string
+  draftState: QuestionBankDraftState
+  questionSetDraft: QuestionSetDraft
+  onSelectItem: (itemId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<QuestionBankDraftState>>
+  onUpdateQuestionSetDraft: Dispatch<SetStateAction<QuestionSetDraft>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onStartTask: (taskId: string) => void
+}) {
+  const [modeFilter, setModeFilter] = useState<'all' | QuestionBankMode>('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'completed' | 'not-started'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'brief' | 'student-set' | 'teacher-set' | 'failed'>('idle')
+  const items = useMemo(buildQuestionBankItems, [])
+  const stats = getQuestionBankStats(draftState)
+  const visibleItems = items.filter((item) => {
+    const draft = draftState[item.id]
+    const status = draft?.completed ? 'completed' : draft && hasQuestionBankDraftActivity(draft) ? 'draft' : 'not-started'
+    const searchText = [item.title, item.question, item.context, item.answerGuide, item.teacherHint, item.sourceTitle, item.sceneTitle, item.scenario.title, item.scenario.region, item.scenario.theme, ...item.evidenceHints, ...item.tags].filter(Boolean).join(' ').toLowerCase()
+    return (modeFilter === 'all' || item.mode === modeFilter)
+      && (scenarioFilter === 'all' || item.scenario.id === scenarioFilter)
+      && (statusFilter === 'all' || status === statusFilter)
+      && (!searchQuery.trim() || searchText.includes(searchQuery.trim().toLowerCase()))
+  })
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? visibleItems[0] ?? items[0]
+  const draft = selectedItem ? draftState[selectedItem.id] ?? getEmptyQuestionBankDraft() : getEmptyQuestionBankDraft()
+  const selectedSetItems = getQuestionSetItems(questionSetDraft, items)
+
+  function updateDraft(patch: Partial<QuestionBankDraft>) {
+    if (!selectedItem) return
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedItem.id]: {
+        ...(currentState[selectedItem.id] ?? getEmptyQuestionBankDraft()),
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+    setCopyStatus('idle')
+  }
+
+  function updateQuestionSet(patch: Partial<QuestionSetDraft>) {
+    onUpdateQuestionSetDraft((currentDraft) => ({ ...currentDraft, ...patch, updatedAt: new Date().toISOString() }))
+    setCopyStatus('idle')
+  }
+
+  function toggleQuestionInSet(questionId: string) {
+    const selectedQuestionIds = questionSetDraft.selectedQuestionIds.includes(questionId)
+      ? questionSetDraft.selectedQuestionIds.filter((id) => id !== questionId)
+      : questionSetDraft.selectedQuestionIds.length >= 8
+        ? questionSetDraft.selectedQuestionIds
+        : [...questionSetDraft.selectedQuestionIds, questionId]
+    updateQuestionSet({ selectedQuestionIds })
+  }
+
+  async function copyBrief() {
+    if (!selectedItem) return
+    try {
+      await copyTextToClipboard(formatQuestionBrief(selectedItem, draft))
+      setCopyStatus('brief')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  async function copySet(kind: 'student-set' | 'teacher-set') {
+    try {
+      await copyTextToClipboard(kind === 'student-set' ? formatStudentQuestionSet(questionSetDraft, items) : formatTeacherQuestionSet(questionSetDraft, items))
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    if (!selectedItem) return
+    const safeTitle = selectedItem.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'question-brief'
+    downloadTextFile(`timeatlas-${safeTitle}.txt`, formatQuestionBrief(selectedItem, draft))
+  }
+
+  function clearDraft() {
+    if (!selectedItem) return
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedItem.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  if (!selectedItem) {
+    return null
+  }
+
+  return (
+    <section id="question-bank-studio" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="question-bank-title">
+      <div className="rounded-[2rem] border border-purple-200/15 bg-purple-100/[0.045] p-5">
+        <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
+          <div>
+            <div className="mb-3 flex items-center gap-3 text-purple-100"><BookOpen size={20} /><span className="text-sm uppercase tracking-[0.3em]">question bank studio</span></div>
+            <h2 id="question-bank-title" className="text-3xl font-semibold tracking-tight text-stone-50">形成性问题库与出口票工作台</h2>
+            <p className="mt-3 leading-7 text-stone-400">从 check questions、exit tickets、scene prompts、source questions、decision 和 key terms 派生短答与来源追问；只做形成性草稿，不做 AI 评分。</p>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+              {[{ label: '问题', value: items.length }, { label: '草稿', value: stats.draftCount }, { label: '完成', value: stats.completedCount }].map((stat) => <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-3"><div className="text-2xl font-semibold text-purple-100">{stat.value}</div><div className="text-xs text-stone-500">{stat.label}</div></div>)}
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">mode</span><select value={modeFilter} onChange={(event) => setModeFilter(event.target.value as 'all' | QuestionBankMode)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none"><option value="all">全部模式</option><option value="scene-check">场景短答</option><option value="source-check">来源追问</option><option value="daily-life-check">日常检查</option><option value="decision-check">选择追问</option><option value="concept-check">概念核查</option><option value="exit-ticket">出口票</option></select></label>
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">scenario</span><select value={scenarioFilter} onChange={(event) => setScenarioFilter(event.target.value)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none"><option value="all">全部场景</option>{scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}</select></label>
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none"><option value="all">全部状态</option><option value="not-started">未开始</option><option value="draft">草稿</option><option value="completed">已完成</option></select></label>
+            <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">search</span><div className="flex items-center rounded-full border border-white/10 bg-black/25 px-3"><Search size={15} className="text-stone-500" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="问题 / 来源 / 术语" className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm text-stone-100 outline-none" /></div></label>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.66fr_0.96fr_0.58fr]">
+          <div className="max-h-[680px] overflow-y-auto rounded-3xl border border-white/10 bg-black/20 p-3">
+            <div className="mb-2 text-sm text-stone-500">{visibleItems.length} items · 点击进入 reader</div>
+            <div className="space-y-2">
+              {visibleItems.map((item) => {
+                const itemDraft = draftState[item.id]
+                const status = itemDraft?.completed ? '完成' : itemDraft && hasQuestionBankDraftActivity(itemDraft) ? '草稿' : 'new'
+                return (
+                  <button key={item.id} type="button" onClick={() => onSelectItem(item.id)} className={`w-full rounded-2xl border p-3 text-left transition ${selectedItem.id === item.id ? 'border-purple-200/40 bg-purple-100/[0.08]' : 'border-white/10 bg-white/[0.03] hover:border-white/20'}`}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-semibold text-stone-100">{item.title}</span><span className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-purple-100">{status}</span></div>
+                    <div className="mt-1 text-xs text-stone-500">{getQuestionBankModeLabel(item.mode)} · {item.estimatedMinutes}m · {item.scenario.title}</div>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-400">{item.question}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-purple-100">{getQuestionBankModeLabel(selectedItem.mode)} · {selectedItem.estimatedMinutes}m</p>
+                <h3 className="mt-1 text-2xl font-semibold text-stone-50">{selectedItem.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{selectedItem.question}</p>
+              </div>
+              <button type="button" onClick={() => onStartTask(selectedItem.id)} className="rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-100/[0.14]">进入 Workbench</button>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-stone-400"><span className="font-semibold text-stone-100">Context：</span>{selectedItem.context}</div>
+              <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400"><span className="font-semibold text-amber-100">Answer guide：</span>{selectedItem.answerGuide}</div>
+              <div className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-3 text-sm leading-6 text-stone-400 md:col-span-2"><span className="font-semibold text-sky-100">Teacher hint：</span>{selectedItem.teacherHint}</div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-purple-200/15 bg-purple-100/[0.045] p-3">
+              <h4 className="font-semibold text-purple-100">Evidence hints</h4>
+              <div className="mt-2 flex flex-wrap gap-2">{selectedItem.evidenceHints.map((hint) => <span key={`${selectedItem.id}-${hint}`} className="rounded-full border border-purple-200/15 bg-purple-100/[0.06] px-3 py-1 text-xs text-purple-100">{hint}</span>)}</div>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">student answer</span><textarea value={draft.answer} onChange={(event) => updateDraft({ answer: event.target.value })} rows={4} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" placeholder="2-4 句短答，不需要完整论文。" /></label>
+              <div className="grid gap-3 md:grid-cols-2"><label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">evidence note</span><textarea value={draft.evidenceNote} onChange={(event) => updateDraft({ evidenceNote: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label><label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">uncertainty / source limit note</span><textarea value={draft.uncertaintyNote} onChange={(event) => updateDraft({ uncertaintyNote: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label></div>
+              <div className="flex flex-wrap items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-purple-200/20 bg-purple-100/[0.06] px-4 py-2 text-sm text-purple-100"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} className="h-4 w-4 rounded border-white/20 bg-black text-purple-300 focus:ring-purple-200" />completed</label><button type="button" onClick={() => toggleQuestionInSet(selectedItem.id)} className="rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]">{questionSetDraft.selectedQuestionIds.includes(selectedItem.id) ? '移出题组' : '加入题组'}</button></div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'brief' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'brief' ? '已复制' : '复制 Question Brief'}</button><button type="button" onClick={downloadBrief} className="inline-flex items-center gap-2 rounded-full border border-purple-200/25 bg-purple-100/[0.08] px-4 py-2 text-sm font-semibold text-purple-100 transition hover:bg-purple-100/[0.14]"><ScrollText size={16} />下载 txt</button><button type="button" onClick={() => onOpenScenario(selectedItem.scenario.id, selectedItem.relatedHash)} className="inline-flex items-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"><ArrowRight size={16} />打开相关 scenario/source/scene</button><button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.05]">清空</button></div>
+            <p className="mt-3 text-xs text-stone-500" aria-live="polite">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : 'localStorage 优先保存；受限时回退 sessionStorage。'} {copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : ''}</p>
+          </div>
+
+          <aside className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+            <h3 className="font-semibold text-stone-50">轻量题组 / Exit ticket set</h3>
+            <p className="mt-1 text-xs text-stone-500">{selectedSetItems.length}/8 selected · 用于复制学生版/教师版题组。</p>
+            <div className="mt-3 grid gap-2">
+              {(['title', 'audience', 'timeBox', 'instructions', 'teacherNotes'] as (keyof QuestionSetDraft)[]).map((field) => (
+                <label key={field} className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">{field}</span>{field === 'instructions' || field === 'teacherNotes' ? <textarea value={String(questionSetDraft[field] ?? '')} onChange={(event) => updateQuestionSet({ [field]: event.target.value } as Partial<QuestionSetDraft>)} rows={field === 'instructions' ? 3 : 2} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none" /> : <input value={String(questionSetDraft[field] ?? '')} onChange={(event) => updateQuestionSet({ [field]: event.target.value } as Partial<QuestionSetDraft>)} className="w-full rounded-full border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none" />}</label>
+              ))}
+            </div>
+            <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+              {selectedSetItems.length ? selectedSetItems.map((item) => <div key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-2 text-xs leading-5 text-stone-400"><div className="font-semibold text-stone-100">{item.title}</div><div>{getQuestionBankModeLabel(item.mode)} · {item.estimatedMinutes}m</div></div>) : <p className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-stone-500">从中间 reader 或左侧列表选择“加入题组”。</p>}
+            </div>
+            <div className="mt-4 flex flex-col gap-2"><button type="button" onClick={() => void copySet('student-set')} className="inline-flex justify-center gap-2 rounded-full bg-purple-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-purple-200"><Copy size={16} />{copyStatus === 'student-set' ? '学生版已复制' : '复制学生版题组'}</button><button type="button" onClick={() => void copySet('teacher-set')} className="inline-flex justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]"><Copy size={16} />{copyStatus === 'teacher-set' ? '教师版已复制' : '复制教师版题组'}</button><button type="button" onClick={() => updateQuestionSet({ selectedQuestionIds: [] })} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.05]">清空题组</button></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioPanel({
   completedMissionIdsByScenario,
   missionWorkState,
@@ -16661,6 +17403,7 @@ function PortfolioPanel({
   caseFileDraftState,
   sourceAnnotationDraftState,
   vocabularyClinicDraftState,
+  questionBankDraftState,
   compareDraftState,
   actorNetworkDraftState,
   materialCultureDraftState,
@@ -16689,6 +17432,7 @@ function PortfolioPanel({
   caseFileDraftState: EvidenceCaseFileDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
   vocabularyClinicDraftState: VocabularyClinicDraftState
+  questionBankDraftState: QuestionBankDraftState
   compareDraftState: CompareDraftState
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
@@ -16756,7 +17500,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -17103,6 +17847,7 @@ function TaskDiscoveryPanel({
   onOpenDebateStudio,
   onOpenExhibitTheme,
   onOpenVocabularyClinic,
+  onOpenQuestionBank,
   onStartTask,
 }: {
   learningCoachRecommendations: LearningCoachRecommendation[]
@@ -17125,12 +17870,13 @@ function TaskDiscoveryPanel({
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenExhibitTheme: (themeId: string) => void
   onOpenVocabularyClinic: (itemId?: string) => void
+  onOpenQuestionBank: (itemId?: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -18385,6 +19131,7 @@ function TaskLibraryPanel({
   onOpenDebateStudio,
   onOpenExhibitTheme,
   onOpenVocabularyClinic,
+  onOpenQuestionBank,
   onStartTask,
 }: {
   preset: TaskLibraryPreset | null
@@ -18406,6 +19153,7 @@ function TaskLibraryPanel({
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenExhibitTheme: (themeId: string) => void
   onOpenVocabularyClinic: (itemId?: string) => void
+  onOpenQuestionBank: (itemId?: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -18416,8 +19164,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
