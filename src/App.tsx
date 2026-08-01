@@ -36,6 +36,7 @@ import {
   placeInquiries,
   patternInquiries,
   communicationInquiries,
+  dbqPacketPresets,
   scenarios,
   type AtlasInquiryPath,
   type AtlasMapRoute,
@@ -49,6 +50,7 @@ import {
   type PlaceInquiry,
   type PatternInquiry,
   type CommunicationInquiry,
+  type DbqPacketPreset,
   type DailyLifeKey,
   type ActivityPack,
   type ActivityPackMode,
@@ -58,6 +60,9 @@ import {
   type MissionTaskType,
   type Scenario,
   type MaterialObject,
+  type HistoricalSource,
+  type SceneBeat,
+  type TimelineEvent,
   type SocialActor,
   type SocialEncounter,
 } from './data/scenarios'
@@ -96,6 +101,7 @@ const sessionRunnerStorageKey = 'timeatlas:session-runner-drafts'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
 const assignmentBuilderStorageKey = 'timeatlas:assignment-builder-draft'
 const taskWorkbenchStorageKey = 'timeatlas:task-workbench-drafts'
+const dbqPacketStudioStorageKey = 'timeatlas:dbq-packet-studio-drafts'
 const actorNetworkDraftStorageKey = 'timeatlas:actor-network-drafts'
 const materialCultureDraftStorageKey = 'timeatlas:material-culture-drafts'
 const dispatchBoardDraftStorageKey = 'timeatlas:dispatch-board-drafts'
@@ -1008,7 +1014,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'citation-trail' | 'message-flow' | 'interpretation' | 'infrastructure' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'pattern-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'dbq-packet' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'citation-trail' | 'message-flow' | 'interpretation' | 'infrastructure' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'pattern-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -1174,7 +1180,7 @@ type SubpageNavItem<T extends string> = {
 type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'infrastructure' | 'patterns' | 'missions' | 'pathways' | 'compare'
 type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'citation-trail' | 'message-flow' | 'interpretation' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'questions' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'dbq' | 'workbench' | 'questions' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
 
@@ -1213,6 +1219,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'discover', label: '任务发现', eyebrow: 'Discover', description: '按学习目标、时间和历史思维发现任务集合', hash: 'task-discovery' },
   { id: 'library', label: '任务库', eyebrow: 'Library', description: '全站任务搜索、筛选与启动', hash: 'task-library' },
   { id: 'builder', label: '任务组合', eyebrow: 'Builder', description: '组合最多 6 个任务，生成学生任务单与教师指南', hash: 'assignment-builder' },
+  { id: 'dbq', label: 'DBQ 包', eyebrow: 'DBQ', description: 'Mini-DBQ Packet Studio 生成学生文献包与教师指南', hash: 'dbq-packet-studio' },
   { id: 'workbench', label: '任务执行台', eyebrow: 'Workbench', description: '按单个任务记录清单、证据、主张与反思', hash: 'task-workbench' },
   { id: 'questions', label: '问题库', eyebrow: 'Questions', description: '短答、来源追问、出口票与轻量题组', hash: 'question-bank-studio' },
   { id: 'practice', label: '术语练习', eyebrow: 'Clinic', description: '历史术语、误区纠正与证据标签匹配短练习', hash: 'vocabulary-clinic' },
@@ -1494,9 +1501,51 @@ type TaskWorkbenchStats = {
   recentDrafts: [string, TaskWorkbenchDraft][]
 }
 
+type DbqDocumentType = 'source' | 'scene-beat' | 'timeline' | 'decision' | 'object'
+
+type DbqDocumentCard = {
+  id: string
+  type: DbqDocumentType
+  typeLabel: string
+  scenario: Scenario
+  title: string
+  subtitle: string
+  text: string
+  sourceQuestion: string
+  reliabilityNote: string
+  tags: string[]
+  ctaHash: ScenarioSectionId
+  sourceUrl?: string
+}
+
+type DbqPacketDraft = {
+  selectedDocumentIds: string[]
+  packetTitle: string
+  contextParagraph: string
+  guidingQuestion: string
+  documentNotes: Record<string, string>
+  sourcingQuestions: string
+  groupingPlan: string
+  thesisPrompt: string
+  finalWritingPrompt: string
+  teacherNotes: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type DbqPacketDraftState = Record<string, DbqPacketDraft>
+
+type DbqPacketStats = {
+  activeDrafts: [string, DbqPacketDraft][]
+  draftCount: number
+  completedCount: number
+  selectedDocumentCount: number
+  recentDrafts: [string, DbqPacketDraft][]
+}
+
 type PortfolioReviewFocus = 'evidence' | 'source-limits' | 'argument' | 'presentation' | 'completion'
-type PortfolioReviewFilter = 'all' | 'draft' | 'completed' | 'recent' | 'workbench' | 'writing' | 'evidence'
-type PortfolioReviewItemOrigin = 'mission' | 'workbench' | 'workspace' | 'writing' | 'evidence' | 'presentation' | 'pattern'
+type PortfolioReviewFilter = 'all' | 'draft' | 'completed' | 'recent' | 'workbench' | 'writing' | 'evidence' | 'dbq'
+type PortfolioReviewItemOrigin = 'mission' | 'workbench' | 'workspace' | 'writing' | 'evidence' | 'presentation' | 'pattern' | 'dbq'
 
 type PortfolioReviewItem = {
   id: string
@@ -1692,6 +1741,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'mission', label: 'Scenario Missions' },
   { value: 'activity', label: 'Activity Packs' },
   { value: 'lesson', label: 'Lesson Pack' },
+  { value: 'dbq-packet', label: 'DBQ Packet Studio' },
   { value: 'debate', label: 'Debate Studio' },
   { value: 'actor-network', label: 'Actor Network' },
   { value: 'material-culture', label: 'Material Culture' },
@@ -4794,6 +4844,122 @@ function persistTaskWorkbenchDraftState(state: TaskWorkbenchState) {
   getSafeStorage('sessionStorage')?.setItem(taskWorkbenchStorageKey, serializedState)
 }
 
+function getEmptyDbqPacketDraft(preset: DbqPacketPreset): DbqPacketDraft {
+  const suggestedDocuments = buildDbqDocumentCardsForPreset(preset).slice(0, 4).map((document) => document.id)
+
+  return {
+    selectedDocumentIds: suggestedDocuments,
+    packetTitle: preset.title,
+    contextParagraph: preset.contextBridge,
+    guidingQuestion: preset.drivingQuestion,
+    documentNotes: {},
+    sourcingQuestions: preset.studentTasks.join('\n'),
+    groupingPlan: '',
+    thesisPrompt: `Develop a thesis that answers: ${preset.drivingQuestion}`,
+    finalWritingPrompt: `Using at least three documents, write a DBQ response to: ${preset.drivingQuestion}`,
+    teacherNotes: preset.teacherNotes.join('\n'),
+    completed: false,
+  }
+}
+
+function parseDbqPacketDraftState(rawState: string | null): DbqPacketDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as DbqPacketDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([presetId, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<DbqPacketDraft>
+        const selectedDocumentIds = Array.isArray(draft.selectedDocumentIds)
+          ? draft.selectedDocumentIds.filter((id): id is string => typeof id === 'string').slice(0, 5)
+          : []
+        const rawDocumentNotes = draft.documentNotes && typeof draft.documentNotes === 'object' && !Array.isArray(draft.documentNotes) ? draft.documentNotes : {}
+        const documentNotes = Object.fromEntries(Object.entries(rawDocumentNotes).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+
+        return [[
+          presetId,
+          {
+            selectedDocumentIds,
+            packetTitle: typeof draft.packetTitle === 'string' ? draft.packetTitle : '',
+            contextParagraph: typeof draft.contextParagraph === 'string' ? draft.contextParagraph : '',
+            guidingQuestion: typeof draft.guidingQuestion === 'string' ? draft.guidingQuestion : '',
+            documentNotes,
+            sourcingQuestions: typeof draft.sourcingQuestions === 'string' ? draft.sourcingQuestions : '',
+            groupingPlan: typeof draft.groupingPlan === 'string' ? draft.groupingPlan : '',
+            thesisPrompt: typeof draft.thesisPrompt === 'string' ? draft.thesisPrompt : '',
+            finalWritingPrompt: typeof draft.finalWritingPrompt === 'string' ? draft.finalWritingPrompt : '',
+            teacherNotes: typeof draft.teacherNotes === 'string' ? draft.teacherNotes : '',
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies DbqPacketDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as DbqPacketDraftState
+  }
+}
+
+function hasDbqPacketDraftActivity(draft: DbqPacketDraft) {
+  return Boolean(
+    draft.selectedDocumentIds.length
+      || draft.packetTitle.trim()
+      || draft.contextParagraph.trim()
+      || draft.guidingQuestion.trim()
+      || Object.values(draft.documentNotes).some((note) => note.trim())
+      || draft.sourcingQuestions.trim()
+      || draft.groupingPlan.trim()
+      || draft.thesisPrompt.trim()
+      || draft.finalWritingPrompt.trim()
+      || draft.teacherNotes.trim()
+      || draft.completed,
+  )
+}
+
+function loadDbqPacketDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseDbqPacketDraftState(localStorage?.getItem(dbqPacketStudioStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasDbqPacketDraftActivity)) {
+    return localState
+  }
+
+  return parseDbqPacketDraftState(sessionStorage?.getItem(dbqPacketStudioStorageKey) ?? null)
+}
+
+function persistDbqPacketDraftState(state: DbqPacketDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(dbqPacketStudioStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(dbqPacketStudioStorageKey, serializedState)
+}
+
+function getDbqPacketStats(state: DbqPacketDraftState): DbqPacketStats {
+  const activeDrafts = Object.entries(state).filter((entry): entry is [string, DbqPacketDraft] => hasDbqPacketDraftActivity(entry[1]))
+  const sortedDrafts = [...activeDrafts].sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedDocumentCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedDocumentIds.length, 0),
+    recentDrafts: sortedDrafts.slice(0, 4),
+  }
+}
+
 function getEmptyActorNetworkDraft(encounter: SocialEncounter): ActorNetworkDraft {
   return {
     selectedActorIds: encounter.actorIds.slice(0, 2),
@@ -6078,6 +6244,242 @@ function getTaskWorkbenchStats(state: TaskWorkbenchState): TaskWorkbenchStats {
     checkedPromptCount: activeDrafts.reduce((count, [, draft]) => count + draft.checkedPromptIds.length, 0),
     recentDrafts: sortedDrafts.slice(0, 4),
   }
+}
+
+function getDbqDocumentTypeLabel(type: DbqDocumentType) {
+  return {
+    source: 'Source',
+    'scene-beat': 'Scene beat',
+    timeline: 'Timeline',
+    decision: 'Decision evidence',
+    object: 'Object',
+  }[type]
+}
+
+function normalizeDbqSelectorText(value: string) {
+  return value.toLowerCase()
+}
+
+function matchesDbqSelectorText(values: string[], includes: string[] | undefined) {
+  if (!includes?.length) return false
+  const normalizedValues = values.map(normalizeDbqSelectorText)
+
+  return includes.some((needle) => normalizedValues.some((value) => value.includes(normalizeDbqSelectorText(needle))))
+}
+
+function buildDbqSourceCard(scenario: Scenario, source: HistoricalSource, index: number): DbqDocumentCard {
+  return {
+    id: `dbq:${scenario.id}:source:${index}`,
+    type: 'source',
+    typeLabel: getDbqDocumentTypeLabel('source'),
+    scenario,
+    title: source.title,
+    subtitle: `${source.creator} · ${sourceTypeLabels[source.sourceType]}`,
+    text: source.excerpt,
+    sourceQuestion: source.sourceQuestion,
+    reliabilityNote: source.reliabilityNote,
+    tags: uniqueLimitedStrings([source.sourceType, source.creator, ...source.evidenceTags, scenario.region, scenario.theme], 8),
+    ctaHash: sectionIds.sourceReader,
+    sourceUrl: source.url,
+  }
+}
+
+function buildDbqSceneBeatCard(scenario: Scenario, beat: SceneBeat, index: number): DbqDocumentCard {
+  return {
+    id: `dbq:${scenario.id}:scene:${index}`,
+    type: 'scene-beat',
+    typeLabel: getDbqDocumentTypeLabel('scene-beat'),
+    scenario,
+    title: beat.title,
+    subtitle: `${scenario.title} · ${beat.timeLabel}`,
+    text: `${beat.sensoryDetail} ${beat.historicalTension}`,
+    sourceQuestion: beat.learnerPrompt,
+    reliabilityNote: `Narrative scene beat synthesized from scenario evidence hooks: ${beat.evidenceHook}`,
+    tags: uniqueLimitedStrings(['scene beat', ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles, scenario.region], 8),
+    ctaHash: sectionIds.sceneReader,
+  }
+}
+
+function buildDbqTimelineCard(scenario: Scenario, event: TimelineEvent, index: number): DbqDocumentCard {
+  return {
+    id: `dbq:${scenario.id}:timeline:${index}`,
+    type: 'timeline',
+    typeLabel: getDbqDocumentTypeLabel('timeline'),
+    scenario,
+    title: `${event.year} · ${event.title}`,
+    subtitle: `${scenario.title} timeline`,
+    text: event.text,
+    sourceQuestion: 'How does this date change the context for ordinary choices or source interpretation?',
+    reliabilityNote: 'Timeline context supports chronology and contextualization; it is not a standalone primary source.',
+    tags: uniqueLimitedStrings(['timeline', event.year, scenario.era, scenario.region, scenario.theme], 8),
+    ctaHash: sectionIds.experience,
+  }
+}
+
+function buildDbqDecisionCard(scenario: Scenario): DbqDocumentCard {
+  return {
+    id: `dbq:${scenario.id}:decision`,
+    type: 'decision',
+    typeLabel: getDbqDocumentTypeLabel('decision'),
+    scenario,
+    title: scenario.decision.prompt,
+    subtitle: `${scenario.title} · Decision evidence`,
+    text: `${scenario.decision.context} Options: ${scenario.decision.options.map((option) => `${option.label} (${option.stance})`).join('; ')}`,
+    sourceQuestion: 'What could this actor know at the time, and what remains hindsight?',
+    reliabilityNote: 'Decision evidence is a scenario synthesis designed for reasoning about constraints, not a direct archival quotation.',
+    tags: uniqueLimitedStrings(['decision', 'choice', 'constraints', scenario.region, scenario.theme, ...scenario.decision.options.map((option) => option.stance)], 8),
+    ctaHash: sectionIds.decisionPanel,
+  }
+}
+
+function buildDbqObjectCard(scenario: Scenario, object: MaterialObject, index: number): DbqDocumentCard {
+  return {
+    id: `dbq:${scenario.id}:object:${index}`,
+    type: 'object',
+    typeLabel: getDbqDocumentTypeLabel('object'),
+    scenario,
+    title: object.name,
+    subtitle: `${object.category} · ${object.shortLabel}`,
+    text: `${object.description} Everyday use: ${object.everydayUse} Labor/skill: ${object.laborOrSkill} Exchange/power: ${object.exchangeOrPower}`,
+    sourceQuestion: object.inquiryPrompts[0] ?? 'What can this object show, and what can it not prove by itself?',
+    reliabilityNote: object.evidenceLimit,
+    tags: uniqueLimitedStrings(['object', object.category, ...object.tags, ...object.linkedSourceTitles, scenario.region], 8),
+    ctaHash: sectionIds.materialCulture,
+  }
+}
+
+function buildDbqDocumentCardsForPreset(preset: DbqPacketPreset): DbqDocumentCard[] {
+  const cards: DbqDocumentCard[] = []
+  const presetScenarios = preset.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+  presetScenarios.forEach((scenario) => {
+    scenario.sources.forEach((source, sourceIndex) => {
+      const shouldInclude = preset.documentSelectors.some((selector) => {
+        const typeMatch = selector.sourceTypes?.includes(source.sourceType) ?? false
+        const tagMatch = selector.evidenceTags?.some((tag) => source.evidenceTags.some((sourceTag) => normalizeDbqSelectorText(sourceTag).includes(normalizeDbqSelectorText(tag)))) ?? false
+        const titleMatch = matchesDbqSelectorText([source.title, source.creator, source.relevance, source.excerpt, ...source.evidenceTags], selector.sourceTitleIncludes)
+
+        return typeMatch || tagMatch || titleMatch
+      })
+
+      if (shouldInclude) cards.push(buildDbqSourceCard(scenario, source, sourceIndex))
+    })
+
+    scenario.sceneBeats.forEach((beat, beatIndex) => {
+      if (preset.documentSelectors.some((selector) => matchesDbqSelectorText([beat.title, beat.timeLabel, beat.historicalTension, beat.evidenceHook, ...beat.linkedSourceTitles], selector.includeSceneBeats))) {
+        cards.push(buildDbqSceneBeatCard(scenario, beat, beatIndex))
+      }
+    })
+
+    scenario.timeline.forEach((event, eventIndex) => {
+      if (preset.documentSelectors.some((selector) => matchesDbqSelectorText([event.year, event.title, event.text], selector.includeTimeline))) {
+        cards.push(buildDbqTimelineCard(scenario, event, eventIndex))
+      }
+    })
+
+    if (preset.documentSelectors.some((selector) => selector.includeDecision)) {
+      cards.push(buildDbqDecisionCard(scenario))
+    }
+
+    scenario.materialObjects.forEach((object, objectIndex) => {
+      if (preset.documentSelectors.some((selector) => matchesDbqSelectorText([object.name, object.shortLabel, object.category, object.description, object.objectBiography, object.everydayUse, object.laborOrSkill, object.exchangeOrPower, ...object.tags, ...object.linkedSourceTitles], selector.includeObjects))) {
+        cards.push(buildDbqObjectCard(scenario, object, objectIndex))
+      }
+    })
+  })
+
+  const deduped = Array.from(new Map(cards.map((card) => [card.id, card])).values())
+  return deduped.sort((first, second) => preset.scenarioIds.indexOf(first.scenario.id) - preset.scenarioIds.indexOf(second.scenario.id) || first.type.localeCompare(second.type) || first.title.localeCompare(second.title))
+}
+
+function getDbqPresetById(id: string | null) {
+  return dbqPacketPresets.find((preset) => preset.id === id) ?? dbqPacketPresets[0]
+}
+
+function getDbqSelectedDocuments(preset: DbqPacketPreset, draft: DbqPacketDraft) {
+  const documents = buildDbqDocumentCardsForPreset(preset)
+  const selected = draft.selectedDocumentIds.map((id) => documents.find((document) => document.id === id)).filter((document): document is DbqDocumentCard => Boolean(document))
+
+  return selected.length ? selected : documents.slice(0, 4)
+}
+
+function formatDbqStudentPacket(preset: DbqPacketPreset, draft: DbqPacketDraft, selectedDocuments: DbqDocumentCard[]) {
+  return [
+    `TimeAtlas Mini-DBQ Packet / ${draft.packetTitle.trim() || preset.title}`,
+    `Driving question: ${draft.guidingQuestion.trim() || preset.drivingQuestion}`,
+    `Estimated time: ${preset.estimatedMinutes} minutes`,
+    '',
+    'Context bridge:',
+    draft.contextParagraph.trim() || preset.contextBridge,
+    '',
+    'Documents:',
+    ...(selectedDocuments.length ? selectedDocuments.map((document, index) => [
+      `Document ${index + 1}: ${document.title}`,
+      `Type / scenario: ${document.typeLabel} · ${document.scenario.title} (${document.scenario.era})`,
+      `Source line: ${document.subtitle}`,
+      `Excerpt / evidence: ${document.text}`,
+      `Sourcing question: ${document.sourceQuestion}`,
+      `Reliability / limits: ${document.reliabilityNote}`,
+      draft.documentNotes[document.id]?.trim() ? `Student note: ${draft.documentNotes[document.id].trim()}` : '',
+    ].filter(Boolean).join('\n')) : ['No documents selected. Select 3-5 documents to complete the packet.']),
+    '',
+    'Student tasks:',
+    ...(draft.sourcingQuestions.trim() ? draft.sourcingQuestions.split('\n').map((line) => `- ${line.trim()}`).filter((line) => line !== '-') : preset.studentTasks.map((task) => `- ${task}`)),
+    '',
+    `Grouping plan: ${draft.groupingPlan.trim() || 'Group documents by topic, source type, agreement/tension, or chronology.'}`,
+    `Thesis prompt: ${draft.thesisPrompt.trim() || `Develop a thesis that answers: ${preset.drivingQuestion}`}`,
+    `Final writing prompt: ${draft.finalWritingPrompt.trim() || preset.deliverable}`,
+  ].join('\n')
+}
+
+function formatDbqTeacherGuide(preset: DbqPacketPreset, draft: DbqPacketDraft, selectedDocuments: DbqDocumentCard[]) {
+  return [
+    `TimeAtlas Mini-DBQ Teacher Guide / ${draft.packetTitle.trim() || preset.title}`,
+    `Preset: ${preset.title} · ${preset.subtitle}`,
+    `Skills: ${preset.skills.join(', ')}`,
+    `Tags: ${preset.tags.join(', ')}`,
+    `Packet status: ${draft.completed ? 'completed' : hasDbqPacketDraftActivity(draft) ? 'draft' : 'not started'}`,
+    `Updated: ${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : 'not recorded'}`,
+    '',
+    'Document mix:',
+    ...selectedDocuments.map((document, index) => `${index + 1}. ${document.typeLabel} · ${document.scenario.title} · ${document.title} · tags: ${document.tags.join(', ')}`),
+    '',
+    'Teacher notes:',
+    ...(draft.teacherNotes.trim() ? draft.teacherNotes.split('\n').map((line) => `- ${line.trim()}`).filter((line) => line !== '-') : preset.teacherNotes.map((note) => `- ${note}`)),
+    '',
+    'Suggested facilitation:',
+    '- Require 3-5 selected documents before calling the packet complete.',
+    '- Ask students to cite document type and scenario, not just document number.',
+    '- Keep source limits visible in the final thesis.',
+    '',
+    `Deliverable: ${preset.deliverable}`,
+  ].join('\n')
+}
+
+function formatDbqWorkbenchSheet(preset: DbqPacketPreset, draft: DbqPacketDraft, selectedDocuments: DbqDocumentCard[]) {
+  return [
+    `TimeAtlas DBQ Workbench Sheet / ${draft.packetTitle.trim() || preset.title}`,
+    `Question: ${draft.guidingQuestion.trim() || preset.drivingQuestion}`,
+    '',
+    'Selected documents checklist:',
+    ...selectedDocuments.map((document, index) => `□ Document ${index + 1}: ${document.typeLabel} · ${document.title} · sourcing limit: ${document.reliabilityNote}`),
+    '',
+    'Document notes:',
+    ...selectedDocuments.map((document, index) => `Document ${index + 1} note: ${draft.documentNotes[document.id]?.trim() || '____________________'}`),
+    '',
+    `Sourcing questions:
+${draft.sourcingQuestions.trim() || preset.studentTasks.map((task) => `- ${task}`).join('\n')}`,
+    '',
+    `Grouping plan: ${draft.groupingPlan.trim() || '____________________'}`,
+    `Thesis prompt: ${draft.thesisPrompt.trim() || `Develop a thesis that answers: ${preset.drivingQuestion}`}`,
+    `Final writing prompt: ${draft.finalWritingPrompt.trim() || '____________________'}`,
+  ].join('\n')
+}
+
+function formatDbqLibraryTaskSheet(preset: DbqPacketPreset) {
+  const documents = buildDbqDocumentCardsForPreset(preset).slice(0, 5)
+  const draft = getEmptyDbqPacketDraft(preset)
+  return formatDbqStudentPacket(preset, draft, documents)
 }
 
 function formatActorNetworkBrief(scenario: Scenario, encounter: SocialEncounter, actors: SocialActor[], draft: ActorNetworkDraft) {
@@ -11389,6 +11791,7 @@ function buildPortfolioReviewItems({
   workspaceState,
   assignmentLibraryTasks,
   taskWorkbenchDraftState,
+  dbqPacketDraftState,
   patternDraftState,
   infrastructureDraftState,
   interpretationDraftState,
@@ -11405,6 +11808,7 @@ function buildPortfolioReviewItems({
   workspaceState: WorkspaceState
   assignmentLibraryTasks: LibraryTask[]
   taskWorkbenchDraftState: TaskWorkbenchState
+  dbqPacketDraftState: DbqPacketDraftState
   patternDraftState: PatternDraftState
   infrastructureDraftState: InfrastructureDraftState
   interpretationDraftState: InterpretationDraftState
@@ -11453,6 +11857,21 @@ function buildPortfolioReviewItems({
       tags: uniqueChips([task?.category, task?.context, ...(task?.tags ?? [])], 5),
       origin: 'workbench',
       focuses: ['evidence', 'argument', 'source-limits', 'completion'],
+    })
+  })
+
+  getDbqPacketStats(dbqPacketDraftState).activeDrafts.forEach(([presetId, draft]) => {
+    const preset = getDbqPresetById(presetId)
+    items.push({
+      id: `dbq:${presetId}`,
+      title: draft.packetTitle.trim() || preset.title,
+      sourceLabel: 'Mini-DBQ Packet Studio',
+      description: draft.guidingQuestion.trim() || draft.contextParagraph.trim() || preset.drivingQuestion,
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips(['DBQ Packet', ...preset.tags, ...preset.skills], 5),
+      origin: 'dbq',
+      focuses: ['evidence', 'source-limits', 'argument', 'presentation'],
     })
   })
 
@@ -11703,6 +12122,7 @@ function formatLearningArchive(
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
   taskWorkbenchDraftState: TaskWorkbenchState,
+  dbqPacketDraftState: DbqPacketDraftState,
   sessionRunDraftState: SessionRunDraftState,
   differentiationDraftState: DifferentiationDraftState,
   portfolioReviewDraft?: PortfolioReviewDraft,
@@ -11741,10 +12161,11 @@ function formatLearningArchive(
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const dbqPacketStats = getDbqPacketStats(dbqPacketDraftState)
   const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
   const differentiationStats = getDifferentiationDraftStats(differentiationDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
-  const portfolioReviewItems = portfolioReviewDraft ? buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, patternDraftState, infrastructureDraftState, interpretationDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState }) : []
+  const portfolioReviewItems = portfolioReviewDraft ? buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, dbqPacketDraftState, patternDraftState, infrastructureDraftState, interpretationDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState }) : []
   const selectedPortfolioReviewItems = portfolioReviewDraft ? portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id)) : []
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
@@ -11791,6 +12212,7 @@ function formatLearningArchive(
     `- Exhibit Studio 展览策展草稿：${exhibitStudioStats.draftCount} drafts，${exhibitStudioStats.completedCount} completed，${exhibitStudioStats.selectedEvidenceCount} selected exhibits`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
+    `- Mini-DBQ Packet Studio 草稿：${dbqPacketStats.draftCount} drafts，${dbqPacketStats.completedCount} completed，${dbqPacketStats.selectedDocumentCount} selected documents`,
     `- Live Session Runner：${sessionRunnerStats.draftCount} active routes，${sessionRunnerStats.completedCount} completed routes`,
     `- Differentiation & Scaffolding Studio：${differentiationStats.draftCount} support drafts，${differentiationStats.completedCount} completed support plans`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
@@ -11963,6 +12385,24 @@ function formatLearningArchive(
         `    行动理由：${draft.actionRationale.trim() || '尚未填写'}`,
         `    来源限制：${draft.sourceLimitNote.trim() || '尚未填写'}`,
         `    短回复：${draft.messageReply.trim() || '尚未填写'}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (dbqPacketStats.activeDrafts.length > 0) {
+    lines.push('Mini-DBQ Packet Studio / 文献包探究生成器：')
+    dbqPacketStats.activeDrafts.forEach(([presetId, draft]) => {
+      const preset = getDbqPresetById(presetId)
+      const selectedDocuments = getDbqSelectedDocuments(preset, draft)
+      lines.push(
+        `  - ${draft.packetTitle.trim() || preset.title}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    Guiding question：${draft.guidingQuestion.trim() || preset.drivingQuestion}`,
+        `    已选 documents：${selectedDocuments.map((document) => `${document.typeLabel}｜${document.scenario.title}｜${document.title}`).join('；') || '尚未选择'}`,
+        `    Grouping plan：${draft.groupingPlan.trim() || '尚未填写'}`,
+        `    Thesis prompt：${draft.thesisPrompt.trim() || '尚未填写'}`,
+        `    Final writing prompt：${draft.finalWritingPrompt.trim() || '尚未填写'}`,
       )
     })
     lines.push('')
@@ -12613,7 +13053,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Counterfactual Lab 草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Citation Trail 草稿、Question Bank 草稿、Portfolio Review 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Counterfactual Lab 草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Citation Trail 草稿、Question Bank 草稿、Mini-DBQ Packet Studio 草稿、Portfolio Review 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -14162,6 +14602,7 @@ function buildTaskLibraryTasks({
   onOpenExhibitTheme,
   onOpenVocabularyClinic,
   onOpenQuestionBank,
+  onOpenDbqPacket,
   onStartTask,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
@@ -14188,9 +14629,41 @@ function buildTaskLibraryTasks({
   onOpenExhibitTheme?: (themeId: string) => void
   onOpenVocabularyClinic?: (itemId?: string) => void
   onOpenQuestionBank?: (itemId?: string) => void
+  onOpenDbqPacket?: (presetId?: string) => void
   onStartTask?: (taskId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
+
+  dbqPacketPresets.forEach((preset) => {
+    const documents = buildDbqDocumentCardsForPreset(preset).slice(0, 5)
+    const task: LibraryTask = {
+      id: `dbq-packet:${preset.id}`,
+      title: preset.title,
+      context: `${preset.subtitle} · ${preset.scenarioIds.map((id) => getScenarioById(id)?.title ?? id).join(' × ')}`,
+      category: 'Mini-DBQ Packet',
+      source: 'dbq-packet',
+      sourceLabel: 'DBQ Packet Studio',
+      durationMinutes: preset.estimatedMinutes,
+      durationBand: getDurationBand(preset.estimatedMinutes),
+      summary: preset.drivingQuestion,
+      deliverable: preset.deliverable,
+      tags: ['DBQ', 'document packet', ...preset.skills, ...preset.tags],
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 DBQ Studio',
+      secondaryActionLabel: '打开 Task Workbench',
+      onPrimaryAction: () => onOpenDbqPacket?.(preset.id),
+      onSecondaryAction: onStartTask ? () => onStartTask(task.id) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [preset.drivingQuestion, preset.contextBridge, `Document mix: ${documents.map((document) => `${document.typeLabel}/${document.scenario.title}`).join(' · ')}`],
+      checklist: ['Open Mini-DBQ Packet Studio', 'Select 3-5 documents', 'Fill context, sourcing and grouping fields', 'Copy student packet or teacher guide', 'Mark packet complete'],
+      evidencePrompts: documents.map((document) => `${document.typeLabel}｜${document.scenario.title}｜${document.title}: ${document.sourceQuestion}`),
+      formatSheet: () => formatDbqLibraryTaskSheet(preset),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, preset.subtitle, preset.contextBridge, ...preset.studentTasks, ...preset.teacherNotes, ...preset.skills, ...preset.tags, ...documents.flatMap((document) => [document.title, document.subtitle, document.text, document.sourceQuestion, document.reliabilityNote, ...document.tags])].join(' ').toLowerCase()
+    tasks.push(task)
+  })
 
   scenarios.forEach((scenario) => {
     scenario.missions.forEach((mission) => {
@@ -15706,6 +16179,7 @@ type GlobalExplorerAction =
   | { type: 'route', routeKind: 'map-route' | 'inquiry-path', routeId: string }
   | { type: 'tool', page: PageId, hash?: string }
   | { type: 'draft', draftKind: 'task-workbench', taskId: string }
+  | { type: 'draft', draftKind: 'dbq-packet', presetId: string }
   | { type: 'draft', draftKind: 'compare', scenarioAId: string, scenarioBId: string, lensKey: CompareLens['key'] }
   | { type: 'draft', draftKind: 'synthesis', presetId: string }
   | { type: 'draft', draftKind: 'source-annotation', sourceId: string }
@@ -15736,6 +16210,7 @@ type GlobalExplorerState = {
 type BuildGlobalExplorerItemsOptions = {
   assignmentLibraryTasks: LibraryTask[]
   taskWorkbenchDraftState: TaskWorkbenchState
+  dbqPacketDraftState: DbqPacketDraftState
   compareDraftState: CompareDraftState
   synthesisDraftState: SynthesisDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
@@ -15841,6 +16316,7 @@ function persistGlobalExplorerState(state: GlobalExplorerState) {
 function buildGlobalExplorerItems({
   assignmentLibraryTasks,
   taskWorkbenchDraftState,
+  dbqPacketDraftState,
   compareDraftState,
   synthesisDraftState,
   sourceAnnotationDraftState,
@@ -15978,6 +16454,24 @@ function buildGlobalExplorerItems({
       updatedAt: draft.updatedAt,
       searchText: buildGlobalExplorerSearchText([taskId, task?.title, task?.context, task?.summary, draft.evidenceNotes, draft.claimExplanation, draft.sourceLimits, draft.reflection]),
       action: { type: 'draft', draftKind: 'task-workbench', taskId },
+    })
+  })
+
+  getDbqPacketStats(dbqPacketDraftState).recentDrafts.forEach(([presetId, draft]) => {
+    const preset = getDbqPresetById(presetId)
+    items.push({
+      id: `draft:dbq-packet:${presetId}`,
+      kind: 'draft',
+      title: draft.packetTitle.trim() || preset.title,
+      eyebrow: draft.completed ? 'DBQ Packet · 已完成' : 'DBQ Packet · 草稿',
+      summary: compactText(draft.guidingQuestion, draft.contextParagraph || preset.contextBridge, 145),
+      context: 'Mini-DBQ Packet Studio',
+      tags: uniqueLimitedStrings(['DBQ Packet', ...preset.tags, ...preset.skills]),
+      actionLabel: '继续 DBQ packet',
+      priority: 99,
+      updatedAt: draft.updatedAt,
+      searchText: buildGlobalExplorerSearchText([presetId, preset.title, preset.subtitle, preset.drivingQuestion, draft.packetTitle, draft.contextParagraph, draft.guidingQuestion, draft.groupingPlan, draft.thesisPrompt, draft.finalWritingPrompt, ...preset.tags, ...preset.skills]),
+      action: { type: 'draft', draftKind: 'dbq-packet', presetId },
     })
   })
 
@@ -16276,6 +16770,7 @@ function App() {
   const [selectedSourceAnnotationSourceId, setSelectedSourceAnnotationSourceId] = useState(buildSourceAnnotationSourceIndex()[0]?.sourceId ?? '')
   const [selectedCaseFileId, setSelectedCaseFileId] = useState(evidenceCaseFiles[0]?.id ?? '')
   const [selectedSynthesisPresetId, setSelectedSynthesisPresetId] = useState(synthesisInquiryPresets[0]?.id ?? '')
+  const [selectedDbqPacketPresetId, setSelectedDbqPacketPresetId] = useState(dbqPacketPresets[0]?.id ?? '')
   const [selectedContextInquiryId, setSelectedContextInquiryId] = useState(contextInquiryDefinitions[0]?.id ?? '')
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>(loadWorkspaceState)
   const [guidedSessionProgressState, setGuidedSessionProgressState] = useState<GuidedSessionProgressState>(
@@ -16288,6 +16783,7 @@ function App() {
   const [assignmentBuilderDraft, setAssignmentBuilderDraft] = useState<AssignmentBuilderDraft>(loadAssignmentBuilderDraft)
   const [differentiationDraftState, setDifferentiationDraftState] = useState<DifferentiationDraftState>(loadDifferentiationDraftState)
   const [taskWorkbenchDraftState, setTaskWorkbenchDraftState] = useState<TaskWorkbenchState>(loadTaskWorkbenchDraftState)
+  const [dbqPacketDraftState, setDbqPacketDraftState] = useState<DbqPacketDraftState>(loadDbqPacketDraftState)
   const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
   const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
   const [dispatchDraftState, setDispatchDraftState] = useState<DispatchDraftState>(loadDispatchDraftState)
@@ -16334,8 +16830,8 @@ function App() {
   const interpretationEvidenceByInquiry = useMemo(getInterpretationEvidenceByInquiryMap, [])
   const patternMetricsByInquiry = useMemo(getPatternMetricsByInquiryMap, [])
   const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenPatternInquiry: openPatternInquiry, onOpenInfrastructureInquiry: openInfrastructureInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenInterpretationInquiry: openInterpretationInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenCitationTrail: openCitationTrailSources, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
-  const globalExplorerItems = useMemo(() => buildGlobalExplorerItems({ assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState, differentiationDraftState, assignmentBuilderDraft }), [assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState, differentiationDraftState, assignmentBuilderDraft])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenPatternInquiry: openPatternInquiry, onOpenInfrastructureInquiry: openInfrastructureInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenInterpretationInquiry: openInterpretationInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenCitationTrail: openCitationTrailSources, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onOpenDbqPacket: openDbqPacketPreset, onStartTask: startTaskWorkbench })
+  const globalExplorerItems = useMemo(() => buildGlobalExplorerItems({ assignmentLibraryTasks, taskWorkbenchDraftState, dbqPacketDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState, differentiationDraftState, assignmentBuilderDraft }), [assignmentLibraryTasks, taskWorkbenchDraftState, dbqPacketDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState, differentiationDraftState, assignmentBuilderDraft])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -16812,6 +17308,18 @@ function App() {
     }
 
     try {
+      persistDbqPacketDraftState(dbqPacketDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [dbqPacketDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
       persistActorNetworkDraftState(actorNetworkDraftState)
     } catch {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
@@ -17087,6 +17595,28 @@ function App() {
       })
 
     const hash = getHashForTasksSubpage('workbench')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openDbqPacketPreset(presetId: string = selectedDbqPacketPresetId) {
+    const preset = getDbqPresetById(presetId)
+    setSelectedDbqPacketPresetId(preset.id)
+    setActivePage('tasks')
+    setActiveTasksSubpage('dbq')
+
+    setDbqPacketDraftState((currentState) => currentState[preset.id]
+      ? currentState
+      : {
+        ...currentState,
+        [preset.id]: getEmptyDbqPacketDraft(preset),
+      })
+
+    const hash = getHashForTasksSubpage('dbq')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -17664,6 +18194,11 @@ function App() {
       return
     }
 
+    if (action.draftKind === 'dbq-packet') {
+      openDbqPacketPreset(action.presetId)
+      return
+    }
+
     if (action.draftKind === 'compare') {
       openScenarioCompare(action.scenarioAId, action.lensKey, action.scenarioBId)
       return
@@ -18052,6 +18587,7 @@ function App() {
                 onOpenExhibitTheme={openExhibitTheme}
                 onOpenVocabularyClinic={openVocabularyClinic}
                 onOpenQuestionBank={openQuestionBank}
+                onOpenDbqPacket={openDbqPacketPreset}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -18082,6 +18618,7 @@ function App() {
                 onOpenExhibitTheme={openExhibitTheme}
                 onOpenVocabularyClinic={openVocabularyClinic}
                 onOpenQuestionBank={openQuestionBank}
+                onOpenDbqPacket={openDbqPacketPreset}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -18091,6 +18628,16 @@ function App() {
                 onUpdateDraft={setAssignmentBuilderDraft}
                 libraryTasks={assignmentLibraryTasks}
                 onOpenAssessmentStudio={openAssessmentStudioFromBuilder}
+                onStartTask={startTaskWorkbench}
+              />
+            ) : null}
+            {activeTasksSubpage === 'dbq' ? (
+              <DbqPacketStudioPanel
+                selectedPresetId={selectedDbqPacketPresetId}
+                draftState={dbqPacketDraftState}
+                onSelectPreset={setSelectedDbqPacketPresetId}
+                onUpdateDraftState={setDbqPacketDraftState}
+                onOpenScenario={selectScenario}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -18203,6 +18750,7 @@ function App() {
                 exhibitDraftState={exhibitDraftState}
                 differentiationDraftState={differentiationDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
+                dbqPacketDraftState={dbqPacketDraftState}
                 sessionRunDraftState={sessionRunDraftState}
                 portfolioReviewDraft={portfolioReviewDraft}
                 onUpdatePortfolioReviewDraft={setPortfolioReviewDraft}
@@ -23522,6 +24070,7 @@ function PortfolioPanel({
   exhibitDraftState,
   differentiationDraftState,
   taskWorkbenchDraftState,
+  dbqPacketDraftState,
   sessionRunDraftState,
   portfolioReviewDraft,
   onUpdatePortfolioReviewDraft,
@@ -23563,6 +24112,7 @@ function PortfolioPanel({
   exhibitDraftState: ExhibitStudioDraftState
   differentiationDraftState: DifferentiationDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
+  dbqPacketDraftState: DbqPacketDraftState
   sessionRunDraftState: SessionRunDraftState
   portfolioReviewDraft: PortfolioReviewDraft
   onUpdatePortfolioReviewDraft: Dispatch<SetStateAction<PortfolioReviewDraft>>
@@ -23600,6 +24150,7 @@ function PortfolioPanel({
   const differentiationStats = getDifferentiationDraftStats(differentiationDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
+  const dbqPacketStats = getDbqPacketStats(dbqPacketDraftState)
   const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
   const sessionRunnerRouteMap = new Map(buildGuidedSessionRoutes().map((route) => [route.id, route]))
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
@@ -23621,6 +24172,7 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentWorkbenchDrafts = taskWorkbenchStats.recentDrafts.slice(0, 3)
+  const recentDbqPacketDrafts = dbqPacketStats.recentDrafts.slice(0, 3)
   const recentPlaceDrafts = placeDeskStats.recentDrafts.slice(0, 3)
   const recentInfrastructureDrafts = infrastructureDeskStats.recentDrafts.slice(0, 3)
   const recentMessageFlowDrafts = messageFlowDeskStats.recentDrafts.slice(0, 3)
@@ -23644,7 +24196,7 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentSessionRunDrafts = sessionRunnerStats.recentDrafts.slice(0, 3)
-  const portfolioReviewItems = buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, patternDraftState, infrastructureDraftState, interpretationDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState })
+  const portfolioReviewItems = buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, dbqPacketDraftState, patternDraftState, infrastructureDraftState, interpretationDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState })
   const selectedPortfolioReviewItems = portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id))
   const [portfolioReviewFilter, setPortfolioReviewFilter] = useState<PortfolioReviewFilter>('all')
   const visiblePortfolioReviewItems = portfolioReviewItems.filter((item, index) => {
@@ -23654,6 +24206,7 @@ function PortfolioPanel({
     if (portfolioReviewFilter === 'recent') return index < 8
     if (portfolioReviewFilter === 'workbench') return item.origin === 'workbench' || item.origin === 'mission' || item.origin === 'workspace'
     if (portfolioReviewFilter === 'writing') return item.origin === 'writing'
+    if (portfolioReviewFilter === 'dbq') return item.origin === 'dbq'
     return item.origin === 'evidence' || item.origin === 'presentation'
   }).slice(0, 12)
 
@@ -23698,7 +24251,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState, differentiationDraftState, portfolioReviewDraft))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, dbqPacketDraftState, sessionRunDraftState, differentiationDraftState, portfolioReviewDraft))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -23782,6 +24335,8 @@ function PortfolioPanel({
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
               { label: '执行台完成', value: taskWorkbenchStats.completedCount },
+              { label: 'DBQ 草稿', value: dbqPacketStats.draftCount },
+              { label: 'DBQ 完成', value: dbqPacketStats.completedCount },
               { label: '运行路线', value: sessionRunnerStats.draftCount },
               { label: '路线完成', value: sessionRunnerStats.completedCount },
               { label: '模块开始', value: taskModuleStats.startedCount },
@@ -23801,7 +24356,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentInfrastructureDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentInterpretationDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCitationTrailDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentDifferentiationDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || recentSessionRunDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentInfrastructureDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentInterpretationDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCitationTrailDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentDifferentiationDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || recentDbqPacketDrafts.length > 0 || recentSessionRunDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -23832,6 +24387,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{supportTarget.title}</div>
                       <div>Differentiation Studio · {supportTarget.targetLabel} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedLevels.length} levels</div>
                       <div className="mt-1 text-stone-500">{draft.learnerNeeds.trim() || draft.studentInstructions.trim() || '尚未填写 learner needs 或 student instructions'}</div>
+                    </div>
+                  )
+                })}
+                {recentDbqPacketDrafts.map(([presetId, draft]) => {
+                  const preset = getDbqPresetById(presetId)
+
+                  return (
+                    <div key={presetId} className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{draft.packetTitle.trim() || preset.title}</div>
+                      <div>Mini-DBQ Packet · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedDocumentIds.length}/5 docs</div>
+                      <div className="mt-1 text-stone-500">{draft.guidingQuestion.trim() || draft.groupingPlan.trim() || preset.drivingQuestion}</div>
                     </div>
                   )
                 })}
@@ -24248,6 +24814,7 @@ function TaskDiscoveryPanel({
   onOpenExhibitTheme,
   onOpenVocabularyClinic,
   onOpenQuestionBank,
+  onOpenDbqPacket,
   onStartTask,
 }: {
   learningCoachRecommendations: LearningCoachRecommendation[]
@@ -24277,12 +24844,13 @@ function TaskDiscoveryPanel({
   onOpenExhibitTheme: (themeId: string) => void
   onOpenVocabularyClinic: (itemId?: string) => void
   onOpenQuestionBank: (itemId?: string) => void
+  onOpenDbqPacket: (presetId?: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onOpenDbqPacket, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onOpenDbqPacket, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -25432,6 +26000,196 @@ function DifferentiationStudioPanel({
 }
 
 
+
+function DbqPacketStudioPanel({
+  selectedPresetId,
+  draftState,
+  onSelectPreset,
+  onUpdateDraftState,
+  onOpenScenario,
+  onStartTask,
+}: {
+  selectedPresetId: string
+  draftState: DbqPacketDraftState
+  onSelectPreset: (presetId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<DbqPacketDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onStartTask: (taskId: string) => void
+}) {
+  const [typeFilter, setTypeFilter] = useState<'all' | DbqDocumentType>('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'failed'>('idle')
+  const preset = getDbqPresetById(selectedPresetId)
+  const documents = useMemo(() => buildDbqDocumentCardsForPreset(preset), [preset])
+  const draft = draftState[preset.id] ?? getEmptyDbqPacketDraft(preset)
+  const selectedDocuments = draft.selectedDocumentIds.map((id) => documents.find((document) => document.id === id)).filter((document): document is DbqDocumentCard => Boolean(document))
+  const visibleDocuments = documents.filter((document) => (typeFilter === 'all' || document.type === typeFilter) && (scenarioFilter === 'all' || document.scenario.id === scenarioFilter))
+  const completionHint = selectedDocuments.length < 3 ? '至少选择 3 张 document card 才是完整 packet。' : selectedDocuments.length > 5 ? '最多保留 5 张 document card。' : 'Document count ready.'
+  const studentPacket = formatDbqStudentPacket(preset, draft, selectedDocuments)
+  const teacherGuide = formatDbqTeacherGuide(preset, draft, selectedDocuments)
+  const workbenchSheet = formatDbqWorkbenchSheet(preset, draft, selectedDocuments)
+
+  useEffect(() => {
+    if (selectedPresetId === preset.id) return
+    onSelectPreset(preset.id)
+  }, [onSelectPreset, preset.id, selectedPresetId])
+
+  function updateDraft(patch: Partial<DbqPacketDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[preset.id] ?? getEmptyDbqPacketDraft(preset)
+      return {
+        ...currentState,
+        [preset.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleDocument(documentId: string) {
+    const selectedDocumentIds = draft.selectedDocumentIds.includes(documentId)
+      ? draft.selectedDocumentIds.filter((id) => id !== documentId)
+      : [...draft.selectedDocumentIds, documentId].slice(0, 5)
+    updateDraft({ selectedDocumentIds })
+  }
+
+  function updateDocumentNote(documentId: string, note: string) {
+    updateDraft({ documentNotes: { ...draft.documentNotes, [documentId]: note } })
+  }
+
+  async function copyDbq(kind: 'student' | 'teacher') {
+    try {
+      await copyTextToClipboard(kind === 'student' ? studentPacket : teacherGuide)
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => ({ ...currentState, [preset.id]: getEmptyDbqPacketDraft(preset) }))
+    setCopyStatus('idle')
+  }
+
+  return (
+    <section id="dbq-packet-studio" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="dbq-packet-studio-title">
+      <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-amber-100">
+          <ScrollText size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">mini-dbq packet studio</span>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-[0.58fr_1.42fr] xl:items-start">
+          <aside>
+            <h2 id="dbq-packet-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">DBQ 文献包探究生成器</h2>
+            <p className="mt-3 leading-7 text-stone-400">从现有 sources、scene beats、timeline、objects 与 decision evidence 组合学生可读 Mini-DBQ 包。不改变 Scenario schema，也不写入 Synthesis evidence pool。</p>
+            <div className="mt-5 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+              {dbqPacketPresets.map((candidate) => {
+                const candidateDraft = draftState[candidate.id]
+                const isActive = candidate.id === preset.id
+                return (
+                  <button key={candidate.id} type="button" onClick={() => onSelectPreset(candidate.id)} className={`block w-full rounded-2xl border p-3 text-left transition ${isActive ? 'border-amber-200/45 bg-amber-100/[0.09]' : 'border-white/10 bg-black/20 hover:bg-white/[0.04]'}`}>
+                    <div className="font-semibold text-stone-100">{candidate.title}</div>
+                    <div className="mt-1 text-xs leading-5 text-stone-500">{candidate.estimatedMinutes}m · {candidate.skills.slice(0, 2).join(' / ')} · {candidateDraft?.updatedAt ? '有草稿' : 'preset'}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <div className="grid gap-4 2xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-4">
+              <article className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-stone-500">
+                      <span className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-amber-100">{preset.estimatedMinutes}m</span>
+                      {preset.tags.slice(0, 4).map((tag) => <span key={tag}>{tag}</span>)}
+                    </div>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-50">{preset.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-stone-400">{preset.drivingQuestion}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs text-stone-500">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"><span className="block text-lg font-semibold text-amber-100">{selectedDocuments.length}/5</span>docs</div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"><span className="block text-lg font-semibold text-amber-100">{draft.completed ? 'Done' : 'Draft'}</span>status</div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"><span className="block text-lg font-semibold text-amber-100">{documents.length}</span>shelf</div>
+                  </div>
+                </div>
+                <p className="mt-3 rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3 text-sm text-stone-300">{completionHint}</p>
+              </article>
+
+              <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                  <label className="block flex-1"><span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">Document type</span><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | DbqDocumentType)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none focus:border-amber-200/60"><option value="all">All types</option><option value="source">Source</option><option value="scene-beat">Scene beat</option><option value="timeline">Timeline</option><option value="decision">Decision</option><option value="object">Object</option></select></label>
+                  <label className="block flex-1"><span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">Scenario</span><select value={scenarioFilter} onChange={(event) => setScenarioFilter(event.target.value)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none focus:border-amber-200/60"><option value="all">All related scenarios</option>{preset.scenarioIds.map((id) => <option key={id} value={id}>{getScenarioById(id)?.title ?? id}</option>)}</select></label>
+                </div>
+                <div className="mt-4 grid max-h-[28rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                  {visibleDocuments.map((document) => {
+                    const checked = draft.selectedDocumentIds.includes(document.id)
+                    return (
+                      <button key={document.id} type="button" onClick={() => toggleDocument(document.id)} className={`rounded-2xl border p-3 text-left text-sm transition ${checked ? 'border-amber-200/45 bg-amber-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:bg-white/[0.05]'}`}>
+                        <div className="flex items-start justify-between gap-3"><span className="font-semibold text-stone-100">{document.title}</span>{checked ? <CheckCircle2 size={18} className="shrink-0 text-amber-100" /> : <Circle size={18} className="shrink-0 text-stone-600" />}</div>
+                        <div className="mt-1 text-xs text-stone-500">{document.typeLabel} · {document.scenario.title}</div>
+                        <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-400">{document.text}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Packet title</span><input value={draft.packetTitle} onChange={(event) => updateDraft({ packetTitle: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Guiding question</span><input value={draft.guidingQuestion} onChange={(event) => updateDraft({ guidingQuestion: event.target.value })} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block md:col-span-2"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Context paragraph</span><textarea value={draft.contextParagraph} onChange={(event) => updateDraft({ contextParagraph: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Sourcing questions</span><textarea value={draft.sourcingQuestions} onChange={(event) => updateDraft({ sourcingQuestions: event.target.value })} rows={4} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Grouping plan</span><textarea value={draft.groupingPlan} onChange={(event) => updateDraft({ groupingPlan: event.target.value })} rows={4} placeholder="Group by document type, chronology, labor control, missing voices…" className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Thesis prompt</span><textarea value={draft.thesisPrompt} onChange={(event) => updateDraft({ thesisPrompt: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Final writing prompt</span><textarea value={draft.finalWritingPrompt} onChange={(event) => updateDraft({ finalWritingPrompt: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                <label className="block md:col-span-2"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Teacher notes</span><textarea value={draft.teacherNotes} onChange={(event) => updateDraft({ teacherNotes: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <h4 className="font-semibold text-stone-50">Selected document notes</h4>
+                <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+                  {selectedDocuments.map((document, index) => (
+                    <label key={document.id} className="block rounded-2xl border border-white/10 bg-white/[0.025] p-3"><span className="mb-1 block text-xs text-stone-500">Document {index + 1} · {document.title}</span><textarea value={draft.documentNotes[document.id] ?? ''} onChange={(event) => updateDocumentNote(document.id, event.target.value)} rows={2} placeholder="Student-facing note, source role or grouping hint…" className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3 2xl:grid-cols-1">
+                <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4"><h4 className="font-semibold text-stone-50">Student packet</h4><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 p-3 text-xs leading-5 text-stone-300">{studentPacket}</pre></div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4"><h4 className="font-semibold text-stone-50">Teacher guide</h4><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 p-3 text-xs leading-5 text-stone-300">{teacherGuide}</pre></div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4"><h4 className="font-semibold text-stone-50">Workbench sheet</h4><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 p-3 text-xs leading-5 text-stone-300">{workbenchSheet}</pre></div>
+              </div>
+
+              <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void copyDbq('student')} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 hover:bg-amber-200">{copyStatus === 'student' ? <Check size={16} /> : <Copy size={16} />}复制 Student DBQ Packet</button>
+                  <button type="button" onClick={() => void copyDbq('teacher')} className="inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-100/[0.14]">{copyStatus === 'teacher' ? <Check size={16} /> : <Copy size={16} />}复制 Teacher Guide</button>
+                  <button type="button" onClick={() => downloadTextFile(`timeatlas-${preset.id}-dbq.txt`, `${studentPacket}\n\n---\n\n${teacherGuide}\n\n---\n\n${workbenchSheet}`)} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 hover:bg-white/[0.08]"><Share2 size={16} />下载 txt</button>
+                  <button type="button" onClick={() => updateDraft({ completed: !draft.completed })} className="inline-flex items-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-100/[0.14]"><CheckCircle2 size={16} />{draft.completed ? '取消完成' : '标记完成'}</button>
+                  <button type="button" onClick={clearDraft} className="inline-flex items-center gap-2 rounded-full border border-rose-200/25 bg-rose-100/[0.06] px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-100/[0.12]">清空草稿</button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {preset.scenarioIds.slice(0, 4).map((id) => <button key={id} type="button" onClick={() => onOpenScenario(id, sectionIds.sourceReader)} className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-stone-200 hover:bg-white/[0.08]">打开 {getScenarioById(id)?.title ?? id}</button>)}
+                  {selectedDocuments[0] ? <button type="button" onClick={() => onOpenScenario(selectedDocuments[0].scenario.id, selectedDocuments[0].ctaHash)} className="rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-3 py-1.5 text-xs font-semibold text-sky-100 hover:bg-sky-100/[0.14]">打开相关 source / evidence</button> : null}
+                  <button type="button" onClick={() => onStartTask(`dbq-packet:${preset.id}`)} className="rounded-full border border-emerald-200/25 bg-emerald-100/[0.08] px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-100/[0.14]">启动 Task Workbench</button>
+                </div>
+                <p className="mt-3 text-xs text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查剪贴板权限；仍可下载 txt。' : '草稿自动保存到本机 storage。完整 packet 建议 3-5 张 document card。'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
 function TaskWorkbenchPanel({
   libraryTasks,
   draftState,
@@ -25707,6 +26465,7 @@ function TaskLibraryPanel({
   onOpenExhibitTheme,
   onOpenVocabularyClinic,
   onOpenQuestionBank,
+  onOpenDbqPacket,
   onStartTask,
 }: {
   preset: TaskLibraryPreset | null
@@ -25735,6 +26494,7 @@ function TaskLibraryPanel({
   onOpenExhibitTheme: (themeId: string) => void
   onOpenVocabularyClinic: (itemId?: string) => void
   onOpenQuestionBank: (itemId?: string) => void
+  onOpenDbqPacket: (presetId?: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -25745,8 +26505,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onOpenDbqPacket, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenInfrastructureInquiry, onOpenMessageFlowInquiry, onOpenInterpretationInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onOpenDbqPacket, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])

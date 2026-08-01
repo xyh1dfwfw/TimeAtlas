@@ -280,6 +280,32 @@ export type ExhibitTheme = {
   tags: string[]
 }
 
+export type DbqPacketDocumentSelector = {
+  sourceTypes?: HistoricalSource['sourceType'][]
+  evidenceTags?: string[]
+  sourceTitleIncludes?: string[]
+  includeSceneBeats?: string[]
+  includeTimeline?: string[]
+  includeDecision?: boolean
+  includeObjects?: string[]
+}
+
+export type DbqPacketPreset = {
+  id: string
+  title: string
+  subtitle: string
+  drivingQuestion: string
+  scenarioIds: string[]
+  skills: string[]
+  tags: string[]
+  estimatedMinutes: number
+  documentSelectors: DbqPacketDocumentSelector[]
+  contextBridge: string
+  studentTasks: string[]
+  teacherNotes: string[]
+  deliverable: string
+}
+
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
 export type ActivityPackMode = 'warmup' | 'source-lab' | 'roleplay' | 'debate' | 'writing' | 'compare' | 'extension'
@@ -2083,6 +2109,124 @@ export const counterfactualChallenges: CounterfactualChallenge[] = [
     ],
     deliverable: '一份 Market Gate Counterfactual Brief：入口规则、baseline evidence、单一变化、交易后果、连续性与来源限制。',
     tags: ['counterfactual', 'market rules', 'gatekeeping', 'taxation', 'credit'],
+  },
+]
+
+
+export const dbqPacketPresets: DbqPacketPreset[] = [
+  {
+    id: 'commodity-empire-dbq',
+    title: 'Commodity Empire DBQ',
+    subtitle: 'Sugar, cotton, labor discipline and imperial consumption',
+    drivingQuestion: 'How did empires turn commodities into everyday profit, labor discipline, and historical evidence?',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker'],
+    skills: ['source sourcing', 'commodity chain reasoning', 'labor comparison', 'historical argument'],
+    tags: ['commodity empire', 'labor', 'Atlantic', 'cotton', 'imperial markets'],
+    estimatedMinutes: 45,
+    documentSelectors: [
+      { sourceTypes: ['primary', 'institution'], evidenceTags: ['labor', 'coercion', 'discipline'], includeSceneBeats: ['钟声', '黎明', '工厂'], includeDecision: true },
+      { sourceTitleIncludes: ['sugar', 'cotton', 'factory', 'slave', 'plantation'], includeTimeline: ['revolution', 'abolition', 'factory', 'cotton'] },
+      { includeObjects: ['cotton', 'sugar', 'cloth', 'tool', 'ledger'] },
+    ],
+    contextBridge: 'Students compare how sugar and cotton moved through coerced, waged, and colonial labor systems without treating all labor regimes as identical.',
+    studentTasks: ['Source each document before using it as proof.', 'Group documents by labor control, market demand, and empire power.', 'Write a thesis that explains both continuity and difference across the commodity chain.'],
+    teacherNotes: ['Press students to name the mechanism of labor control, not just the product.', 'Ask what each document cannot show about workers’ inner lives.', 'Use objects and scene beats as context evidence, not as standalone archival proof.'],
+    deliverable: 'A 4-5 document Mini-DBQ packet with document notes, grouping plan, thesis and final writing prompt.',
+  },
+  {
+    id: 'monsoon-credit-dbq',
+    title: 'Monsoon Credit DBQ',
+    subtitle: 'Ports, waiting time, letters and trust across the Indian Ocean',
+    drivingQuestion: 'Why did long-distance trade depend on trust, timing, and paperwork as much as ships and goods?',
+    scenarioIds: ['malacca-monsoon-port-broker', 'kilwa-swahili-gold-merchant', 'fustat-geniza-merchant-apprentice'],
+    skills: ['corroboration', 'maritime systems', 'credit reasoning', 'source limits'],
+    tags: ['monsoon', 'credit', 'Indian Ocean', 'ports', 'letters'],
+    estimatedMinutes: 40,
+    documentSelectors: [
+      { sourceTypes: ['primary', 'scholarship'], evidenceTags: ['credit', 'trade', 'monsoon'], sourceTitleIncludes: ['Geniza', 'monsoon', 'Indian Ocean'] },
+      { includeSceneBeats: ['季风', '港', '账', 'letter', '信'], includeTimeline: ['monsoon', 'trade', 'Geniza'] },
+      { includeDecision: true, includeObjects: ['letter', 'ledger', 'coin', 'gold', 'ship'] },
+    ],
+    contextBridge: 'The packet links port scenes with documentary traces so students can see credit as a social technology under seasonal uncertainty.',
+    studentTasks: ['Identify the trust problem in each document.', 'Explain how monsoon timing shaped choices.', 'Use at least one source limit to qualify the final claim.'],
+    teacherNotes: ['Do not let students reduce credit to modern banking.', 'Highlight that preserved merchant letters overrepresent literate trading networks.', 'Ask students to distinguish route infrastructure from social trust.'],
+    deliverable: 'Mini-DBQ source set and workbench sheet about credit, waiting, and evidence survival.',
+  },
+  {
+    id: 'archive-silence-dbq',
+    title: 'Archive Silence DBQ',
+    subtitle: 'Nonwritten records, conquest narratives and whose voices survive',
+    drivingQuestion: 'How can historians make careful claims when the archive preserves some voices and silences others?',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'saint-domingue-sugar-worker'],
+    skills: ['archive critique', 'nonwritten evidence', 'missing voices', 'claim qualification'],
+    tags: ['archive silence', 'nonwritten records', 'conquest', 'coercion', 'memory'],
+    estimatedMinutes: 45,
+    documentSelectors: [
+      { sourceTypes: ['primary', 'institution', 'scholarship'], evidenceTags: ['archive', 'conquest', 'labor'], sourceTitleIncludes: ['khipu', 'Codex', 'chronicle', 'slave'] },
+      { includeSceneBeats: ['记录', 'khipu', 'market', 'silence', '呈报'], includeTimeline: ['conquest', 'colonial', 'revolt'] },
+      { includeDecision: true, includeObjects: ['khipu', 'cord', 'market', 'ledger'] },
+    ],
+    contextBridge: 'Students work with documents that are powerful but uneven, practicing how to write from evidence without pretending silence is absence.',
+    studentTasks: ['Mark who produced or preserved each document.', 'List one visible group and one missing group per document.', 'Draft a thesis with an explicit evidence boundary.'],
+    teacherNotes: ['Frame absence as a historical problem, not a reason to invent details.', 'Ask students to separate colonial description from Indigenous practice.', 'Use material evidence to broaden questions while preserving caution.'],
+    deliverable: 'A Mini-DBQ packet focused on archival survival, missing voices and qualified historical claims.',
+  },
+  {
+    id: 'market-rules-dbq',
+    title: 'Market Rules DBQ',
+    subtitle: 'City gates, market officials, taxes and the myth of free exchange',
+    drivingQuestion: 'In what ways were premodern and early modern markets managed rather than simply free?',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador'],
+    skills: ['institutional analysis', 'comparison', 'evidence grouping', 'contextualization'],
+    tags: ['market rules', 'gatekeeping', 'taxation', 'institutions', 'urban life'],
+    estimatedMinutes: 40,
+    documentSelectors: [
+      { sourceTypes: ['institution', 'primary'], evidenceTags: ['market', 'tax', 'regulation'], sourceTitleIncludes: ['唐六典', 'market', 'guild', 'Canton'] },
+      { includeSceneBeats: ['市', 'market', 'gate', 'tax', 'rule'], includeTimeline: ['market', 'trade', 'regulation'] },
+      { includeDecision: true, includeObjects: ['ledger', 'scale', 'coin', 'permit'] },
+    ],
+    contextBridge: 'This packet helps students test the phrase “market economy” against concrete rules, gatekeepers, and enforcement costs.',
+    studentTasks: ['Find the rule or gatekeeper in each document.', 'Group documents by state rule, community rule, and trade risk.', 'Write a claim explaining when rules enabled exchange and when they restricted it.'],
+    teacherNotes: ['Push beyond “rules are bad” toward rule functions and uneven effects.', 'Compare normative rules with lived scene evidence.', 'Invite students to identify who benefits from predictable enforcement.'],
+    deliverable: 'A student-facing DBQ packet on market governance with teacher guide and workbench prompts.',
+  },
+  {
+    id: 'crisis-news-dbq',
+    title: 'Crisis News DBQ',
+    subtitle: 'Rumor, air raids, coffeehouses and ordinary decisions under uncertainty',
+    drivingQuestion: 'How did crisis news travel, and how did ordinary people decide what to do before they knew the outcome?',
+    scenarioIds: ['wwii-london-civilian', 'ottoman-istanbul-coffeehouse-apprentice', 'tang-changan-merchant'],
+    skills: ['media reliability', 'decision evidence', 'hindsight boundary', 'cause and consequence'],
+    tags: ['crisis news', 'rumor', 'war', 'public space', 'uncertainty'],
+    estimatedMinutes: 35,
+    documentSelectors: [
+      { sourceTypes: ['primary', 'institution'], evidenceTags: ['news', 'rumor', 'war', 'risk'], sourceTitleIncludes: ['raid', 'coffee', 'newspaper', 'edict'] },
+      { includeSceneBeats: ['消息', 'rumor', 'news', 'air', '传闻'], includeTimeline: ['war', 'raid', 'crisis', 'rebellion'] },
+      { includeDecision: true, includeObjects: ['radio', 'lamp', 'newspaper', 'coffee'] },
+    ],
+    contextBridge: 'The packet asks students to reason from partial information and avoid judging historical actors only by what later became known.',
+    studentTasks: ['Identify each document’s information route.', 'Rate reliability and speed separately.', 'Explain one ordinary decision shaped by uncertain news.'],
+    teacherNotes: ['Keep the hindsight boundary visible throughout the packet.', 'Distinguish official warning, rumor, and later historical interpretation.', 'Use decisions as evidence of constraints, not as moral grading.'],
+    deliverable: 'A compact crisis-news DBQ packet with reliability questions and decision-evidence writing prompt.',
+  },
+  {
+    id: 'knowledge-access-dbq',
+    title: 'Knowledge Access DBQ',
+    subtitle: 'Paper, manuscripts, apprenticeships and the limits of learning',
+    drivingQuestion: 'Did new knowledge media make learning more open, or did access remain gated by labor, status and place?',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'song-bianjing-apprentice'],
+    skills: ['knowledge transmission', 'access analysis', 'comparison', 'source context'],
+    tags: ['knowledge access', 'paper', 'manuscripts', 'apprenticeship', 'education'],
+    estimatedMinutes: 45,
+    documentSelectors: [
+      { sourceTypes: ['primary', 'scholarship'], evidenceTags: ['knowledge', 'paper', 'education'], sourceTitleIncludes: ['paper', 'manuscript', 'printing', 'book'] },
+      { includeSceneBeats: ['书', 'paper', 'manuscript', '学习', '抄'], includeTimeline: ['printing', 'paper', 'school', 'manuscript'] },
+      { includeDecision: true, includeObjects: ['book', 'paper', 'brush', 'manuscript'] },
+    ],
+    contextBridge: 'Students compare access to knowledge across manuscript, print, and apprenticeship worlds, linking media change to social gatekeeping.',
+    studentTasks: ['Name the medium or learning place in each document.', 'Identify who gets access and who is excluded.', 'Write a thesis that avoids the simple story “more books equals equal access.”'],
+    teacherNotes: ['Separate technology diffusion from social access.', 'Ask how labor and copying work shaped knowledge circulation.', 'Invite one paragraph on evidence that survives because institutions valued it.'],
+    deliverable: 'A Mini-DBQ packet about knowledge media, access thresholds and careful comparison.',
   },
 ]
 
