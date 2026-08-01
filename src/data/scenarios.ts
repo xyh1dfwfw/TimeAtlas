@@ -184,6 +184,20 @@ export type ConceptAtlasTopic = {
   deliverable: string
 }
 
+export type ExhibitTheme = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  curatorialQuestion: string
+  audience: string
+  interpretiveTension: string
+  requiredEvidenceTypes: string[]
+  labelPrompts: string[]
+  visitorTakeaway: string
+  tags: string[]
+}
+
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
 export type ActivityPackMode = 'warmup' | 'source-lab' | 'roleplay' | 'debate' | 'writing' | 'compare' | 'extension'
@@ -1137,6 +1151,112 @@ export const conceptAtlasTopics: ConceptAtlasTopic[] = [
       '指出来源是否把中介写成工具、风险人物还是行动者。',
     ],
     deliverable: 'Concept Brief：定义帝国中介，比较两种中介机制，并说明中介视角的来源限制。',
+  },
+]
+
+
+export const exhibitThemes: ExhibitTheme[] = [
+  {
+    id: 'market-rules-city',
+    title: '一座城市如何管理市场',
+    subtitle: '从城市市场、港口税册和中介规则策展市场秩序的可见与不可见。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    curatorialQuestion: '市场看起来热闹自由时，城市、国家、度量、税赋和中介如何把交易变成可管理的秩序？',
+    audience: '中学历史课堂、城市史入门学习者、博物馆亲子导览',
+    interpretiveTension: '自由交换的表象与制度监管、信用规则、身份门槛之间的张力。',
+    requiredEvidenceTypes: ['source', 'scene', 'timeline', 'decision', 'object'],
+    labelPrompts: [
+      '这件展品如何显示市场被规则塑形，而不是自然自由？',
+      '谁因为这些规则获得保护、机会或风险？',
+      '这条证据能证明规则存在，但它看不见哪些交易者？',
+    ],
+    visitorTakeaway: '市场不是规则真空；普通人的交易机会来自城市秩序，也受城市秩序限制。',
+    tags: ['market rules', 'urban markets', 'taxation', 'brokerage', 'city order', '市场规则'],
+  },
+  {
+    id: 'credit-letters-distance-trust',
+    title: '信用、信件与远距离信任',
+    subtitle: '把商人书信、合约、港口等待和声誉机制组织成微型信用展。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    curatorialQuestion: '当货物、钱和人分隔在不同港口时，信件、担保、中介和季风节奏如何让陌生人敢于行动？',
+    audience: '世界史、经济史与海洋史学习者',
+    interpretiveTension: '信任看似私人品德，实际依赖可保存的文书、可追责的关系和不平等的风险转移。',
+    requiredEvidenceTypes: ['source', 'timeline', 'scene', 'term', 'decision'],
+    labelPrompts: [
+      '这条证据中的信任靠什么被记录、传递或执行？',
+      '信用承诺把风险转移给了谁？',
+      '来源幸存为什么会让商人/中介比劳动者更可见？',
+    ],
+    visitorTakeaway: '远距离信任不是无形情感，而是由书信、账期、港口节奏和社会追责共同制造的历史基础设施。',
+    tags: ['credit', 'letters', 'contracts', 'monsoon', 'port trust', '信用'],
+  },
+  {
+    id: 'labor-rhythm-body-risk',
+    title: '劳动节奏与身体风险',
+    subtitle: '比较种植园、工厂、港口和帝国行政如何组织身体、时间与危险。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'inca-cusco-khipu-runner', 'qing-guangzhou-comprador'],
+    curatorialQuestion: '不同劳动制度如何用钟声、账册、暴力、工资、债务或义务安排身体节奏，并把风险压到普通人身上？',
+    audience: '劳动史、工业化与殖民史课堂',
+    interpretiveTension: '生产效率叙述与劳动者身体疼痛、迁移压力、强制义务和来源沉默之间的张力。',
+    requiredEvidenceTypes: ['daily-life', 'scene', 'object', 'source', 'timeline'],
+    labelPrompts: [
+      '这件材料如何让身体风险变得可见？',
+      '劳动节奏由谁设定，谁承担等待、伤害或惩罚？',
+      '这条证据是否来自管理者视角？如何限制展览叙述？',
+    ],
+    visitorTakeaway: '劳动制度不仅改变生产，也改变身体节奏、安全感和普通人被记录的方式。',
+    tags: ['labor discipline', 'body risk', 'factory time', 'coercion', 'mit’a', '劳动风险'],
+  },
+  {
+    id: 'crisis-news-ordinary-day',
+    title: '危机消息如何进入普通人的一天',
+    subtitle: '从传闻、警报、征服消息和口岸压力策展信息不完整时的日常判断。',
+    scenarioIds: ['tang-changan-merchant', 'tenochtitlan-market-seller', 'qing-guangzhou-comprador', 'wwii-london-civilian', 'malacca-monsoon-port-broker'],
+    curatorialQuestion: '普通人在不知道全局时，怎样把远方危机、传闻或警报转化成今天要不要行动的判断？',
+    audience: '公共史、战争与危机学习者、新闻素养课堂',
+    interpretiveTension: '后来清楚的历史结果与当时人信息不完整、行动窗口有限之间的张力。',
+    requiredEvidenceTypes: ['scene', 'timeline', 'decision', 'source', 'daily-life'],
+    labelPrompts: [
+      '这条证据显示消息如何抵达日常生活？',
+      '当事人当时知道什么，又不知道什么？',
+      '如果把后来的结果倒推回当天，会误读什么？',
+    ],
+    visitorTakeaway: '危机不是只发生在战场或宫廷；它通过消息、等待、误判和安全动作进入普通人的一天。',
+    tags: ['crisis news', 'ordinary safety', 'risk', 'uncertainty', 'public memory', '危机消息'],
+  },
+  {
+    id: 'knowledge-preserved-copied-limited',
+    title: '知识如何被保存、复制与限制',
+    subtitle: '以纸张、手稿、考试、书信和师承展示知识扩散与门槛并存。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice', 'tang-changan-merchant'],
+    curatorialQuestion: '知识媒介让保存和复制更容易时，哪些技术、身份、金钱、语言或制度门槛仍在限制进入？',
+    audience: '知识史、书籍史、教育史和信息素养学习者',
+    interpretiveTension: '知识传播的扩展与进入资格、复制劳动、审查/考试/师承门槛之间的张力。',
+    requiredEvidenceTypes: ['term', 'source', 'object', 'scene', 'daily-life'],
+    labelPrompts: [
+      '这件材料如何保存或复制知识？',
+      '谁能进入这套知识系统，谁被挡在外面？',
+      '展签应如何避免把“传播”写成自动进步？',
+    ],
+    visitorTakeaway: '媒介扩散能扩大知识世界，但进入知识世界始终取决于社会、制度和物质门槛。',
+    tags: ['knowledge thresholds', 'paper', 'manuscripts', 'exams', 'letters', '知识门槛'],
+  },
+  {
+    id: 'empire-records-seen-missing',
+    title: '帝国记录看见谁、遗漏谁',
+    subtitle: '用 khipu、殖民编年、商人档案和清单策展权力如何制造可见性。',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker', 'malacca-monsoon-port-broker'],
+    curatorialQuestion: '帝国、殖民和商业记录如何让某些人、义务和资源可见，同时把另一些经验压成数量、类别或沉默？',
+    audience: '档案素养、殖民史、博物馆方法课学习者',
+    interpretiveTension: '记录带来可见性与治理能力，但记录形式本身也筛选、压缩和遗漏普通人的声音。',
+    requiredEvidenceTypes: ['source', 'term', 'timeline', 'decision', 'object'],
+    labelPrompts: [
+      '这条记录把谁变得清楚？又把谁变得模糊？',
+      '非文字证据、殖民文字和商人档案的沉默机制有何不同？',
+      '展览应如何把来源限制写进主张，而不是写成附注？',
+    ],
+    visitorTakeaway: '档案不是历史的透明窗口；它既保存证据，也留下权力分类和缺席声音。',
+    tags: ['archive silence', 'empire records', 'khipu', 'colonial chronicles', 'absent voices', '档案沉默'],
   },
 ]
 

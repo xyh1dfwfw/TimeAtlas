@@ -29,12 +29,14 @@ import {
   chronologyChallenges,
   compareLenses,
   conceptAtlasTopics,
+  exhibitThemes,
   scenarios,
   type AtlasInquiryPath,
   type AtlasMapRoute,
   type ChronologyChallenge,
   type CompareLens,
   type ConceptAtlasTopic,
+  type ExhibitTheme,
   type DailyLifeKey,
   type ActivityPack,
   type ActivityPackMode,
@@ -67,6 +69,7 @@ const evidenceCaseFileStorageKey = 'timeatlas:evidence-case-file-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const chronologyDeskStorageKey = 'timeatlas:chronology-desk-drafts'
 const conceptAtlasDraftStorageKey = 'timeatlas:concept-atlas-drafts'
+const exhibitStudioStorageKey = 'timeatlas:exhibit-studio-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
@@ -498,6 +501,46 @@ type ConceptAtlasDraft = {
 
 type ConceptAtlasDraftState = Record<string, ConceptAtlasDraft>
 
+type ExhibitEvidenceType = 'source' | 'scene' | 'timeline' | 'daily-life' | 'decision' | 'object' | 'term'
+
+type ExhibitEvidence = {
+  id: string
+  themeId: string
+  scenario: Scenario
+  type: ExhibitEvidenceType
+  typeLabel: string
+  title: string
+  text: string
+  tags: string[]
+  ctaHash: ScenarioSectionId
+  sourceNote?: string
+}
+
+type ExhibitStudioDraft = {
+  selectedEvidenceIds: string[]
+  exhibitTitle: string
+  audienceNote: string
+  openingPanel: string
+  labelDrafts: Record<string, string>
+  interpretiveClaim: string
+  visitorQuestion: string
+  sourceLimitNote: string
+  layoutNote: string
+  confidence: SynthesisConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type ExhibitStudioDraftState = Record<string, ExhibitStudioDraft>
+
+type ExhibitStudioStats = {
+  activeDrafts: [string, ExhibitStudioDraft][]
+  draftCount: number
+  completedCount: number
+  selectedEvidenceCount: number
+  recentDrafts: [string, ExhibitStudioDraft][]
+}
+
 type EvidenceCasePacketItem = {
   id: string
   scenario: Scenario
@@ -555,6 +598,7 @@ type SynthesisEvidenceOrigin =
   | 'dispatch'
   | 'mission-work'
   | 'workspace'
+  | 'exhibit'
 
 type SynthesisEvidence = {
   id: string
@@ -677,7 +721,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -715,7 +759,7 @@ type SubpageNavItem<T extends string> = {
 type AtlasSubpage = 'routes' | 'chronology' | 'missions' | 'pathways' | 'compare'
 type EvidenceSubpage = 'source-atlas' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
-type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'sessions' | 'modules' | 'portfolio'
+type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
 type DebateDuration = 15 | 30 | 45
 
@@ -749,6 +793,7 @@ const tasksSubpages: SubpageNavItem<TasksSubpage>[] = [
   { id: 'workbench', label: '任务执行台', eyebrow: 'Workbench', description: '按单个任务记录清单、证据、主张与反思', hash: 'task-workbench' },
   { id: 'assessment', label: '评价反馈', eyebrow: 'Assessment', description: '按任务、组合或模块生成 rubric、评分指南与反馈句式', hash: 'assessment-studio' },
   { id: 'debate', label: '辩论工作台', eyebrow: 'Debate', description: '角色卡、证据卡、回合计划与可复制指南', hash: 'debate-studio' },
+  { id: 'exhibits', label: '展览策展', eyebrow: 'Exhibits', description: 'Public History Exhibit Studio 微型展览策展', hash: 'exhibit-studio' },
   { id: 'sessions', label: '学习路线', eyebrow: 'Sessions', description: '15/30/45/75 分钟 Guided Sessions', hash: 'guided-session-builder' },
   { id: 'modules', label: '单元模块', eyebrow: 'Modules', description: '6 个跨页学习单元、步骤进度与导出', hash: 'task-modules' },
   { id: 'portfolio', label: '作品档案', eyebrow: 'Portfolio', description: '学习草稿、完成记录与导出', hash: 'portfolio' },
@@ -1054,6 +1099,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'concept-atlas', label: 'Concept Atlas' },
   { value: 'synthesis', label: 'Synthesis Studio' },
   { value: 'case-file', label: 'Evidence Case Files' },
+  { value: 'exhibit', label: 'Exhibit Studio' },
 ]
 
 type SourceAtlasEntry = {
@@ -1283,6 +1329,7 @@ const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corrobora
 const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
 const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const conceptAtlasConfidenceLabels: Record<ConceptAtlasConfidence, string> = corroborationConfidenceLabels
+const exhibitStudioConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
 const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
@@ -2665,6 +2712,131 @@ function persistConceptAtlasDraftState(state: ConceptAtlasDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(conceptAtlasDraftStorageKey, serializedState)
+}
+
+
+function getEmptyExhibitStudioDraft(theme?: ExhibitTheme): ExhibitStudioDraft {
+  return {
+    selectedEvidenceIds: [],
+    exhibitTitle: theme ? `${theme.title}：微型展览` : '',
+    audienceNote: theme?.audience ?? '',
+    openingPanel: '',
+    labelDrafts: {},
+    interpretiveClaim: '',
+    visitorQuestion: '',
+    sourceLimitNote: '',
+    layoutNote: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function parseExhibitStudioDraftState(rawState: string | null): ExhibitStudioDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as ExhibitStudioDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<ExhibitStudioDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string').slice(0, 5)
+          : []
+        const confidence = draft.confidence && draft.confidence in exhibitStudioConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+        const labelDrafts = draft.labelDrafts && typeof draft.labelDrafts === 'object' && !Array.isArray(draft.labelDrafts)
+          ? Object.fromEntries(Object.entries(draft.labelDrafts).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+          : {}
+
+        return [[
+          key,
+          {
+            selectedEvidenceIds,
+            exhibitTitle: typeof draft.exhibitTitle === 'string' ? draft.exhibitTitle : '',
+            audienceNote: typeof draft.audienceNote === 'string' ? draft.audienceNote : '',
+            openingPanel: typeof draft.openingPanel === 'string' ? draft.openingPanel : '',
+            labelDrafts,
+            interpretiveClaim: typeof draft.interpretiveClaim === 'string' ? draft.interpretiveClaim : '',
+            visitorQuestion: typeof draft.visitorQuestion === 'string' ? draft.visitorQuestion : '',
+            sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+            layoutNote: typeof draft.layoutNote === 'string' ? draft.layoutNote : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies ExhibitStudioDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as ExhibitStudioDraftState
+  }
+}
+
+function hasExhibitStudioDraftActivity(draft: ExhibitStudioDraft) {
+  return Boolean(
+    draft.selectedEvidenceIds.length
+      || draft.exhibitTitle.trim()
+      || draft.audienceNote.trim()
+      || draft.openingPanel.trim()
+      || Object.values(draft.labelDrafts).some((label) => label.trim())
+      || draft.interpretiveClaim.trim()
+      || draft.visitorQuestion.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.layoutNote.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveExhibitStudioDrafts(exhibitDraftState: ExhibitStudioDraftState) {
+  return Object.entries(exhibitDraftState).filter((entry): entry is [string, ExhibitStudioDraft] => hasExhibitStudioDraftActivity(entry[1]))
+}
+
+function getExhibitStudioStats(exhibitDraftState: ExhibitStudioDraftState): ExhibitStudioStats {
+  const activeDrafts = getActiveExhibitStudioDrafts(exhibitDraftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => new Date(second[1].updatedAt ?? 0).getTime() - new Date(first[1].updatedAt ?? 0).getTime())
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceIds.length, 0),
+    recentDrafts,
+  }
+}
+
+function loadExhibitStudioDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseExhibitStudioDraftState(localStorage?.getItem(exhibitStudioStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasExhibitStudioDraftActivity)) {
+    return localState
+  }
+
+  return parseExhibitStudioDraftState(sessionStorage?.getItem(exhibitStudioStorageKey) ?? null)
+}
+
+function persistExhibitStudioDraftState(state: ExhibitStudioDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(exhibitStudioStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(exhibitStudioStorageKey, serializedState)
 }
 
 function loadSynthesisDraftState() {
@@ -5510,6 +5682,181 @@ function formatSourceCorroborationBrief(entries: SourceAtlasEntry[], draft: Corr
   ].join('\n')
 }
 
+
+const exhibitEvidenceTypeLabels: Record<ExhibitEvidenceType, string> = {
+  source: 'Source / 来源',
+  scene: 'Scene beat / 现场',
+  timeline: 'Timeline / 时间线',
+  'daily-life': 'Daily life / 日常',
+  decision: 'Decision / 选择',
+  object: 'Object / 物件',
+  term: 'Key term / 术语',
+}
+
+function buildExhibitEvidence(theme: ExhibitTheme): ExhibitEvidence[] {
+  return theme.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+
+    if (!scenario) {
+      return []
+    }
+
+    const baseTags = [scenario.region, scenario.theme, ...theme.tags.slice(0, 3)]
+    const sources = scenario.sources.slice(0, 3).map((source, index): ExhibitEvidence => ({
+      id: `${theme.id}:${scenario.id}:source:${index}`,
+      themeId: theme.id,
+      scenario,
+      type: 'source',
+      typeLabel: exhibitEvidenceTypeLabels.source,
+      title: source.title,
+      text: `${source.excerpt}｜视角：${source.perspective}｜边界：${source.reliabilityNote}`,
+      tags: [...baseTags, sourceTypeLabels[source.sourceType], ...source.evidenceTags].slice(0, 10),
+      ctaHash: sectionIds.sourceReader,
+      sourceNote: source.sourceQuestion,
+    }))
+    const scenes = scenario.sceneBeats.slice(0, 2).map((beat, index): ExhibitEvidence => ({
+      id: `${theme.id}:${scenario.id}:scene:${index}`,
+      themeId: theme.id,
+      scenario,
+      type: 'scene',
+      typeLabel: exhibitEvidenceTypeLabels.scene,
+      title: beat.title,
+      text: `${beat.timeLabel}｜${beat.sensoryDetail}｜${beat.historicalTension}｜${beat.evidenceHook}`,
+      tags: [...baseTags, 'scene beat', ...beat.linkedSourceTitles.slice(0, 2)].slice(0, 10),
+      ctaHash: sectionIds.sceneReader,
+      sourceNote: beat.learnerPrompt,
+    }))
+    const timelines = scenario.timeline.slice(0, 2).map((event, index): ExhibitEvidence => ({
+      id: `${theme.id}:${scenario.id}:timeline:${index}`,
+      themeId: theme.id,
+      scenario,
+      type: 'timeline',
+      typeLabel: exhibitEvidenceTypeLabels.timeline,
+      title: `${event.year} · ${event.title}`,
+      text: event.text,
+      tags: [...baseTags, 'timeline', String(scenario.year)].slice(0, 10),
+      ctaHash: sectionIds.experience,
+    }))
+    const dailyLife = scenario.dailyLife
+      .filter((section) => ['work', 'risks', 'education', 'freedoms'].includes(section.key) || theme.tags.some((tag) => `${section.title} ${section.text}`.toLowerCase().includes(tag.toLowerCase().split(' ')[0] ?? tag.toLowerCase())))
+      .slice(0, 2)
+      .map((section): ExhibitEvidence => ({
+        id: `${theme.id}:${scenario.id}:daily:${section.key}`,
+        themeId: theme.id,
+        scenario,
+        type: 'daily-life',
+        typeLabel: exhibitEvidenceTypeLabels['daily-life'],
+        title: section.title,
+        text: section.text,
+        tags: [...baseTags, section.label, section.key].slice(0, 10),
+        ctaHash: sectionIds.dailyLife,
+      }))
+    const decision: ExhibitEvidence = {
+      id: `${theme.id}:${scenario.id}:decision`,
+      themeId: theme.id,
+      scenario,
+      type: 'decision',
+      typeLabel: exhibitEvidenceTypeLabels.decision,
+      title: scenario.decision.prompt,
+      text: `${scenario.decision.context}｜可选行动：${scenario.decision.options.slice(0, 2).map((option) => `${option.label}（${option.stance}）`).join(' / ')}`,
+      tags: [...baseTags, 'decision', 'choice'].slice(0, 10),
+      ctaHash: sectionIds.decisionPanel,
+    }
+    const objects = scenario.materialObjects.slice(0, 2).map((object): ExhibitEvidence => ({
+      id: `${theme.id}:${scenario.id}:object:${object.id}`,
+      themeId: theme.id,
+      scenario,
+      type: 'object',
+      typeLabel: exhibitEvidenceTypeLabels.object,
+      title: object.shortLabel,
+      text: `${object.description}｜${object.everydayUse}｜证据限制：${object.evidenceLimit}`,
+      tags: [...baseTags, object.category, ...object.tags].slice(0, 10),
+      ctaHash: sectionIds.materialCulture,
+      sourceNote: object.inquiryPrompts[0],
+    }))
+    const terms = scenario.keyTerms.slice(0, 2).map((term, index): ExhibitEvidence => ({
+      id: `${theme.id}:${scenario.id}:term:${index}`,
+      themeId: theme.id,
+      scenario,
+      type: 'term',
+      typeLabel: exhibitEvidenceTypeLabels.term,
+      title: term.term,
+      text: term.definition,
+      tags: [...baseTags, 'key term', term.term].slice(0, 10),
+      ctaHash: sectionIds.experience,
+    }))
+
+    return [...sources, ...scenes, ...timelines, ...dailyLife, decision, ...objects, ...terms]
+  })
+}
+
+function getExhibitEvidenceByThemeMap() {
+  return Object.fromEntries(exhibitThemes.map((theme) => [theme.id, buildExhibitEvidence(theme)])) as Record<string, ExhibitEvidence[]>
+}
+
+function formatExhibitBrief(theme: ExhibitTheme, draft: ExhibitStudioDraft, selectedEvidence: ExhibitEvidence[]) {
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : buildExhibitEvidence(theme).slice(0, 5)
+
+  return [
+    'TimeAtlas Public History Exhibit Studio / 微型展览策展工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `展览主题：${theme.title}`,
+    `策展问题：${theme.curatorialQuestion}`,
+    `目标观众：${draft.audienceNote.trim() || theme.audience}`,
+    `解释张力：${theme.interpretiveTension}`,
+    '',
+    '一、Exhibit Brief / 策展草稿',
+    `展览标题：${draft.exhibitTitle.trim() || theme.title}`,
+    `开场说明：${draft.openingPanel.trim() || '尚未填写'}`,
+    `解释主张：${draft.interpretiveClaim.trim() || '尚未填写'}`,
+    `观众问题：${draft.visitorQuestion.trim() || '尚未填写'}`,
+    `来源限制：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `布局说明：${draft.layoutNote.trim() || '尚未填写'}`,
+    `信心等级：${exhibitStudioConfidenceLabels[draft.confidence]}`,
+    `完成状态：${draft.completed ? '完成' : '草稿'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+    '',
+    '二、已选展品 / Evidence objects',
+    ...evidenceForExport.map((entry, index) => [
+      `${index + 1}. ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}`,
+      `   展品说明：${draft.labelDrafts[entry.id]?.trim() || entry.text}`,
+      entry.sourceNote ? `   策展追问：${entry.sourceNote}` : '',
+      `   标签：${entry.tags.slice(0, 8).join('、')}`,
+    ].filter(Boolean).join('\n')),
+    '',
+    '三、Label prompts / 展签提示',
+    ...theme.labelPrompts.map((prompt, index) => `${index + 1}. ${prompt}`),
+    '',
+    `Visitor takeaway：${theme.visitorTakeaway}`,
+  ].join('\n')
+}
+
+function formatExhibitTaskSheet(theme: ExhibitTheme) {
+  const evidence = buildExhibitEvidence(theme).slice(0, 8)
+
+  return [
+    `TimeAtlas Exhibit Studio Assignment：${theme.title}`,
+    theme.subtitle,
+    `策展问题：${theme.curatorialQuestion}`,
+    `目标观众：${theme.audience}`,
+    `解释张力：${theme.interpretiveTension}`,
+    '',
+    '任务：选择最多 5 条展品证据，写出开场 panel、每件展品展签、解释主张、观众问题、来源限制和布局说明。',
+    '',
+    '必须覆盖证据类型：',
+    ...theme.requiredEvidenceTypes.map((type) => `- ${type}`),
+    '',
+    '展签提示：',
+    ...theme.labelPrompts.map((prompt) => `- ${prompt}`),
+    '',
+    '建议证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}：${entry.text}`),
+    '',
+    `观众 takeaway：${theme.visitorTakeaway}`,
+    '交付物：一份 Micro-exhibit Brief，包含 3-5 件展品、展签、解释主张、来源限制与信心等级。',
+  ].join('\n')
+}
+
 function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
   return {
     chronology: 'Chronology Desk draft / 时间证据草稿',
@@ -5527,6 +5874,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     workspace: 'Workspace entry / 跨场景工作区',
+    exhibit: 'Exhibit Studio draft / 展览策展草稿',
   }[origin]
 }
 
@@ -5552,6 +5900,7 @@ function buildSynthesisEvidencePool({
   actorNetworkDraftState,
   materialCultureDraftState,
   dispatchDraftState,
+  exhibitDraftState,
   missionWorkState,
   workspaceState,
 }: {
@@ -5568,6 +5917,7 @@ function buildSynthesisEvidencePool({
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
+  exhibitDraftState: ExhibitStudioDraftState
   missionWorkState: MissionWorkState
   workspaceState: WorkspaceState
 }): SynthesisEvidence[] {
@@ -5785,6 +6135,27 @@ function buildSynthesisEvidencePool({
       scenarioTitle: scenario?.title,
       scenarioId: scenario?.id,
       inquiryTitle: dispatch?.objective,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveExhibitStudioDrafts(exhibitDraftState).forEach(([themeId, draft]) => {
+    const theme = exhibitThemes.find((candidate) => candidate.id === themeId)
+    if (!theme) return
+    const evidence = buildExhibitEvidence(theme)
+    const selectedEvidence = draft.selectedEvidenceIds
+      .map((id) => evidence.find((entry) => entry.id === id))
+      .filter((entry): entry is ExhibitEvidence => Boolean(entry))
+
+    entries.push({
+      id: makeSynthesisEvidenceId('exhibit', themeId),
+      origin: 'exhibit',
+      originLabel: getSynthesisOriginLabel('exhibit'),
+      title: draft.exhibitTitle.trim() || theme.title,
+      text: [`开场：${draft.openingPanel}`, `主张：${draft.interpretiveClaim}`, `观众问题：${draft.visitorQuestion}`, `来源限制：${draft.sourceLimitNote}`, `布局：${draft.layoutNote}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['exhibit studio', ...theme.tags, ...selectedEvidence.map((entry) => entry.type), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: selectedEvidence.map((entry) => entry.scenario.title).slice(0, 3).join(' × '),
+      inquiryTitle: theme.curatorialQuestion,
       updatedAt: draft.updatedAt,
     })
   })
@@ -6041,6 +6412,7 @@ function formatLearningArchive(
   actorNetworkDraftState: ActorNetworkDraftState,
   materialCultureDraftState: MaterialCultureDraftState,
   dispatchDraftState: DispatchDraftState,
+  exhibitDraftState: ExhibitStudioDraftState,
   taskModuleProgressState: TaskModuleProgressState,
   assignmentBuilderDraft: AssignmentBuilderDraft,
   assignmentLibraryTasks: LibraryTask[],
@@ -6061,6 +6433,7 @@ function formatLearningArchive(
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
   const activeMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
   const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
+  const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
   const taskModuleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
@@ -6070,7 +6443,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -6095,6 +6468,7 @@ function formatLearningArchive(
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
     `- Scenario Dispatch 草稿：${dispatchDraftStats.activeCount} drafts，${dispatchDraftStats.completedCount} completed，${dispatchDraftStats.selectedEvidenceCount} selected evidence`,
+    `- Exhibit Studio 展览策展草稿：${exhibitStudioStats.draftCount} drafts，${exhibitStudioStats.completedCount} completed，${exhibitStudioStats.selectedEvidenceCount} selected exhibits`,
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
@@ -6145,6 +6519,27 @@ function formatLearningArchive(
       `  Negotiation plan：${draft.negotiationPlan.trim() || '未填写'}`,
       `  Missing voice：${draft.missingVoiceNote.trim() || '未填写'}`,
       `  Evidence notes：${draft.evidenceNotes.trim() || '未填写'}`,
+      '',
+    )
+  })
+
+  exhibitStudioStats.activeDrafts.forEach(([themeId, draft]) => {
+    const theme = exhibitThemes.find((candidate) => candidate.id === themeId)
+    if (!theme) return
+    const evidence = buildExhibitEvidence(theme)
+    const selectedEvidence = draft.selectedEvidenceIds.map((id) => evidence.find((entry) => entry.id === id)).filter((entry): entry is ExhibitEvidence => Boolean(entry))
+
+    lines.push(
+      `Exhibit Studio / 微型展览：${draft.exhibitTitle.trim() || theme.title}`,
+      `  主题：${theme.title}`,
+      `  状态：${draft.completed ? '已完成' : '草稿'}；展品数：${selectedEvidence.length}/5；Confidence：${exhibitStudioConfidenceLabels[draft.confidence]}`,
+      `  Opening panel：${draft.openingPanel.trim() || '未填写'}`,
+      `  Interpretive claim：${draft.interpretiveClaim.trim() || '未填写'}`,
+      `  Visitor question：${draft.visitorQuestion.trim() || '未填写'}`,
+      `  Source limits：${draft.sourceLimitNote.trim() || '未填写'}`,
+      `  Layout note：${draft.layoutNote.trim() || '未填写'}`,
+      '  Selected exhibits：',
+      ...(selectedEvidence.length ? selectedEvidence.map((entry) => `    - ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}：${draft.labelDrafts[entry.id]?.trim() || entry.text}`) : ['    - 尚未选择展品证据']),
       '',
     )
   })
@@ -7898,6 +8293,7 @@ function buildTaskLibraryTasks({
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
   onOpenDebateStudio,
+  onOpenExhibitTheme,
   onStartTask,
 }: {
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
@@ -7913,6 +8309,7 @@ function buildTaskLibraryTasks({
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio?: (scenarioId: string) => void
+  onOpenExhibitTheme?: (themeId: string) => void
   onStartTask?: (taskId: string) => void
 }): LibraryTask[] {
   const tasks: LibraryTask[] = []
@@ -8458,6 +8855,41 @@ function buildTaskLibraryTasks({
     }
 
     task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, preset.focus, preset.claimScope, ...tags, ...preset.paragraphFrame].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  exhibitThemes.forEach((theme) => {
+    const themeScenarios = theme.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Exhibit Studio', 'public history', 'micro-exhibit', ...theme.tags]
+    const task: LibraryTask = {
+      id: `exhibit:${theme.id}`,
+      title: theme.title,
+      context: themeScenarios.map((scenario) => scenario.title).join(' × ') || 'Exhibit Studio',
+      scenarioId: themeScenarios[0]?.id,
+      category: 'Public History Exhibit / 微型展览策展',
+      source: 'exhibit',
+      sourceLabel: 'Exhibit Studio',
+      durationMinutes,
+      durationBand,
+      summary: theme.curatorialQuestion,
+      deliverable: 'Micro-exhibit Brief：展览标题、开场 panel、3-5 件展品展签、解释主张、观众问题、来源限制与布局说明',
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Exhibit Studio',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onOpenExhibitTheme?.(theme.id),
+      onSecondaryAction: () => themeScenarios[0] ? onOpenScenario(themeScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [theme.curatorialQuestion, theme.interpretiveTension, `观众：${theme.audience}`],
+      checklist: ['选择 3-5 条展品证据', '写出 opening panel', '为每件展品写 60-90 字展签', '形成 interpretive claim', '说明来源限制与布局逻辑'],
+      evidencePrompts: [...theme.labelPrompts, ...theme.requiredEvidenceTypes.map((type) => `至少考虑一种 ${type} 证据`) ],
+      formatSheet: () => formatExhibitTaskSheet(theme),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, theme.subtitle, theme.audience, theme.interpretiveTension, theme.visitorTakeaway, ...tags, ...theme.requiredEvidenceTypes, ...theme.labelPrompts].join(' ').toLowerCase()
     tasks.push(task)
   })
 
@@ -9091,6 +9523,8 @@ function App() {
   const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
   const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
   const [dispatchDraftState, setDispatchDraftState] = useState<DispatchDraftState>(loadDispatchDraftState)
+  const [exhibitDraftState, setExhibitDraftState] = useState<ExhibitStudioDraftState>(loadExhibitStudioDraftState)
+  const [selectedExhibitThemeId, setSelectedExhibitThemeId] = useState(exhibitThemes[0]?.id ?? '')
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
 
@@ -9120,8 +9554,9 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
+  const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -9445,6 +9880,18 @@ function App() {
   }, [dispatchDraftState])
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistExhibitStudioDraftState(exhibitDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [exhibitDraftState])
+
+  useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
       return
     }
@@ -9627,6 +10074,23 @@ function App() {
     setActiveTasksSubpage('debate')
 
     const hash = getHashForTasksSubpage('debate')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('tasks', hash))
+    }
+
+    scrollToSection(hash, prefersReducedMotion)
+  }
+
+  function openExhibitTheme(themeId: string = selectedExhibitThemeId) {
+    if (exhibitThemes.some((theme) => theme.id === themeId)) {
+      setSelectedExhibitThemeId(themeId)
+    }
+
+    setActivePage('tasks')
+    setActiveTasksSubpage('exhibits')
+
+    const hash = getHashForTasksSubpage('exhibits')
 
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', buildPageUrl('tasks', hash))
@@ -10192,6 +10656,7 @@ function App() {
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenEvidenceCaseFile={openEvidenceCaseFile}
                 onOpenDebateStudio={openDebateStudio}
+                onOpenExhibitTheme={openExhibitTheme}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -10212,6 +10677,7 @@ function App() {
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenEvidenceCaseFile={openEvidenceCaseFile}
                 onOpenDebateStudio={openDebateStudio}
+                onOpenExhibitTheme={openExhibitTheme}
                 onStartTask={startTaskWorkbench}
               />
             ) : null}
@@ -10241,6 +10707,16 @@ function App() {
             ) : null}
             {activeTasksSubpage === 'debate' ? (
               <DebateStudioPanel initialScenarioId={selectedScenario.id} />
+            ) : null}
+            {activeTasksSubpage === 'exhibits' ? (
+              <ExhibitStudioPanel
+                selectedThemeId={selectedExhibitThemeId}
+                evidenceByTheme={exhibitEvidenceByTheme}
+                draftState={exhibitDraftState}
+                onSelectTheme={setSelectedExhibitThemeId}
+                onUpdateDraftState={setExhibitDraftState}
+                onOpenScenario={selectScenario}
+              />
             ) : null}
             {activeTasksSubpage === 'sessions' ? (
               <GuidedSessionPanel
@@ -10281,6 +10757,7 @@ function App() {
                 actorNetworkDraftState={actorNetworkDraftState}
                 materialCultureDraftState={materialCultureDraftState}
                 dispatchDraftState={dispatchDraftState}
+                exhibitDraftState={exhibitDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
               />
             ) : null}
@@ -14270,6 +14747,7 @@ function SynthesisWritingStudioPanel({
                     <option value="contextualization">情境化草稿</option>
                     <option value="significance">意义草稿</option>
                     <option value="mission-work">任务草稿</option>
+                    <option value="exhibit">展览策展草稿</option>
                     <option value="workspace">跨场景工作区</option>
                   </select>
                   <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none focus:border-fuchsia-200/50 sm:col-span-2">
@@ -14539,6 +15017,7 @@ function PortfolioPanel({
   actorNetworkDraftState,
   materialCultureDraftState,
   dispatchDraftState,
+  exhibitDraftState,
   taskWorkbenchDraftState,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
@@ -14563,6 +15042,7 @@ function PortfolioPanel({
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
+  exhibitDraftState: ExhibitStudioDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
 }) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -14582,6 +15062,7 @@ function PortfolioPanel({
   const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
   const materialCultureDraftCount = getActiveMaterialCultureDrafts(materialCultureDraftState).length
   const dispatchDraftStats = getScenarioDispatchDraftStats(dispatchDraftState)
+  const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
@@ -14606,6 +15087,7 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentDispatchDrafts = dispatchDraftStats.recentDrafts.slice(0, 3)
+  const recentExhibitDrafts = exhibitStudioStats.recentDrafts.slice(0, 3)
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
@@ -14615,7 +15097,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -14669,6 +15151,8 @@ function PortfolioPanel({
               { label: '物件证据', value: materialCultureDraftCount },
               { label: '情境简报', value: dispatchDraftStats.activeCount },
               { label: '简报完成', value: dispatchDraftStats.completedCount },
+              { label: '展览策展', value: exhibitStudioStats.draftCount },
+              { label: '展览完成', value: exhibitStudioStats.completedCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
@@ -14687,7 +15171,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -14706,6 +15190,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{task?.title ?? taskId}</div>
                       <div>Tasks Workbench · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {checkedCount}/{checklist.length} checklist</div>
                       <div className="mt-1 text-stone-500">{draft.claimExplanation.trim() || draft.evidenceNotes.trim() || '尚未填写 claim 或 evidence notes'}</div>
+                    </div>
+                  )
+                })}
+                {recentExhibitDrafts.map(([themeId, draft]) => {
+                  const theme = exhibitThemes.find((candidate) => candidate.id === themeId)
+
+                  return (
+                    <div key={themeId} className="rounded-2xl border border-cyan-200/15 bg-cyan-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{draft.exhibitTitle.trim() || theme?.title || themeId}</div>
+                      <div>Exhibit Studio · {theme?.title ?? themeId} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length}/5 exhibits</div>
+                      <div className="mt-1 text-stone-500">{draft.interpretiveClaim.trim() || draft.openingPanel.trim() || '尚未填写解释主张'}</div>
                     </div>
                   )
                 })}
@@ -14906,6 +15401,7 @@ function TaskDiscoveryPanel({
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
   onOpenDebateStudio,
+  onOpenExhibitTheme,
   onStartTask,
 }: {
   learningCoachRecommendations: LearningCoachRecommendation[]
@@ -14924,12 +15420,13 @@ function TaskDiscoveryPanel({
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
+  onOpenExhibitTheme: (themeId: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -16180,6 +16677,7 @@ function TaskLibraryPanel({
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
   onOpenDebateStudio,
+  onOpenExhibitTheme,
   onStartTask,
 }: {
   preset: TaskLibraryPreset | null
@@ -16197,6 +16695,7 @@ function TaskLibraryPanel({
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
+  onOpenExhibitTheme: (themeId: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -16207,8 +16706,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -16431,6 +16930,245 @@ function TaskLibraryPanel({
         <p className="mt-3 text-sm text-stone-500" aria-live="polite">
           {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限。' : '打开场景会保留 URL 参数并滚动到当前场景；Compare / Inquiry 任务可直接载入 Compare Lab。'}
         </p>
+      </div>
+    </section>
+  )
+}
+
+
+function ExhibitStudioPanel({
+  selectedThemeId,
+  evidenceByTheme,
+  draftState,
+  onSelectTheme,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedThemeId: string
+  evidenceByTheme: Record<string, ExhibitEvidence[]>
+  draftState: ExhibitStudioDraftState
+  onSelectTheme: (themeId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<ExhibitStudioDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [typeFilter, setTypeFilter] = useState<'all' | ExhibitEvidenceType>('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const selectedTheme = exhibitThemes.find((theme) => theme.id === selectedThemeId) ?? exhibitThemes[0]
+  const evidence = evidenceByTheme[selectedTheme.id] ?? []
+  const draft = draftState[selectedTheme.id] ?? getEmptyExhibitStudioDraft(selectedTheme)
+  const selectedEvidence = draft.selectedEvidenceIds
+    .map((id) => evidence.find((entry) => entry.id === id))
+    .filter((entry): entry is ExhibitEvidence => Boolean(entry))
+  const themeScenarios = selectedTheme.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const filteredEvidence = evidence.filter((entry) => (typeFilter === 'all' || entry.type === typeFilter) && (scenarioFilter === 'all' || entry.scenario.id === scenarioFilter))
+  const stats = getExhibitStudioStats(draftState)
+
+  function updateDraft(patch: Partial<ExhibitStudioDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[selectedTheme.id] ?? getEmptyExhibitStudioDraft(selectedTheme)
+      return {
+        ...currentState,
+        [selectedTheme.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+    setCopyStatus('idle')
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextEvidenceIds = draft.selectedEvidenceIds.includes(evidenceId)
+      ? draft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : draft.selectedEvidenceIds.length >= 5
+        ? draft.selectedEvidenceIds
+        : [...draft.selectedEvidenceIds, evidenceId]
+
+    updateDraft({ selectedEvidenceIds: nextEvidenceIds })
+  }
+
+  function updateLabelDraft(evidenceId: string, label: string) {
+    updateDraft({
+      labelDrafts: {
+        ...draft.labelDrafts,
+        [evidenceId]: label,
+      },
+    })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedTheme.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatExhibitBrief(selectedTheme, draft, selectedEvidence))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    const safeTitle = selectedTheme.id.replace(/[^a-z0-9-]+/g, '-')
+    downloadTextFile(`timeatlas-${safeTitle}-exhibit-brief.txt`, formatExhibitBrief(selectedTheme, draft, selectedEvidence))
+  }
+
+  return (
+    <section id="exhibit-studio" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="exhibit-studio-title">
+      <div className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-cyan-100">
+          <Landmark size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">public history exhibit studio</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="exhibit-studio-title" className="text-3xl font-semibold tracking-tight text-stone-50">Public History Exhibit Studio / 微型展览策展工作台</h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">作为 Tasks 内部子页面，把现有 sources、scene beats、timeline、daily life、material objects、decision 与 keyTerms 组织成可操作的微型展览策展任务。</p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-stone-400">
+            {stats.draftCount} drafts · {stats.completedCount} completed · 当前 {selectedEvidence.length}/5 exhibits
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.72fr_1.28fr]">
+          <aside className="space-y-3">
+            {exhibitThemes.map((theme) => {
+              const themeDraft = draftState[theme.id] ?? getEmptyExhibitStudioDraft(theme)
+              const isSelected = theme.id === selectedTheme.id
+              return (
+                <button key={theme.id} type="button" onClick={() => onSelectTheme(theme.id)} className={`w-full rounded-3xl border p-4 text-left transition ${isSelected ? 'border-cyan-200/45 bg-cyan-100/[0.09]' : 'border-white/10 bg-black/20 hover:border-cyan-100/25 hover:bg-white/[0.04]'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{theme.scenarioIds.length} scenarios</div>
+                      <h3 className="mt-1 font-semibold text-stone-50">{theme.title}</h3>
+                    </div>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-cyan-100">{themeDraft.completed ? '完成' : hasExhibitStudioDraftActivity(themeDraft) ? '草稿' : '主题'}</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-500">{theme.curatorialQuestion}</p>
+                </button>
+              )
+            })}
+          </aside>
+
+          <div className="space-y-4">
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.28em] text-cyan-200/70">curatorial brief</div>
+                  <h3 className="mt-2 text-2xl font-semibold text-stone-50">{selectedTheme.title}</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-7 text-stone-400">{selectedTheme.curatorialQuestion}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-cyan-200"><Copy size={16} />{copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制 Exhibit Brief'}</button>
+                  <button type="button" onClick={downloadBrief} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-cyan-100/30"><ScrollText size={16} />下载 txt</button>
+                  <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-400 transition hover:border-red-200/30 hover:text-red-100">清空草稿</button>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-3xl border border-cyan-200/15 bg-cyan-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-cyan-100">Audience：</span>{selectedTheme.audience}</div>
+                <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-amber-100">Tension：</span>{selectedTheme.interpretiveTension}</div>
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-stone-100">Takeaway：</span>{selectedTheme.visitorTakeaway}</div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[0.96fr_1.04fr]">
+              <div className="rounded-[2rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-stone-50">Evidence shelf</h4>
+                    <p className="mt-1 text-xs text-stone-500">最多选择 5 条展品证据；可按类型和 scenario 过滤。</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as 'all' | ExhibitEvidenceType)} className="rounded-full border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-100 outline-none">
+                      <option value="all">全部类型</option>
+                      {(Object.entries(exhibitEvidenceTypeLabels) as [ExhibitEvidenceType, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                    <select value={scenarioFilter} onChange={(event) => setScenarioFilter(event.target.value)} className="rounded-full border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-100 outline-none">
+                      <option value="all">全部场景</option>
+                      {themeScenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4 grid max-h-[42rem] gap-3 overflow-y-auto pr-1">
+                  {filteredEvidence.map((entry) => {
+                    const selected = draft.selectedEvidenceIds.includes(entry.id)
+                    const disabled = !selected && draft.selectedEvidenceIds.length >= 5
+                    return (
+                      <article key={entry.id} className={`rounded-2xl border p-3 text-sm transition ${selected ? 'border-cyan-200/40 bg-cyan-100/[0.08]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <button type="button" onClick={() => toggleEvidence(entry.id)} disabled={disabled} className="text-left font-medium text-stone-100 disabled:cursor-not-allowed disabled:text-stone-600">{selected ? '✓ ' : ''}{entry.title}</button>
+                          <button type="button" onClick={() => onOpenScenario(entry.scenario.id, entry.ctaHash)} className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-stone-400 hover:text-cyan-100">打开</button>
+                        </div>
+                        <div className="mt-1 text-xs text-cyan-100/80">{entry.scenario.title} · {entry.typeLabel}</div>
+                        <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-500">{entry.text}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">{entry.tags.slice(0, 5).map((tag) => <span key={`${entry.id}-${tag}`} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-stone-500">{tag}</span>)}</div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-[2rem] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="font-semibold text-stone-50">Curator workspace</h4>
+                    <label className="flex items-center gap-2 text-xs text-stone-400"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} />完成</label>
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {([
+                      ['exhibitTitle', '展览标题', 1],
+                      ['audienceNote', '观众说明', 2],
+                      ['openingPanel', 'Opening panel', 3],
+                      ['interpretiveClaim', '解释主张', 3],
+                      ['visitorQuestion', '留给观众的问题', 2],
+                      ['sourceLimitNote', '来源限制', 2],
+                      ['layoutNote', '布局说明', 2],
+                    ] as [keyof ExhibitStudioDraft, string, number][]).map(([field, label, rows]) => (
+                      <label key={field} className="block text-sm font-medium text-stone-300">
+                        {label}
+                        <textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<ExhibitStudioDraft>)} rows={rows} className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-cyan-200/40" />
+                      </label>
+                    ))}
+                    <label className="block text-sm font-medium text-stone-300">
+                      Confidence
+                      <select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as SynthesisConfidence })} className="mt-2 w-full rounded-2xl border border-white/10 bg-stone-950 p-3 text-sm text-stone-100 outline-none focus:border-cyan-200/40">
+                        {(Object.entries(exhibitStudioConfidenceLabels) as [SynthesisConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.045] p-4">
+                  <h4 className="font-semibold text-cyan-100">Micro-exhibit preview</h4>
+                  <p className="mt-2 text-sm font-semibold text-stone-50">{draft.exhibitTitle.trim() || selectedTheme.title}</p>
+                  <p className="mt-2 text-xs leading-5 text-stone-400">{draft.openingPanel.trim() || '先写 opening panel：用 2-3 句话说明展览为何值得观看。'}</p>
+                  <div className="mt-3 grid gap-2">
+                    {selectedEvidence.length ? selectedEvidence.map((entry, index) => (
+                      <label key={entry.id} className="block rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <span className="text-xs font-semibold text-cyan-100">{index + 1}. {entry.title} · {entry.typeLabel}</span>
+                        <textarea value={draft.labelDrafts[entry.id] ?? ''} onChange={(event) => updateLabelDraft(entry.id, event.target.value)} rows={2} placeholder={selectedTheme.labelPrompts[index % selectedTheme.labelPrompts.length] ?? '写 60-90 字展签：证据、解释、限制。'} className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs leading-5 text-stone-100 outline-none focus:border-cyan-200/40" />
+                      </label>
+                    )) : <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-stone-500">从 evidence shelf 选择 3-5 条证据后，这里会生成展签草稿区。</div>}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {themeScenarios.slice(0, 3).map((scenario) => <button key={scenario.id} type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">打开 {scenario.title}</button>)}
+                    <button type="button" onClick={() => selectedEvidence[0] ? onOpenScenario(selectedEvidence[0].scenario.id, sectionIds.sourceReader) : themeScenarios[0] && onOpenScenario(themeScenarios[0].id, sectionIds.sourceReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">Source Reader</button>
+                    <button type="button" onClick={() => selectedEvidence[0] ? onOpenScenario(selectedEvidence[0].scenario.id, sectionIds.sceneReader) : themeScenarios[0] && onOpenScenario(themeScenarios[0].id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">Scene Reader</button>
+                  </div>
+                  <p className="mt-3 text-xs text-stone-500" aria-live="polite">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '任意填写或选择会保存到本机；localStorage 不可用时回退 sessionStorage。'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )
