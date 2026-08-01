@@ -169,6 +169,21 @@ export type ChronologyChallenge = {
   tags: string[]
 }
 
+export type ConceptAtlasTopic = {
+  id: string
+  title: string
+  shortLabel: string
+  drivingQuestion: string
+  misconception: string
+  carefulDefinition: string
+  scenarioIds: string[]
+  keyTerms: string[]
+  evidenceTags: string[]
+  methodLinks: string[]
+  prompts: string[]
+  deliverable: string
+}
+
 export type LessonPackMode = 'quick' | 'source' | 'debate'
 
 export type ActivityPackMode = 'warmup' | 'source-lab' | 'roleplay' | 'debate' | 'writing' | 'compare' | 'extension'
@@ -1013,6 +1028,117 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
   },
 ]
 
+
+export const conceptAtlasTopics: ConceptAtlasTopic[] = [
+  {
+    id: 'credit-and-trust',
+    title: '信用与信任',
+    shortLabel: '信用',
+    drivingQuestion: '远距离交易中，信用如何把陌生人、账期、担保和风险组织成可行动的关系？',
+    misconception: '误以为信用只是个人品德或现代银行制度，忽略中介、声誉、文书和港口节奏。',
+    carefulDefinition: '信用是在特定制度、媒介和社会关系中，把未来承诺转化为当下行动的历史机制；它既依赖信任，也依赖可追责的记录、担保和惩罚。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'tang-changan-merchant'],
+    keyTerms: ['credit', 'trust', 'contracts', 'letters', 'monsoon', 'broker', '信用', '担保', '账期'],
+    evidenceTags: ['credit', 'port credit', 'letters', 'contracts', 'monsoon', 'brokerage', 'archival survival'],
+    methodLinks: ['Source Atlas: sourcing + corroboration', 'Chronology Desk: monsoon-port-credit-rhythms', 'Context & Scale Lab: regional connections', 'Compare Lab: market-exchange'],
+    prompts: [
+      '选两条来源证据，说明信用靠什么被记录或执行。',
+      '比较一个港口中介与一个书信/合约场景：信任的基础相同吗？',
+      '写出信用机制中最容易被来源遮蔽的人。',
+    ],
+    deliverable: 'Concept Brief：定义信用、举出 2-3 个跨场景证据、说明来源限制，并提出一个可比较的信任机制。',
+  },
+  {
+    id: 'archive-silence',
+    title: '档案沉默',
+    shortLabel: '沉默',
+    drivingQuestion: '为什么一些人的劳动、恐惧或判断更难进入档案，而这种缺席如何改变历史解释？',
+    misconception: '误以为没有材料就等于没有发生，或把沉默简单理解为“资料不够”。',
+    carefulDefinition: '档案沉默不是空白本身，而是记录、保存、分类、权力和后世研究共同造成的可见性差异；它要求我们区分证据缺席与历史不存在。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant'],
+    keyTerms: ['archive silence', 'source survival', 'nonwritten records', 'khipu', 'colonial chronicles', 'absent voices', '档案沉默', '缺席声音'],
+    evidenceTags: ['archive silence', 'source survival', 'nonwritten records', 'conquest', 'coercion', 'absent voice'],
+    methodLinks: ['Source Atlas: silence method card', 'Evidence Case Files: Archive Quests', 'Significance Lab: memory-archive', 'Perspectives Lab: missing voices'],
+    prompts: [
+      '指出一条来源能看见谁，同时看不见谁。',
+      '把非文字证据或殖民记录与一条商人/机构档案比较：沉默机制是否相同？',
+      '写一句不能过度推断的限制说明。',
+    ],
+    deliverable: 'Concept Brief：定义档案沉默，展示一个可见/不可见对照，并说明它如何改变主张信心。',
+  },
+  {
+    id: 'market-rules',
+    title: '市场规则',
+    shortLabel: '规则',
+    drivingQuestion: '市场为什么不是自由真空，而是由制度、税赋、信用、度量和中介持续塑形？',
+    misconception: '误以为“市场”天然等于自由交换，规则只是外部干预。',
+    carefulDefinition: '市场规则包括正式制度、城市管理、税赋、度量、行规、信用惯例和暴力边界；它们决定谁能交易、如何定价、风险由谁承担。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    keyTerms: ['market rules', 'taxation', 'brokerage', 'urban markets', 'tribute', 'regulation', '市场规则', '税赋', '中介'],
+    evidenceTags: ['market rules', 'taxation', 'ports', 'urban markets', 'brokerage', 'credit'],
+    methodLinks: ['Chronology Desk: long-run-market-rules', 'Compare Lab: market-exchange', 'Causation Lab: institutional constraints', 'Context Lab: local/regional scale'],
+    prompts: [
+      '从两个市场场景中各找一条规则证据，说明它改变了谁的机会。',
+      '区分正式规则与非正式信用/声誉规则。',
+      '写出一个“自由交换”说法需要修正的地方。',
+    ],
+    deliverable: 'Concept Brief：解释市场规则的组成，比较两种规则机制，并连接普通人的行动边界。',
+  },
+  {
+    id: 'labor-discipline',
+    title: '劳动纪律',
+    shortLabel: '劳动',
+    drivingQuestion: '劳动者的身体、时间和风险如何被种植园、工厂、港口或帝国行政制度组织起来？',
+    misconception: '误以为劳动纪律只属于工业工厂，或只表现为钟表时间。',
+    carefulDefinition: '劳动纪律是权力、技术、账册、暴力、工资、债务或义务制度对劳动节奏、身体移动和服从边界的组织方式。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'inca-cusco-khipu-runner', 'qing-guangzhou-comprador'],
+    keyTerms: ['labor discipline', 'factory time', 'coercion', 'mit’a', 'commodity chains', 'work rhythm', '劳动纪律', '强制劳动'],
+    evidenceTags: ['labor discipline', 'factory time', 'coercion', 'commodity chains', 'imperial labor', 'cotton', 'sugar'],
+    methodLinks: ['Chronology Desk: commodity-chain-time-discipline', 'Causation Lab: commodity empires', 'Perspectives Lab: risk/stake', 'Significance Lab: ordinary-life'],
+    prompts: [
+      '选择一条身体风险证据和一条时间/账册证据，说明它们如何共同约束劳动。',
+      '比较强制劳动、工资劳动和制度义务：边界在哪里？',
+      '写出劳动纪律中最容易被“效率”叙述掩盖的经验。',
+    ],
+    deliverable: 'Concept Brief：定义劳动纪律，连接至少两种劳动制度，并说明来源如何记录或遮蔽身体经验。',
+  },
+  {
+    id: 'knowledge-thresholds',
+    title: '知识门槛',
+    shortLabel: '门槛',
+    drivingQuestion: '纸张、手稿、考试、师承和商业文书扩展知识时，谁仍被门槛挡在外面？',
+    misconception: '误以为媒介扩散会自动带来平等进入，忽略身份、金钱、语言和制度资格。',
+    carefulDefinition: '知识门槛是决定谁能接触、学习、复制、解释或保存知识的技术、制度、经济、语言和身份条件。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice', 'tang-changan-merchant'],
+    keyTerms: ['knowledge thresholds', 'paper', 'manuscripts', 'exams', 'literacy', 'apprenticeship', '知识门槛', '手稿', '科举'],
+    evidenceTags: ['knowledge cities', 'access thresholds', 'paper', 'manuscripts', 'exams', 'letters', 'literacy'],
+    methodLinks: ['Chronology Desk: knowledge-city-access-thresholds', 'Context Lab: source-context', 'Perspectives Lab: knowledge limit', 'Synthesis Studio: knowledge/access'],
+    prompts: [
+      '找出一种媒介让知识更易流动的证据，再找出一个仍存在的门槛。',
+      '比较考试、师承和商业文书中的资格差异。',
+      '写出“知识传播”叙述中需要避免的进步主义误区。',
+    ],
+    deliverable: 'Concept Brief：定义知识门槛，展示扩散与排除并存的证据，并提出谨慎比较。',
+  },
+  {
+    id: 'imperial-intermediaries',
+    title: '帝国中介',
+    shortLabel: '中介',
+    drivingQuestion: '通译、买办、记录助手、港口经纪和本地精英如何在帝国权力与日常生活之间转换信息、风险与责任？',
+    misconception: '误以为中介只是被动翻译者或单纯背叛者，忽略他们的有限能动性和双重压力。',
+    carefulDefinition: '帝国中介是在不平等权力结构中连接语言、法律、账册、货物和人群的角色；他们可能获得机会，也承担误解、暴力、责任转嫁和来源偏见。',
+    scenarioIds: ['malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'inca-cusco-khipu-runner', 'colonial-bombay-mill-worker', 'fustat-geniza-merchant-apprentice'],
+    keyTerms: ['intermediary', 'broker', 'comprador', 'translation', 'empire', 'record keeper', '帝国中介', '通译', '买办'],
+    evidenceTags: ['brokerage', 'comprador', 'translation', 'empire', 'port intermediaries', 'records', 'colonial'],
+    methodLinks: ['Perspectives Lab: actor position', 'Context Lab: regional/imperial scale', 'Compare Lab: institutional-constraints', 'Source Atlas: perspective'],
+    prompts: [
+      '选择一个中介角色，写出其机会、限制和责任转嫁。',
+      '比较通译/买办/记录助手：他们掌握的信息相同吗？',
+      '指出来源是否把中介写成工具、风险人物还是行动者。',
+    ],
+    deliverable: 'Concept Brief：定义帝国中介，比较两种中介机制，并说明中介视角的来源限制。',
+  },
+]
 
 export const chronologyChallenges: ChronologyChallenge[] = [
   {

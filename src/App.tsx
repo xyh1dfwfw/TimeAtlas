@@ -28,11 +28,13 @@ import {
   atlasMapRoutes,
   chronologyChallenges,
   compareLenses,
+  conceptAtlasTopics,
   scenarios,
   type AtlasInquiryPath,
   type AtlasMapRoute,
   type ChronologyChallenge,
   type CompareLens,
+  type ConceptAtlasTopic,
   type DailyLifeKey,
   type ActivityPack,
   type ActivityPackMode,
@@ -64,6 +66,7 @@ const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
 const evidenceCaseFileStorageKey = 'timeatlas:evidence-case-file-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const chronologyDeskStorageKey = 'timeatlas:chronology-desk-drafts'
+const conceptAtlasDraftStorageKey = 'timeatlas:concept-atlas-drafts'
 const workspaceStorageKey = 'timeatlas:atlas-workspace-8'
 const guidedSessionProgressStorageKey = 'timeatlas:guided-session-progress'
 const taskModuleProgressStorageKey = 'timeatlas:task-module-progress'
@@ -92,6 +95,7 @@ const sectionIds = {
   perspectivesLab: 'perspectives-agency-lab',
   contextLab: 'context-scale-lab',
   significanceLab: 'significance-memory-lab',
+  conceptAtlas: 'concept-atlas',
   synthesisStudio: 'synthesis-writing-studio',
   compareLab: 'compare-lab',
 } as const
@@ -106,7 +110,7 @@ const pageIds = [
   'about',
 ] as const
 
-const legacyLabPageIds = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'synthesis'] as const
+const legacyLabPageIds = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'concepts', 'synthesis'] as const
 
 type PageId = typeof pageIds[number]
 
@@ -115,7 +119,7 @@ const pageLabels: Record<PageId, { label: string; eyebrow: string; description: 
   scenario: { label: '场景体验', eyebrow: 'Scenario', description: '进入一个历史身份的一天、任务与来源层' },
   atlas: { label: '时空路线', eyebrow: 'Atlas', description: '地图路线、跨场景挑战、探究路径与比较实验室' },
   evidence: { label: '史料证据', eyebrow: 'Evidence', description: '全站史料地图、证据篮与互证工作台' },
-  labs: { label: '历史思维', eyebrow: 'Labs', description: '因果、分期、多视角、情境化、历史意义与综合写作' },
+  labs: { label: '历史思维', eyebrow: 'Labs', description: '因果、分期、多视角、情境化、概念图谱、历史意义与综合写作' },
   tasks: { label: '任务档案', eyebrow: 'Tasks', description: '任务库、学习路径、作品集与导出' },
   about: { label: '项目理念', eyebrow: 'About', description: 'TimeAtlas 的设计思路与学习目标' },
 }
@@ -463,6 +467,37 @@ type ChronologyDraft = {
 
 type ChronologyDraftState = Record<string, ChronologyDraft>
 
+type ConceptAtlasConfidence = 'high' | 'medium' | 'low' | 'uncertain'
+
+type ConceptAtlasEvidence = {
+  id: string
+  topicId: string
+  scenario: Scenario
+  sourceType: 'key-term' | 'source' | 'scene-beat' | 'daily-life' | 'decision' | 'real-history'
+  label: string
+  title: string
+  text: string
+  tags: string[]
+  reliabilityNote?: string
+  ctaHash: ScenarioSectionId
+}
+
+type ConceptAtlasDraft = {
+  selectedScenarioIds: string[]
+  selectedEvidenceIds: string[]
+  definitionInContext: string
+  comparisonNotes: string
+  misconceptionWarning: string
+  evidenceExample: string
+  sourceLimitNote: string
+  finalConceptNote: string
+  confidence: ConceptAtlasConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type ConceptAtlasDraftState = Record<string, ConceptAtlasDraft>
+
 type EvidenceCasePacketItem = {
   id: string
   scenario: Scenario
@@ -512,6 +547,7 @@ type SynthesisEvidenceOrigin =
   | 'perspectives'
   | 'contextualization'
   | 'significance'
+  | 'concept-atlas'
   | 'compare'
   | 'chronology'
   | 'actor-network'
@@ -641,7 +677,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'synthesis' | 'case-file'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'inquiry' | 'compare' | 'chronology' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -702,6 +738,7 @@ const labsSubpages: SubpageNavItem<LabsSubpage>[] = [
   { id: 'perspectives', label: '多视角', eyebrow: 'Agency', description: '选择边界、能动性与反当下主义', hash: sectionIds.perspectivesLab },
   { id: 'context', label: '情境尺度', eyebrow: 'Context', description: '地方、区域、全球尺度与来源情境', hash: sectionIds.contextLab },
   { id: 'significance', label: '历史意义', eyebrow: 'Memory', description: '重要性、记忆、争议与档案沉默', hash: sectionIds.significanceLab },
+  { id: 'concepts', label: '概念图谱', eyebrow: 'Concepts', description: 'key terms、来源标签与跨场景概念任务', hash: sectionIds.conceptAtlas },
   { id: 'synthesis', label: '综合写作', eyebrow: 'Writing', description: '把所有草稿汇总成综合历史论证', hash: sectionIds.synthesisStudio },
 ]
 
@@ -1014,6 +1051,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'perspectives', label: 'Perspectives Lab' },
   { value: 'contextualization', label: 'Context & Scale Lab' },
   { value: 'significance', label: 'Significance Lab' },
+  { value: 'concept-atlas', label: 'Concept Atlas' },
   { value: 'synthesis', label: 'Synthesis Studio' },
   { value: 'case-file', label: 'Evidence Case Files' },
 ]
@@ -1244,6 +1282,7 @@ const significanceConfidenceLabels: Record<SignificanceConfidence, string> = cor
 const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
 const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
+const conceptAtlasConfidenceLabels: Record<ConceptAtlasConfidence, string> = corroborationConfidenceLabels
 const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
 const significanceEvidenceLabelText: Record<SignificanceEvidenceLabel, string> = {
@@ -2556,6 +2595,78 @@ function persistChronologyDraftState(state: ChronologyDraftState) {
   getSafeStorage('sessionStorage')?.setItem(chronologyDeskStorageKey, serializedState)
 }
 
+function parseConceptAtlasDraftState(rawState: string | null): ConceptAtlasDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as ConceptAtlasDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<ConceptAtlasDraft>
+        const selectedScenarioIds = Array.isArray(draft.selectedScenarioIds)
+          ? draft.selectedScenarioIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in conceptAtlasConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            selectedScenarioIds,
+            selectedEvidenceIds,
+            definitionInContext: typeof draft.definitionInContext === 'string' ? draft.definitionInContext : '',
+            comparisonNotes: typeof draft.comparisonNotes === 'string' ? draft.comparisonNotes : '',
+            misconceptionWarning: typeof draft.misconceptionWarning === 'string' ? draft.misconceptionWarning : '',
+            evidenceExample: typeof draft.evidenceExample === 'string' ? draft.evidenceExample : '',
+            sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+            finalConceptNote: typeof draft.finalConceptNote === 'string' ? draft.finalConceptNote : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies ConceptAtlasDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as ConceptAtlasDraftState
+  }
+}
+
+function loadConceptAtlasDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseConceptAtlasDraftState(localStorage?.getItem(conceptAtlasDraftStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasConceptAtlasDraftActivity)) {
+    return localState
+  }
+
+  return parseConceptAtlasDraftState(sessionStorage?.getItem(conceptAtlasDraftStorageKey) ?? null)
+}
+
+function persistConceptAtlasDraftState(state: ConceptAtlasDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(conceptAtlasDraftStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(conceptAtlasDraftStorageKey, serializedState)
+}
+
 function loadSynthesisDraftState() {
   const localStorage = getSafeStorage('localStorage')
   const sessionStorage = getSafeStorage('sessionStorage')
@@ -3691,6 +3802,206 @@ function hasChronologyDraftActivity(draft: ChronologyDraft) {
 
 function getActiveChronologyDrafts(chronologyDraftState: ChronologyDraftState) {
   return Object.entries(chronologyDraftState).filter(([, draft]) => hasChronologyDraftActivity(draft))
+}
+
+function getEmptyConceptAtlasDraft(topic?: ConceptAtlasTopic): ConceptAtlasDraft {
+  return {
+    selectedScenarioIds: topic?.scenarioIds.slice(0, 3) ?? [],
+    selectedEvidenceIds: [],
+    definitionInContext: '',
+    comparisonNotes: '',
+    misconceptionWarning: topic?.misconception ?? '',
+    evidenceExample: '',
+    sourceLimitNote: '',
+    finalConceptNote: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function hasConceptAtlasDraftActivity(draft: ConceptAtlasDraft) {
+  return Boolean(
+    draft.selectedScenarioIds.length
+      || draft.selectedEvidenceIds.length
+      || draft.definitionInContext.trim()
+      || draft.comparisonNotes.trim()
+      || draft.misconceptionWarning.trim()
+      || draft.evidenceExample.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.finalConceptNote.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveConceptAtlasDrafts(conceptAtlasDraftState: ConceptAtlasDraftState) {
+  return Object.entries(conceptAtlasDraftState).filter(([, draft]) => hasConceptAtlasDraftActivity(draft))
+}
+
+function buildConceptAtlasEvidence(topic: ConceptAtlasTopic): ConceptAtlasEvidence[] {
+  const topicTerms = [...topic.keyTerms, ...topic.evidenceTags].map((term) => term.toLowerCase())
+
+  function scoreText(text: string) {
+    const normalizedText = text.toLowerCase()
+    return topicTerms.reduce((score, term) => score + (normalizedText.includes(term) ? 1 : 0), 0)
+  }
+
+  function sortByRelevance<T extends ConceptAtlasEvidence>(entries: T[]) {
+    return [...entries].sort((first, second) => scoreText([second.title, second.text, ...second.tags].join(' ')) - scoreText([first.title, first.text, ...first.tags].join(' ')))
+  }
+
+  return topic.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+    if (!scenario) return []
+    const baseTags = [scenario.era, scenario.location, scenario.region, scenario.theme]
+    const keyTermEntries = scenario.keyTerms.map((term, index) => ({
+      id: `${topic.id}:${scenario.id}:key-term:${index}`,
+      topicId: topic.id,
+      scenario,
+      sourceType: 'key-term' as const,
+      label: 'Key term',
+      title: term.term,
+      text: term.definition,
+      tags: [...baseTags, term.term, 'keyTerms'],
+      ctaHash: sectionIds.experience,
+    } satisfies ConceptAtlasEvidence))
+    const sourceEntries = scenario.sources.map((source, index) => ({
+      id: `${topic.id}:${scenario.id}:source:${index}`,
+      topicId: topic.id,
+      scenario,
+      sourceType: 'source' as const,
+      label: sourceTypeLabels[source.sourceType],
+      title: source.title,
+      text: `${source.excerpt}｜视角：${source.perspective}｜追问：${source.sourceQuestion}`,
+      tags: [...baseTags, source.creator, sourceTypeLabels[source.sourceType], ...source.evidenceTags],
+      reliabilityNote: source.reliabilityNote,
+      ctaHash: sectionIds.sourceReader,
+    } satisfies ConceptAtlasEvidence))
+    const sceneEntries = scenario.sceneBeats.map((beat, index) => ({
+      id: `${topic.id}:${scenario.id}:scene:${index}`,
+      topicId: topic.id,
+      scenario,
+      sourceType: 'scene-beat' as const,
+      label: 'Scene beat',
+      title: `${beat.timeLabel} · ${beat.title}`,
+      text: `${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+      tags: [...baseTags, ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+      ctaHash: sectionIds.sceneReader,
+    } satisfies ConceptAtlasEvidence))
+    const dailyEntries = scenario.dailyLife.map((section) => ({
+      id: `${topic.id}:${scenario.id}:daily:${section.key}`,
+      topicId: topic.id,
+      scenario,
+      sourceType: 'daily-life' as const,
+      label: `Daily · ${section.label}`,
+      title: section.title,
+      text: section.text,
+      tags: [...baseTags, section.key, section.label],
+      ctaHash: sectionIds.dailyLife,
+    } satisfies ConceptAtlasEvidence))
+    const decisionEntries: ConceptAtlasEvidence[] = [
+      {
+        id: `${topic.id}:${scenario.id}:decision:context`,
+        topicId: topic.id,
+        scenario,
+        sourceType: 'decision',
+        label: 'Decision context',
+        title: scenario.decision.prompt,
+        text: scenario.decision.context,
+        tags: [...baseTags, 'decision'],
+        ctaHash: sectionIds.decisionPanel,
+      },
+      ...scenario.decision.options.slice(0, 2).map((option) => ({
+        id: `${topic.id}:${scenario.id}:decision:${option.id}`,
+        topicId: topic.id,
+        scenario,
+        sourceType: 'decision' as const,
+        label: 'Decision option',
+        title: option.label,
+        text: `${option.stance}：${option.description}｜即时：${option.immediate}｜长期：${option.longTerm}`,
+        tags: [...baseTags, 'decision', option.stance],
+        ctaHash: sectionIds.decisionPanel,
+      } satisfies ConceptAtlasEvidence)),
+    ]
+    const realHistoryEntry: ConceptAtlasEvidence = {
+      id: `${topic.id}:${scenario.id}:real-history`,
+      topicId: topic.id,
+      scenario,
+      sourceType: 'real-history',
+      label: 'Real history',
+      title: '真实历史对照',
+      text: scenario.realHistory,
+      tags: [...baseTags, 'realHistory', 'interpretation'],
+      ctaHash: sectionIds.decisionPanel,
+    }
+
+    return sortByRelevance([
+      ...keyTermEntries,
+      ...sourceEntries,
+      ...sceneEntries,
+      ...dailyEntries,
+      ...decisionEntries,
+      realHistoryEntry,
+    ]).slice(0, 12)
+  })
+}
+
+function formatConceptBrief(topic: ConceptAtlasTopic, draft: ConceptAtlasDraft, selectedEvidence: ConceptAtlasEvidence[]) {
+  const selectedScenarios = draft.selectedScenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : buildConceptAtlasEvidence(topic).slice(0, 8)
+
+  return [
+    'TimeAtlas Concept Atlas / 历史概念图谱工作台 1.0',
+    `生成时间：${new Date().toLocaleString()}`,
+    `概念主题：${topic.title}｜${topic.shortLabel}`,
+    `核心问题：${topic.drivingQuestion}`,
+    `谨慎定义：${topic.carefulDefinition}`,
+    `常见误区：${topic.misconception}`,
+    `关联场景：${selectedScenarios.map((scenario) => scenario.title).join(' × ') || topic.scenarioIds.map((id) => getScenarioById(id)?.title ?? id).join(' × ')}`,
+    '',
+    '一、Evidence examples / 证据样例',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.scenario.title}｜${entry.label}｜${entry.title}
+   ${entry.text}
+   ${entry.reliabilityNote ? `可靠边界：${entry.reliabilityNote}
+   ` : ''}标签：${entry.tags.slice(0, 8).join('、') || '无'}`),
+    '',
+    '二、Workspace draft / 工作区草稿',
+    `Definition in context：${draft.definitionInContext.trim() || '尚未填写'}`,
+    `Comparison notes：${draft.comparisonNotes.trim() || '尚未填写'}`,
+    `Misconception warning：${draft.misconceptionWarning.trim() || topic.misconception}`,
+    `Evidence example：${draft.evidenceExample.trim() || '尚未填写'}`,
+    `Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `Final concept note：${draft.finalConceptNote.trim() || '尚未填写'}`,
+    `Confidence：${conceptAtlasConfidenceLabels[draft.confidence]}`,
+    `状态：${draft.completed ? '已完成' : hasConceptAtlasDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatConceptTaskSheet(topic: ConceptAtlasTopic) {
+  const scenariosForTopic = topic.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const evidence = buildConceptAtlasEvidence(topic).slice(0, 8)
+
+  return [
+    `TimeAtlas Concept Atlas Task：${topic.title}`,
+    `核心问题：${topic.drivingQuestion}`,
+    `谨慎定义起点：${topic.carefulDefinition}`,
+    `常见误区：${topic.misconception}`,
+    `场景：${scenariosForTopic.map((scenario) => `${scenario.title}（${scenario.era}）`).join(' × ')}`,
+    '',
+    '任务：用 keyTerms、source evidenceTags、场景主题与方法链接，写出一份可比较、可验证、带来源限制的 Concept Brief。',
+    '',
+    '方法链接：',
+    ...topic.methodLinks.map((link) => `- ${link}`),
+    '',
+    'Prompt ladder：',
+    ...topic.prompts.map((prompt, index) => `${index + 1}. ${prompt}`),
+    '',
+    '证据起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${entry.label}｜${entry.title}：${entry.text}`),
+    '',
+    `交付物：${topic.deliverable}`,
+  ].join('\n')
 }
 
 function getActiveActorNetworkDrafts(actorNetworkDraftState: ActorNetworkDraftState) {
@@ -5208,6 +5519,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     perspectives: 'Perspectives draft / 多视角草稿',
     contextualization: 'Context draft / 情境化草稿',
     significance: 'Significance draft / 意义草稿',
+    'concept-atlas': 'Concept Atlas draft / 概念图谱草稿',
     compare: 'Compare draft / 比较草稿',
     'actor-network': 'Actor Network draft / 人物网络草稿',
     'material-culture': 'Material Culture draft / 物件证据草稿',
@@ -5234,6 +5546,7 @@ function buildSynthesisEvidencePool({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  conceptAtlasDraftState,
   compareDraftState,
   caseFileDraftState,
   actorNetworkDraftState,
@@ -5249,6 +5562,7 @@ function buildSynthesisEvidencePool({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  conceptAtlasDraftState: ConceptAtlasDraftState
   compareDraftState: CompareDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   actorNetworkDraftState: ActorNetworkDraftState
@@ -5391,6 +5705,25 @@ function buildSynthesisEvidencePool({
       text: [`事件/过程：${draft.eventOrProcess}`, `对谁重要：${draft.whoItMatteredTo}`, `当时/长期意义：${draft.contemporarySignificance} ${draft.longTermSignificance}`, `尺度/争议：${draft.scaleOfImpact} ${draft.contestedMeaning}`, `来源限制：${draft.sourceLimits}`, `主张：${draft.significanceClaim}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
       tags: ['significance', ...(inquiry?.tags ?? []), ...selectedTitles.slice(0, 3), draft.confidence],
       inquiryTitle: inquiry?.title,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveConceptAtlasDrafts(conceptAtlasDraftState).forEach(([topicId, draft]) => {
+    const topic = conceptAtlasTopics.find((candidate) => candidate.id === topicId)
+    if (!topic) return
+    const selectedEvidence = buildConceptAtlasEvidence(topic).filter((entry) => draft.selectedEvidenceIds.includes(entry.id))
+    const selectedScenarios = draft.selectedScenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+
+    entries.push({
+      id: makeSynthesisEvidenceId('concept-atlas', topicId),
+      origin: 'concept-atlas',
+      originLabel: getSynthesisOriginLabel('concept-atlas'),
+      title: topic.title,
+      text: [`定义：${draft.definitionInContext}`, `比较：${draft.comparisonNotes}`, `误区：${draft.misconceptionWarning}`, `例证：${draft.evidenceExample}`, `来源限制：${draft.sourceLimitNote}`, `最终说明：${draft.finalConceptNote}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['concept atlas', topic.shortLabel, ...topic.keyTerms, ...topic.evidenceTags, ...selectedEvidence.slice(0, 3).map((entry) => entry.label), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: selectedScenarios.map((scenario) => scenario.title).join(' × '),
+      inquiryTitle: topic.drivingQuestion,
       updatedAt: draft.updatedAt,
     })
   })
@@ -5701,6 +6034,7 @@ function formatLearningArchive(
   perspectivesDraftState: PerspectivesDraftState,
   contextDraftState: ContextDraftState,
   significanceDraftState: SignificanceDraftState,
+  conceptAtlasDraftState: ConceptAtlasDraftState,
   synthesisDraftState: SynthesisDraftState,
   caseFileDraftState: EvidenceCaseFileDraftState,
   compareDraftState: CompareDraftState,
@@ -5720,6 +6054,7 @@ function formatLearningArchive(
   const activePerspectivesDrafts = getActivePerspectivesDrafts(perspectivesDraftState)
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
+  const activeConceptAtlasDrafts = getActiveConceptAtlasDrafts(conceptAtlasDraftState)
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
   const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
@@ -5735,7 +6070,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -5753,6 +6088,7 @@ function formatLearningArchive(
     `- 多视角与能动性草稿：${activePerspectivesDrafts.length}`,
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
+    `- Concept Atlas 概念图谱草稿：${activeConceptAtlasDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
@@ -6096,6 +6432,35 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activeConceptAtlasDrafts.length > 0) {
+    lines.push('Concept Atlas / 历史概念图谱工作台：')
+    activeConceptAtlasDrafts.forEach(([topicId, draft]) => {
+      const topic = conceptAtlasTopics.find((candidate) => candidate.id === topicId)
+      if (!topic) return
+      const evidence = buildConceptAtlasEvidence(topic)
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is ConceptAtlasEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${entry.label}｜${entry.title}`)
+      const selectedScenarioTitles = draft.selectedScenarioIds.map((id) => getScenarioById(id)?.title ?? id)
+
+      lines.push(
+        `  - ${topic.title}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    场景：${selectedScenarioTitles.join('、') || '尚未选择'}`,
+        `    已选证据：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    情境定义：${draft.definitionInContext.trim() || '尚未填写'}`,
+        `    比较 notes：${draft.comparisonNotes.trim() || '尚未填写'}`,
+        `    误区提醒：${draft.misconceptionWarning.trim() || topic.misconception}`,
+        `    证据例子：${draft.evidenceExample.trim() || '尚未填写'}`,
+        `    来源限制：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    最终概念说明：${draft.finalConceptNote.trim() || '尚未填写'}`,
+        `    信心等级：${conceptAtlasConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCaseFileDrafts.length > 0) {
     lines.push('Evidence Case Files / Archive Quests：')
     activeCaseFileDrafts.forEach(([caseFileId, draft]) => {
@@ -6201,7 +6566,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -7529,6 +7894,7 @@ function buildTaskLibraryTasks({
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
+  onLoadConceptTopic,
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
   onOpenDebateStudio,
@@ -7543,6 +7909,7 @@ function buildTaskLibraryTasks({
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
+  onLoadConceptTopic: (topicId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio?: (scenarioId: string) => void
@@ -8025,6 +8392,41 @@ function buildTaskLibraryTasks({
     }
 
     task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.focus, inquiry.memoryFrame, ...tags].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  conceptAtlasTopics.forEach((topic) => {
+    const topicScenarios = topic.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 40
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Concept Atlas', '概念图谱', ...topic.keyTerms, ...topic.evidenceTags]
+    const task: LibraryTask = {
+      id: `concept-atlas:${topic.id}`,
+      title: topic.title,
+      context: topicScenarios.map((scenario) => scenario.title).join(' × ') || 'Concept Atlas',
+      scenarioId: topicScenarios[0]?.id,
+      category: '跨场景概念任务',
+      source: 'concept-atlas',
+      sourceLabel: 'Concept Atlas',
+      durationMinutes,
+      durationBand,
+      summary: topic.drivingQuestion,
+      deliverable: topic.deliverable,
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开概念图谱',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onLoadConceptTopic(topic.id),
+      onSecondaryAction: () => topicScenarios[0] ? onOpenScenario(topicScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [topic.drivingQuestion, topic.carefulDefinition, `误区：${topic.misconception}`],
+      checklist: ['选择 2-3 个相关场景', '勾选 key term / source / scene evidence', '写出情境定义', '比较不同场景中的概念作用', '说明误区与来源限制', '完成 Concept Brief'],
+      evidencePrompts: [...topic.prompts, ...topic.methodLinks],
+      formatSheet: () => formatConceptTaskSheet(topic),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, topic.misconception, topic.carefulDefinition, ...tags, ...topic.methodLinks, ...topic.prompts].join(' ').toLowerCase()
     tasks.push(task)
   })
 
@@ -8670,6 +9072,8 @@ function App() {
   const [contextDraftState, setContextDraftState] = useState<ContextDraftState>(loadContextDraftState)
   const [significanceDraftState, setSignificanceDraftState] = useState<SignificanceDraftState>(loadSignificanceDraftState)
   const [selectedSignificanceInquiryId, setSelectedSignificanceInquiryId] = useState(significanceInquiryDefinitions[0]?.id ?? '')
+  const [conceptAtlasDraftState, setConceptAtlasDraftState] = useState<ConceptAtlasDraftState>(loadConceptAtlasDraftState)
+  const [selectedConceptTopicId, setSelectedConceptTopicId] = useState(conceptAtlasTopics[0]?.id ?? '')
   const [synthesisDraftState, setSynthesisDraftState] = useState<SynthesisDraftState>(loadSynthesisDraftState)
   const [caseFileDraftState, setCaseFileDraftState] = useState<EvidenceCaseFileDraftState>(loadEvidenceCaseFileDraftState)
   const [selectedCaseFileId, setSelectedCaseFileId] = useState(evidenceCaseFiles[0]?.id ?? '')
@@ -8716,8 +9120,8 @@ function App() {
   const perspectivesEvidenceByInquiry = useMemo(getPerspectivesInquiryEvidenceMap, [])
   const contextEvidenceByInquiry = useMemo(getContextInquiryEvidenceMap, [])
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState }), [chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -8728,7 +9132,7 @@ function App() {
   const workspaceStats = useMemo(() => getWorkspaceStats(workspaceState), [workspaceState])
   const taskModuleStats = useMemo(() => getTaskModuleProgressStats(taskModuleProgressState), [taskModuleProgressState])
   const taskWorkbenchStats = useMemo(() => getTaskWorkbenchStats(taskWorkbenchDraftState), [taskWorkbenchDraftState])
-  const labDraftCount = useMemo(() => getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState }), [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState])
+  const labDraftCount = useMemo(() => getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState }) + getActiveConceptAtlasDrafts(conceptAtlasDraftState).length, [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState])
   const compareDraftCount = useMemo(() => getActiveCompareDrafts(compareDraftState).length, [compareDraftState])
   const synthesisDraftCount = useMemo(() => getActiveSynthesisDrafts(synthesisDraftState).length, [synthesisDraftState])
   const caseFileDraftCount = useMemo(() => getActiveEvidenceCaseFileDrafts(caseFileDraftState).length, [caseFileDraftState])
@@ -8894,6 +9298,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [significanceDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistConceptAtlasDraftState(conceptAtlasDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [conceptAtlasDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -9403,6 +9819,22 @@ function App() {
     scrollToSection(sectionIds.significanceLab, prefersReducedMotion)
   }
 
+  function loadConceptTopic(topicId: string) {
+    if (!conceptAtlasTopics.some((topic) => topic.id === topicId)) {
+      return
+    }
+
+    setSelectedConceptTopicId(topicId)
+    setActivePage('labs')
+    setActiveLabsSubpage('concepts')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.conceptAtlas))
+    }
+
+    scrollToSection(sectionIds.conceptAtlas, prefersReducedMotion)
+  }
+
   function loadSynthesisPreset(presetId: string) {
     if (!synthesisInquiryPresets.some((preset) => preset.id === presetId)) {
       return
@@ -9649,6 +10081,7 @@ function App() {
               perspectivesDraftState={perspectivesDraftState}
               contextDraftState={contextDraftState}
               significanceDraftState={significanceDraftState}
+              conceptAtlasDraftState={conceptAtlasDraftState}
               synthesisDraftState={synthesisDraftState}
               onOpenEvidence={() => navigateToPage('evidence', 'source-atlas')}
               onSelectSubpage={selectLabsSubpage}
@@ -9709,6 +10142,17 @@ function App() {
                 onOpenScenario={selectScenario}
               />
             ) : null}
+            {activeLabsSubpage === 'concepts' ? (
+              <ConceptAtlasPanel
+                selectedTopicId={selectedConceptTopicId}
+                draftState={conceptAtlasDraftState}
+                onSelectTopic={setSelectedConceptTopicId}
+                onUpdateDraftState={setConceptAtlasDraftState}
+                onOpenScenario={selectScenario}
+                onOpenSourceAtlas={() => navigateToPage('evidence', 'source-atlas')}
+                onOpenMethod={selectLabsSubpage}
+              />
+            ) : null}
             {activeLabsSubpage === 'synthesis' ? (
               <SynthesisWritingStudioPanel
                 selectedPresetId={selectedSynthesisPresetId}
@@ -9744,6 +10188,7 @@ function App() {
                 onLoadPerspectivesInquiry={loadPerspectivesInquiry}
                 onLoadContextInquiry={loadContextInquiry}
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
+                onLoadConceptTopic={loadConceptTopic}
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenEvidenceCaseFile={openEvidenceCaseFile}
                 onOpenDebateStudio={openDebateStudio}
@@ -9763,6 +10208,7 @@ function App() {
                 onLoadPerspectivesInquiry={loadPerspectivesInquiry}
                 onLoadContextInquiry={loadContextInquiry}
                 onLoadSignificanceInquiry={loadSignificanceInquiry}
+                onLoadConceptTopic={loadConceptTopic}
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenEvidenceCaseFile={openEvidenceCaseFile}
                 onOpenDebateStudio={openDebateStudio}
@@ -9828,6 +10274,7 @@ function App() {
                 perspectivesDraftState={perspectivesDraftState}
                 contextDraftState={contextDraftState}
                 significanceDraftState={significanceDraftState}
+                conceptAtlasDraftState={conceptAtlasDraftState}
                 synthesisDraftState={synthesisDraftState}
                 caseFileDraftState={caseFileDraftState}
                 compareDraftState={compareDraftState}
@@ -9986,6 +10433,7 @@ function LabsMethodChooser({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  conceptAtlasDraftState,
   synthesisDraftState,
   onOpenEvidence,
   onSelectSubpage,
@@ -9996,6 +10444,7 @@ function LabsMethodChooser({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  conceptAtlasDraftState: ConceptAtlasDraftState
   synthesisDraftState: SynthesisDraftState
   onOpenEvidence: () => void
   onSelectSubpage: (subpage: LabsSubpage) => void
@@ -10047,6 +10496,15 @@ function LabsMethodChooser({
       draftCount: getActiveSignificanceDrafts(significanceDraftState).length,
     },
     {
+      id: 'concepts',
+      title: '概念图谱',
+      eyebrow: 'Concepts',
+      question: '一个概念如何跨场景变化，又有哪些证据和误区需要同时处理？',
+      useCase: '适合把 key terms、来源标签、场景主题与方法链接组织成可操作概念任务。',
+      availableLabel: `${conceptAtlasTopics.length} 个主题`,
+      draftCount: getActiveConceptAtlasDrafts(conceptAtlasDraftState).length,
+    },
+    {
       id: 'synthesis',
       title: '综合写作',
       eyebrow: 'Synthesis',
@@ -10084,7 +10542,7 @@ function LabsMethodChooser({
                 </button>
                 <span className="hidden text-stone-500 sm:inline">→</span>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-stone-300">
-                  因果 / 分期 / 多视角 / 情境 / 意义
+                  因果 / 分期 / 多视角 / 情境 / 意义 / 概念
                 </span>
                 <span className="hidden text-stone-500 sm:inline">→</span>
                 <button
@@ -11921,6 +12379,204 @@ function EvidenceCaseFilesPanel({
                   </div>
                   <p className="mt-3 text-xs text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '任意填写或勾选后会保存到本机。'}</p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ConceptAtlasPanel({
+  selectedTopicId,
+  draftState,
+  onSelectTopic,
+  onUpdateDraftState,
+  onOpenScenario,
+  onOpenSourceAtlas,
+  onOpenMethod,
+}: {
+  selectedTopicId: string
+  draftState: ConceptAtlasDraftState
+  onSelectTopic: (topicId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<ConceptAtlasDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onOpenSourceAtlas: () => void
+  onOpenMethod: (subpage: LabsSubpage) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const selectedTopic = conceptAtlasTopics.find((topic) => topic.id === selectedTopicId) ?? conceptAtlasTopics[0]
+  const evidence = selectedTopic ? buildConceptAtlasEvidence(selectedTopic) : []
+  const draft = selectedTopic ? draftState[selectedTopic.id] ?? getEmptyConceptAtlasDraft(selectedTopic) : getEmptyConceptAtlasDraft()
+  const selectedEvidence = evidence.filter((entry) => draft.selectedEvidenceIds.includes(entry.id))
+  const selectedScenarios = selectedTopic.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const activeDraftCount = getActiveConceptAtlasDrafts(draftState).length
+
+  function updateDraft(patch: Partial<ConceptAtlasDraft>) {
+    if (!selectedTopic) return
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[selectedTopic.id] ?? getEmptyConceptAtlasDraft(selectedTopic)
+      return {
+        ...currentState,
+        [selectedTopic.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleScenario(scenarioId: string) {
+    const nextScenarioIds = draft.selectedScenarioIds.includes(scenarioId)
+      ? draft.selectedScenarioIds.filter((id) => id !== scenarioId)
+      : [...draft.selectedScenarioIds, scenarioId]
+    updateDraft({ selectedScenarioIds: nextScenarioIds })
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const nextEvidenceIds = draft.selectedEvidenceIds.includes(evidenceId)
+      ? draft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...draft.selectedEvidenceIds, evidenceId]
+    updateDraft({ selectedEvidenceIds: nextEvidenceIds })
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatConceptBrief(selectedTopic, draft, selectedEvidence))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    const safeTitle = selectedTopic.id.replace(/[^a-z0-9-]+/g, '-')
+    downloadTextFile(`timeatlas-${safeTitle}-concept-brief.txt`, formatConceptBrief(selectedTopic, draft, selectedEvidence))
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedTopic.id]: getEmptyConceptAtlasDraft(selectedTopic),
+    }))
+  }
+
+  return (
+    <section id={sectionIds.conceptAtlas} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="concept-atlas-title">
+      <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
+        <div className="space-y-4">
+          <div className="rounded-[2rem] border border-violet-200/15 bg-violet-100/[0.045] p-5 shadow-2xl shadow-black/20">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-violet-100"><Sparkles size={20} /><span className="text-sm uppercase tracking-[0.28em]">concept atlas</span></div>
+              <span className="rounded-full border border-violet-200/20 px-3 py-1 text-xs text-violet-100">{activeDraftCount} drafts</span>
+            </div>
+            <h2 id="concept-atlas-title" className="text-3xl font-semibold tracking-tight text-stone-50">历史概念图谱工作台</h2>
+            <p className="mt-3 text-sm leading-7 text-stone-400">把 keyTerms、source tags、场景主题与方法链接组织成跨场景概念任务。选择一个概念，勾选证据，写出谨慎定义、误区提醒和来源限制。</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={onOpenSourceAtlas} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-stone-300 transition hover:border-violet-100/30 hover:text-violet-100">打开 Source Atlas</button>
+              <button type="button" onClick={() => onOpenMethod('synthesis')} className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-stone-300 transition hover:border-violet-100/30 hover:text-violet-100">进入 Synthesis</button>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {conceptAtlasTopics.map((topic) => {
+              const topicDraft = draftState[topic.id] ?? getEmptyConceptAtlasDraft(topic)
+              const isSelected = topic.id === selectedTopic.id
+              return (
+                <button key={topic.id} type="button" onClick={() => onSelectTopic(topic.id)} className={`rounded-3xl border p-4 text-left transition ${isSelected ? 'border-violet-200/40 bg-violet-100/[0.09]' : 'border-white/10 bg-white/[0.035] hover:border-violet-200/25'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-stone-100">{topic.title}</span>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-stone-400">{topicDraft.completed ? '完成' : hasConceptAtlasDraftActivity(topicDraft) ? '草稿' : topic.shortLabel}</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-500">{topic.drivingQuestion}</p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.28em] text-violet-200/70">concept reader</div>
+                <h3 className="mt-2 text-2xl font-semibold text-stone-50">{selectedTopic.title}</h3>
+                <p className="mt-2 text-sm leading-7 text-stone-400">{selectedTopic.drivingQuestion}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-violet-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-violet-200"><Copy size={16} />{copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制 Concept Brief'}</button>
+                <button type="button" onClick={downloadBrief} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-violet-100/30">下载 txt</button>
+                <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-400 transition hover:border-red-200/30 hover:text-red-100">清空草稿</button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-3xl border border-violet-200/15 bg-violet-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-violet-100">谨慎定义：</span>{selectedTopic.carefulDefinition}</div>
+              <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-amber-100">常见误区：</span>{selectedTopic.misconception}</div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {selectedTopic.keyTerms.slice(0, 10).map((term) => <span key={term} className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-stone-300">{term}</span>)}
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+            <div className="rounded-[2rem] border border-white/10 bg-black/20 p-4">
+              <h4 className="font-semibold text-stone-50">相关场景 / evidence chips</h4>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedScenarios.map((scenario) => (
+                  <button key={scenario.id} type="button" onClick={() => toggleScenario(scenario.id)} className={`rounded-full border px-3 py-1.5 text-xs transition ${draft.selectedScenarioIds.includes(scenario.id) ? 'border-violet-200/40 bg-violet-100/[0.1] text-violet-100' : 'border-white/10 text-stone-400 hover:border-violet-100/30'}`}>{scenario.title}</button>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedTopic.evidenceTags.map((tag) => <span key={tag} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] text-stone-400">#{tag}</span>)}
+              </div>
+              <div className="mt-4 space-y-2 max-h-[34rem] overflow-auto pr-1">
+                {evidence.map((entry) => (
+                  <article key={entry.id} className={`rounded-2xl border p-3 text-sm transition ${draft.selectedEvidenceIds.includes(entry.id) ? 'border-violet-200/40 bg-violet-100/[0.08]' : 'border-white/10 bg-white/[0.025]'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <button type="button" onClick={() => toggleEvidence(entry.id)} className="text-left font-medium text-stone-100">{draft.selectedEvidenceIds.includes(entry.id) ? '✓ ' : ''}{entry.title}</button>
+                      <button type="button" onClick={() => onOpenScenario(entry.scenario.id, entry.ctaHash)} className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-stone-400 hover:text-violet-100">打开</button>
+                    </div>
+                    <div className="mt-1 text-xs text-violet-100/80">{entry.scenario.title} · {entry.label}</div>
+                    <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-500">{entry.text}</p>
+                    {entry.reliabilityNote ? <p className="mt-2 text-[11px] leading-5 text-amber-100/75">可靠边界：{entry.reliabilityNote}</p> : null}
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-white/10 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-semibold text-stone-50">Workspace draft</h4>
+                <label className="flex items-center gap-2 text-xs text-stone-400"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} />完成</label>
+              </div>
+              <div className="mt-3 grid gap-3">
+                {([
+                  ['definitionInContext', '情境中的概念定义', 3],
+                  ['comparisonNotes', '跨场景比较 notes', 3],
+                  ['misconceptionWarning', '误区提醒', 2],
+                  ['evidenceExample', '证据例子', 3],
+                  ['sourceLimitNote', '来源限制', 2],
+                  ['finalConceptNote', '最终概念说明', 4],
+                ] as [keyof ConceptAtlasDraft, string, number][]).map(([field, label, rows]) => (
+                  <label key={field} className="block text-sm font-medium text-stone-300">
+                    {label}
+                    <textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<ConceptAtlasDraft>)} rows={rows} className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-violet-200/40" />
+                  </label>
+                ))}
+                <label className="block text-sm font-medium text-stone-300">
+                  Confidence
+                  <select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ConceptAtlasConfidence })} className="mt-2 w-full rounded-2xl border border-white/10 bg-stone-950 p-3 text-sm text-stone-100 outline-none focus:border-violet-200/40">
+                    {(Object.entries(conceptAtlasConfidenceLabels) as [ConceptAtlasConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-xs leading-6 text-stone-400">
+                <div className="font-semibold text-stone-200">Prompts</div>
+                {selectedTopic.prompts.map((prompt) => <div key={prompt}>- {prompt}</div>)}
+                <div className="mt-2 font-semibold text-stone-200">Method links</div>
+                {selectedTopic.methodLinks.map((link) => <div key={link}>- {link}</div>)}
               </div>
             </div>
           </div>
@@ -13876,6 +14532,7 @@ function PortfolioPanel({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  conceptAtlasDraftState,
   synthesisDraftState,
   caseFileDraftState,
   compareDraftState,
@@ -13899,6 +14556,7 @@ function PortfolioPanel({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  conceptAtlasDraftState: ConceptAtlasDraftState
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   compareDraftState: CompareDraftState
@@ -13917,6 +14575,7 @@ function PortfolioPanel({
   const perspectivesDraftCount = getActivePerspectivesDrafts(perspectivesDraftState).length
   const contextDraftCount = getActiveContextDrafts(contextDraftState).length
   const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
+  const conceptAtlasDraftCount = getActiveConceptAtlasDrafts(conceptAtlasDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
@@ -13950,10 +14609,13 @@ function PortfolioPanel({
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentConceptAtlasDrafts = getActiveConceptAtlasDrafts(conceptAtlasDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -13999,6 +14661,7 @@ function PortfolioPanel({
               { label: '多视角草稿', value: perspectivesDraftCount },
               { label: '情境化草稿', value: contextDraftCount },
               { label: '意义草稿', value: significanceDraftCount },
+              { label: '概念图谱', value: conceptAtlasDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
               { label: 'Case Files', value: caseFileDraftCount },
               { label: '比较草稿', value: compareDraftCount },
@@ -14024,7 +14687,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -14067,6 +14730,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{challenge?.title ?? challengeId}</div>
                       <div>Chronology Desk · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEventIds.length} 条时间证据</div>
                       <div className="mt-1 text-stone-500">{draft.finalChronologyBrief.trim() || draft.turningPointClaim.trim() || draft.sequenceNotes.trim() || '尚未填写 chronology brief'}</div>
+                    </div>
+                  )
+                })}
+                {recentConceptAtlasDrafts.map(([topicId, draft]) => {
+                  const topic = conceptAtlasTopics.find((candidate) => candidate.id === topicId)
+
+                  return (
+                    <div key={topicId} className="rounded-2xl border border-violet-200/15 bg-violet-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{topic?.title ?? topicId}</div>
+                      <div>Concept Atlas · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条证据</div>
+                      <div className="mt-1 text-stone-500">{draft.finalConceptNote.trim() || draft.definitionInContext.trim() || draft.comparisonNotes.trim() || '尚未填写 concept note'}</div>
                     </div>
                   )
                 })}
@@ -14228,6 +14902,7 @@ function TaskDiscoveryPanel({
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
+  onLoadConceptTopic,
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
   onOpenDebateStudio,
@@ -14245,6 +14920,7 @@ function TaskDiscoveryPanel({
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
+  onLoadConceptTopic: (topicId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
@@ -14252,8 +14928,8 @@ function TaskDiscoveryPanel({
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -15500,6 +16176,7 @@ function TaskLibraryPanel({
   onLoadPerspectivesInquiry,
   onLoadContextInquiry,
   onLoadSignificanceInquiry,
+  onLoadConceptTopic,
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
   onOpenDebateStudio,
@@ -15516,6 +16193,7 @@ function TaskLibraryPanel({
   onLoadPerspectivesInquiry: (inquiryId: string) => void
   onLoadContextInquiry: (inquiryId: string) => void
   onLoadSignificanceInquiry: (inquiryId: string) => void
+  onLoadConceptTopic: (topicId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
@@ -15529,8 +16207,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
