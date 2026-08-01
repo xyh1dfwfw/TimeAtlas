@@ -224,6 +224,20 @@ export type CommunicationInquiry = {
   tags: string[]
 }
 
+export type InterpretationInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  interpretiveQuestion: string
+  scholarshipFocus: string
+  evidenceBoundaryPrompt: string
+  interpretationTrap: string
+  evidencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type InfrastructureInquiry = {
   id: string
   title: string
@@ -1730,6 +1744,111 @@ export const communicationInquiries: CommunicationInquiry[] = [
     ],
     deliverable: '一份 Knowledge Media Flow Brief：知识媒介、传播路线、进入门槛、误读风险、幸存证据与来源限制。',
     tags: ['print', 'manuscript', 'paper', 'knowledge access', 'copying', 'education', 'archives'],
+  },
+]
+
+export const interpretationInquiries: InterpretationInquiry[] = [
+  {
+    id: 'market-order-interpretations',
+    title: 'Market order interpretations / 市场秩序解释',
+    subtitle: '比较长安、汴京、特诺奇蒂特兰、马六甲与广州：市场热闹背后有哪些规则、守门人和记录边界。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    interpretiveQuestion: '如何基于来源、真实历史对照和现有解释边界，谨慎说明“市场秩序”是自由交换、制度管理还是两者并存？',
+    scholarshipFocus: '市场制度、城市治理、港口中介、税赋/度量和市场信息如何共同塑造交换。',
+    evidenceBoundaryPrompt: '区分来源可直接支持的规则/中介证据、场景叙事提示和后世概念；不要把“市场”预设为现代自由市场。',
+    interpretationTrap: '把热闹交易误写成无规则自由，或把监管误写成完全压制普通人行动。',
+    evidencePrompts: [
+      '哪些 primary / institution / scholarship 来源能支持市场被规则塑形？',
+      '真实历史对照和 scene context 如何提示普通人仍有协商空间？',
+      '哪类交易者、劳动者或边缘声音在来源中更难出现？',
+    ],
+    deliverable: 'Interpretation Brief：解释问题、来源情境摘要、谨慎主张、替代解释、支持证据、限制与用语警戒。',
+    tags: ['market rules', 'urban markets', 'brokerage', 'institutional power', 'source limits'],
+  },
+  {
+    id: 'archive-silence-and-agency',
+    title: 'Archive silence and agency / 档案沉默与能动性',
+    subtitle: '把圣多明各、Cusco khipu、特诺奇蒂特兰、Geniza 与基尔瓦放在可见/不可见声音中阅读。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant'],
+    interpretiveQuestion: '在普通人声音残缺时，历史解释如何既承认能动性，又不替沉默者编造内心或行动？',
+    scholarshipFocus: '档案沉默、来源幸存、非文字证据、殖民/商业记录和被压缩的普通人经验。',
+    evidenceBoundaryPrompt: '只使用现有来源和解释边界说明“可见性差异”；不能把证据缺席直接等同于历史不存在。',
+    interpretationTrap: '为了补足沉默而虚构一手声音，或因材料来自权力视角而否认普通人的选择空间。',
+    evidencePrompts: [
+      '哪些来源让劳动、义务、恐惧或判断被压缩为数量、类别或外部描述？',
+      '真实历史对照能说明结构性约束，但哪些具体行动仍无法确定？',
+      '如何用谨慎语言表达“可能”“提示”“仍需更多来源”？',
+    ],
+    deliverable: 'Interpretation Brief：可见/不可见对照、能动性谨慎主张、替代解释、证据限制和不确定性说明。',
+    tags: ['archive silence', 'agency', 'nonwritten evidence', 'colonial records', 'absent voices'],
+  },
+  {
+    id: 'commodity-chain-interpretations',
+    title: 'Commodity chain interpretations / 商品链解释',
+    subtitle: '用糖、棉、工厂、港口账册和殖民城市训练从商品流动到劳动风险的谨慎解释。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador', 'malacca-monsoon-port-broker'],
+    interpretiveQuestion: '商品链解释如何连接远距离市场、制度权力与劳动者身体风险，而不把不同劳动制度混成同一种经验？',
+    scholarshipFocus: '大西洋/印度洋商品链、强制劳动、工资劳动、工厂纪律、港口中介和风险转移。',
+    evidenceBoundaryPrompt: '现有材料支持定性关系与比较，不支持精确产量、利润、运输成本或统一劳动经验。',
+    interpretationTrap: '把商品链写成抽象经济流动，忽略劳动者身体；或用一个场景概括所有强制/工资劳动。',
+    evidencePrompts: [
+      '哪些来源或真实历史对照显示商品流动依赖被组织起来的身体、时间和记录？',
+      '哪些场景可比较，哪些差异要求限定解释范围？',
+      '来源视角是否更容易保留管理者、商人或机构语言？',
+    ],
+    deliverable: 'Interpretation Brief：商品链主张、劳动制度差异、支持证据、替代解释、来源边界与 confidence。',
+    tags: ['commodity chains', 'labor discipline', 'cotton', 'sugar', 'risk transfer'],
+  },
+  {
+    id: 'knowledge-diffusion-vs-access',
+    title: 'Knowledge diffusion vs access / 知识传播与进入门槛',
+    subtitle: '比较纸张、手稿、考试、商人书信和学习空间如何扩大知识流动但保留门槛。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice', 'song-bianjing-apprentice', 'tang-changan-merchant'],
+    interpretiveQuestion: '如何解释知识媒介扩散与进入不平等并存，而不把传播写成自动进步？',
+    scholarshipFocus: '书籍史、手稿/纸张、教育制度、商业文书、读写能力、师承和文本保存。',
+    evidenceBoundaryPrompt: '区分“媒介更可复制/更可保存”与“人人可进入”；场景叙事须由来源和真实历史对照限定。',
+    interpretationTrap: '把纸张、印本或手稿保存误读为普遍教育平等，或只写技术进步不写社会门槛。',
+    evidencePrompts: [
+      '哪些材料说明知识可以被复制、携带、考试化或商业化？',
+      '哪些证据显示金钱、身份、语言、师承或制度资格仍限制进入？',
+      '后世保存下来的文本会让哪些学习者或听众消失？',
+    ],
+    deliverable: 'Interpretation Brief：扩散与门槛并存解释、证据支持、替代解释、来源限制和谨慎用语。',
+    tags: ['knowledge access', 'paper', 'manuscripts', 'education', 'access thresholds'],
+  },
+  {
+    id: 'conquest-records-and-later-framing',
+    title: 'Conquest records and later framing / 征服记录与后世框架',
+    subtitle: '把马六甲、特诺奇蒂特兰、Cusco、圣多明各和 Geniza 放在征服叙述、殖民记录与后世研究中校准。',
+    scenarioIds: ['malacca-monsoon-port-broker', 'tenochtitlan-market-seller', 'inca-cusco-khipu-runner', 'saint-domingue-sugar-worker', 'fustat-geniza-merchant-apprentice'],
+    interpretiveQuestion: '当来源经过征服者、殖民者、机构档案或后世学术框架保存时，如何判断它能说明什么、会重塑什么？',
+    scholarshipFocus: '征服叙述、殖民编年、非文字记录转译、机构档案、商人档案和后世解释框架。',
+    evidenceBoundaryPrompt: '识别来源生成/保存/研究层级；不要把后世整理出的清晰结构倒推为当时人的完整认知。',
+    interpretationTrap: '把征服者或机构叙述当作透明现场，或因其偏见而完全放弃可用证据。',
+    evidencePrompts: [
+      '哪些证据来自一手材料，哪些来自机构说明或学术综合？',
+      '来源如何重命名、分类、翻译或压缩本地行动者？',
+      '真实历史对照能校准结局，但哪些现场经验仍须保留不确定？',
+    ],
+    deliverable: 'Interpretation Brief：来源层级判断、后世框架影响、谨慎历史解释、替代解释与证据边界。',
+    tags: ['conquest', 'colonial records', 'later framing', 'source hierarchy', 'translation'],
+  },
+  {
+    id: 'credit-trust-and-institutional-power',
+    title: 'Credit, trust, and institutional power / 信用、信任与制度权力',
+    subtitle: '从 Geniza 信件、基尔瓦、马六甲、广州与孟买观察信用如何依赖文书、中介、声誉和权力。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    interpretiveQuestion: '远距离信任是私人品德、商业惯例还是制度权力的产物？如何用现有证据作出有限判断？',
+    scholarshipFocus: '商人书信、合约、担保、港口中介、声誉网络、口岸制度和殖民/帝国权力。',
+    evidenceBoundaryPrompt: '现有材料能说明信用机制与风险转移；不能证明所有交易都稳定、互信或同等可追责。',
+    interpretationTrap: '把信用浪漫化为个人信任，或只写制度控制而忽略关系、声誉和中介实践。',
+    evidencePrompts: [
+      '哪些来源显示信任通过书信、合约、口岸记录或中介被执行？',
+      '谁能验证信用，谁承担信用失败或信息延迟后的风险？',
+      '幸存商人/机构材料是否让信用网络显得比实际更清楚、更稳定？',
+    ],
+    deliverable: 'Interpretation Brief：信用机制解释、制度权力与关系网络、支持证据、限制、替代解释和 confidence。',
+    tags: ['credit', 'trust', 'contracts', 'port intermediaries', 'institutional power'],
   },
 ]
 
