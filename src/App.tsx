@@ -95,6 +95,7 @@ const dailyLedgerDraftStorageKey = 'timeatlas:daily-ledger-drafts'
 const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
 const questionBankStorageKey = 'timeatlas:question-bank-drafts'
 const questionSetDraftStorageKey = 'timeatlas:question-set-draft'
+const portfolioReviewStorageKey = 'timeatlas:portfolio-review-drafts'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -1352,6 +1353,62 @@ type TaskWorkbenchStats = {
   checkedPromptCount: number
   recentDrafts: [string, TaskWorkbenchDraft][]
 }
+
+type PortfolioReviewFocus = 'evidence' | 'source-limits' | 'argument' | 'presentation' | 'completion'
+type PortfolioReviewFilter = 'all' | 'draft' | 'completed' | 'recent' | 'workbench' | 'writing' | 'evidence'
+type PortfolioReviewItemOrigin = 'mission' | 'workbench' | 'workspace' | 'writing' | 'evidence' | 'presentation'
+
+type PortfolioReviewItem = {
+  id: string
+  title: string
+  sourceLabel: string
+  description: string
+  status: 'draft' | 'completed'
+  updatedAt?: string
+  tags: string[]
+  origin: PortfolioReviewItemOrigin
+  focuses: PortfolioReviewFocus[]
+}
+
+type PortfolioReviewDraft = {
+  selectedItemIds: string[]
+  reviewFocus: PortfolioReviewFocus
+  strengths: string
+  gaps: string
+  revisionChecklist: string
+  nextClaim: string
+  evidenceToAdd: string
+  sourceLimitToFix: string
+  presentationPlan: string
+  completed: boolean
+  updatedAt?: string
+}
+
+const portfolioReviewFocusLabels: Record<PortfolioReviewFocus, string> = {
+  evidence: 'Evidence use / 证据使用',
+  'source-limits': 'Source limits / 来源边界',
+  argument: 'Claim & reasoning / 主张推理',
+  presentation: 'Presentation / 呈现方式',
+  completion: 'Completion / 完成收束',
+}
+
+const portfolioReviewFilters: { value: PortfolioReviewFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'recent', label: 'Recent' },
+  { value: 'workbench', label: 'Workbench' },
+  { value: 'writing', label: 'Writing' },
+  { value: 'evidence', label: 'Evidence' },
+]
+
+const portfolioRevisionChecklistItems = [
+  '把每个主张连接到至少一条具体证据，而不是只写主题词。',
+  '标出一处来源可靠性、视角或档案沉默的限制。',
+  '把 strengths 中最强的一点保留，并把 gaps 中最弱的一点改成修订行动。',
+  '检查下一版 claim 是否比初稿更具体，包含时空、行动者或因果/比较关系。',
+  '决定最终呈现形式：brief、段落、展签、任务单或课堂发言。',
+]
 
 type AssignmentBuilderDraft = {
   selectedTaskIds: string[]
@@ -5196,6 +5253,92 @@ function persistQuestionSetDraft(draft: QuestionSetDraft) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(questionSetDraftStorageKey, serializedState)
+}
+
+function getEmptyPortfolioReviewDraft(): PortfolioReviewDraft {
+  return {
+    selectedItemIds: [],
+    reviewFocus: 'evidence',
+    strengths: '',
+    gaps: '',
+    revisionChecklist: portfolioRevisionChecklistItems.join('\n'),
+    nextClaim: '',
+    evidenceToAdd: '',
+    sourceLimitToFix: '',
+    presentationPlan: '',
+    completed: false,
+  }
+}
+
+function hasPortfolioReviewActivity(draft: PortfolioReviewDraft) {
+  return Boolean(
+    draft.selectedItemIds.length
+      || draft.strengths.trim()
+      || draft.gaps.trim()
+      || draft.nextClaim.trim()
+      || draft.evidenceToAdd.trim()
+      || draft.sourceLimitToFix.trim()
+      || draft.presentationPlan.trim()
+      || draft.completed,
+  )
+}
+
+function parsePortfolioReviewDraft(rawState: string | null): PortfolioReviewDraft {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : null
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return getEmptyPortfolioReviewDraft()
+    }
+
+    const draft = parsedState as Partial<PortfolioReviewDraft>
+    const selectedItemIds = Array.isArray(draft.selectedItemIds)
+      ? draft.selectedItemIds.filter((item): item is string => typeof item === 'string')
+      : []
+    const reviewFocus = draft.reviewFocus && draft.reviewFocus in portfolioReviewFocusLabels
+      ? draft.reviewFocus
+      : 'evidence'
+
+    return {
+      selectedItemIds,
+      reviewFocus,
+      strengths: typeof draft.strengths === 'string' ? draft.strengths : '',
+      gaps: typeof draft.gaps === 'string' ? draft.gaps : '',
+      revisionChecklist: typeof draft.revisionChecklist === 'string' && draft.revisionChecklist.trim() ? draft.revisionChecklist : portfolioRevisionChecklistItems.join('\n'),
+      nextClaim: typeof draft.nextClaim === 'string' ? draft.nextClaim : '',
+      evidenceToAdd: typeof draft.evidenceToAdd === 'string' ? draft.evidenceToAdd : '',
+      sourceLimitToFix: typeof draft.sourceLimitToFix === 'string' ? draft.sourceLimitToFix : '',
+      presentationPlan: typeof draft.presentationPlan === 'string' ? draft.presentationPlan : '',
+      completed: Boolean(draft.completed),
+      updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+    }
+  } catch {
+    return getEmptyPortfolioReviewDraft()
+  }
+}
+
+function loadPortfolioReviewDraft() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localDraft = parsePortfolioReviewDraft(localStorage?.getItem(portfolioReviewStorageKey) ?? null)
+
+  if (hasPortfolioReviewActivity(localDraft)) {
+    return localDraft
+  }
+
+  return parsePortfolioReviewDraft(sessionStorage?.getItem(portfolioReviewStorageKey) ?? null)
+}
+
+function persistPortfolioReviewDraft(draft: PortfolioReviewDraft) {
+  const serializedState = JSON.stringify(draft)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(portfolioReviewStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(portfolioReviewStorageKey, serializedState)
 }
 
 function buildQuestionBankItems(): QuestionBankItem[] {
@@ -9742,6 +9885,241 @@ function formatSynthesisTaskSheet(preset: SynthesisInquiryPreset) {
   ].join('\n')
 }
 
+
+function buildPortfolioReviewItems({
+  missionWorkState,
+  completedMissionIdsByScenario,
+  workspaceState,
+  assignmentLibraryTasks,
+  taskWorkbenchDraftState,
+  synthesisDraftState,
+  compareDraftState,
+  sourceAnnotationDraftState,
+  citationTrailDraftState,
+  vocabularyClinicDraftState,
+  questionBankDraftState,
+  exhibitDraftState,
+}: {
+  missionWorkState: MissionWorkState
+  completedMissionIdsByScenario: Record<string, string[]>
+  workspaceState: WorkspaceState
+  assignmentLibraryTasks: LibraryTask[]
+  taskWorkbenchDraftState: TaskWorkbenchState
+  synthesisDraftState: SynthesisDraftState
+  compareDraftState: CompareDraftState
+  sourceAnnotationDraftState: SourceAnnotationDraftState
+  citationTrailDraftState: CitationTrailDraftState
+  vocabularyClinicDraftState: VocabularyClinicDraftState
+  questionBankDraftState: QuestionBankDraftState
+  exhibitDraftState: ExhibitStudioDraftState
+}): PortfolioReviewItem[] {
+  const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
+  const sourceIndex = buildSourceAnnotationSourceIndex()
+  const citationCatalog = buildCitationTrailSourceCatalog()
+  const vocabularyItems = buildVocabularyPracticeItems()
+  const questionItems = buildQuestionBankItems()
+  const items: PortfolioReviewItem[] = []
+
+  Object.entries(missionWorkState).forEach(([key, work]) => {
+    if (!work.notes.trim() && work.checkedEvidence.length === 0) return
+    const [scenarioId, missionId] = key.split(':')
+    const scenario = getScenarioById(scenarioId)
+    const mission = scenario?.missions.find((candidate) => candidate.id === missionId)
+    items.push({
+      id: `mission:${key}`,
+      title: mission?.title ?? 'Scenario mission draft',
+      sourceLabel: `Scenario Mission · ${scenario?.title ?? scenarioId}`,
+      description: work.notes.trim() || `${work.checkedEvidence.length} checked evidence item(s)`,
+      status: (completedMissionIdsByScenario[scenarioId] ?? []).includes(missionId) ? 'completed' : 'draft',
+      updatedAt: work.updatedAt,
+      tags: uniqueChips([mission?.taskType, mission?.difficulty, scenario?.region, ...(mission?.linkedSourceTitles ?? [])], 5),
+      origin: 'mission',
+      focuses: ['evidence', 'argument', 'completion'],
+    })
+  })
+
+  getTaskWorkbenchStats(taskWorkbenchDraftState).activeDrafts.forEach(([taskId, draft]) => {
+    const task = libraryTasksById.get(taskId)
+    items.push({
+      id: `workbench:${taskId}`,
+      title: task?.title ?? taskId,
+      sourceLabel: `Tasks Workbench · ${task?.sourceLabel ?? 'Task Library'}`,
+      description: draft.claimExplanation.trim() || draft.evidenceNotes.trim() || draft.reflection.trim() || 'Workbench draft with checklist progress',
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([task?.category, task?.context, ...(task?.tags ?? [])], 5),
+      origin: 'workbench',
+      focuses: ['evidence', 'argument', 'source-limits', 'completion'],
+    })
+  })
+
+  getWorkspaceEntries(workspaceState).filter(({ entry }) => hasWorkspaceEntryActivity(entry)).forEach(({ key, title, category, entry }) => {
+    items.push({
+      id: `workspace:${key}`,
+      title,
+      sourceLabel: `Atlas Workspace · ${category}`,
+      description: entry.notes.trim() || `${entry.checkedEvidence.length} checked evidence item(s)`,
+      status: entry.completed ? 'completed' : 'draft',
+      updatedAt: entry.updatedAt,
+      tags: uniqueChips([category, 'cross-scenario', 'workspace'], 5),
+      origin: 'workspace',
+      focuses: ['evidence', 'argument', 'completion'],
+    })
+  })
+
+  getActiveSynthesisDrafts(synthesisDraftState).forEach(([presetId, draft]) => {
+    const preset = synthesisInquiryPresets.find((candidate) => candidate.id === presetId)
+    items.push({
+      id: `writing:synthesis:${presetId}`,
+      title: preset?.title ?? presetId,
+      sourceLabel: 'Synthesis Writing Studio',
+      description: draft.workingThesis.trim() || draft.reasoningBridge.trim() || draft.paragraphPlan.trim() || 'Synthesis writing draft',
+      status: 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([draft.claimScope, preset?.drivingQuestion, ...(preset?.tags ?? [])], 5),
+      origin: 'writing',
+      focuses: ['argument', 'evidence', 'source-limits', 'presentation'],
+    })
+  })
+
+  getActiveCompareDrafts(compareDraftState).forEach(([key, draft]) => {
+    const scenarioA = getScenarioById(draft.scenarioAId)
+    const scenarioB = getScenarioById(draft.scenarioBId)
+    const lens = getCompareLensByKey(draft.lensKey)
+    items.push({
+      id: `writing:compare:${key}`,
+      title: `${lens.title}: ${scenarioA?.title ?? draft.scenarioAId} × ${scenarioB?.title ?? draft.scenarioBId}`,
+      sourceLabel: 'Compare Lab Workspace',
+      description: draft.comparativeClaim.trim() || draft.evidenceBridge.trim() || 'Compare draft with selected evidence',
+      status: 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([lens.shortLabel, scenarioA?.region, scenarioB?.region], 5),
+      origin: 'writing',
+      focuses: ['argument', 'evidence', 'source-limits'],
+    })
+  })
+
+  getSourceAnnotationStats(sourceAnnotationDraftState).activeDrafts.forEach(([sourceId, draft]) => {
+    const source = sourceIndex.find((entry) => entry.sourceId === sourceId)
+    items.push({
+      id: `evidence:source-annotation:${sourceId}`,
+      title: source?.source.title ?? sourceId,
+      sourceLabel: `Source Annotation · ${source?.scenario.title ?? 'Source index'}`,
+      description: draft.usefulEvidence.trim() || draft.paraphrase.trim() || draft.reliabilityLimits.trim() || 'Source annotation draft',
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([source?.source.sourceType, source?.scenario.region, ...draft.evidenceTags], 5),
+      origin: 'evidence',
+      focuses: ['evidence', 'source-limits'],
+    })
+  })
+
+  getCitationTrailStats(citationTrailDraftState).activeDrafts.forEach(([trailKey, draft]) => {
+    const titles = draft.selectedSourceIds.map((id) => citationCatalog.find((entry) => entry.sourceId === id)?.source.title ?? id)
+    items.push({
+      id: `evidence:citation:${trailKey}`,
+      title: draft.researchQuestion.trim() || titles.slice(0, 2).join(' × ') || trailKey,
+      sourceLabel: 'Citation Trail Builder',
+      description: draft.workingClaim.trim() || draft.evidenceUsePlan.trim() || draft.sourceLimitNote.trim() || 'Citation trail draft',
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips(['citation', 'source path', ...titles], 5),
+      origin: 'evidence',
+      focuses: ['evidence', 'source-limits', 'argument'],
+    })
+  })
+
+  getVocabularyClinicStats(vocabularyClinicDraftState).activeDrafts.forEach(([itemId, draft]) => {
+    const item = vocabularyItems.find((candidate) => candidate.id === itemId)
+    items.push({
+      id: `evidence:vocabulary:${itemId}`,
+      title: item?.title ?? itemId,
+      sourceLabel: `Vocabulary Clinic · ${item ? getVocabularyPracticeModeLabel(item.mode) : 'Practice'}`,
+      description: draft.explanation.trim() || draft.correctedMisconception.trim() || draft.sourceLimitNote.trim() || 'Vocabulary practice draft',
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([item?.scenario.title, ...(item?.tags ?? [])], 5),
+      origin: 'evidence',
+      focuses: ['evidence', 'source-limits', 'completion'],
+    })
+  })
+
+  getQuestionBankStats(questionBankDraftState).activeDrafts.forEach(([itemId, draft]) => {
+    const item = questionItems.find((candidate) => candidate.id === itemId)
+    items.push({
+      id: `evidence:question:${itemId}`,
+      title: item?.title ?? itemId,
+      sourceLabel: `Question Bank · ${item ? getQuestionBankModeLabel(item.mode) : 'Question'}`,
+      description: draft.answer.trim() || draft.evidenceNote.trim() || draft.uncertaintyNote.trim() || 'Question draft',
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([item?.scenario.title, item?.mode, ...(item?.evidenceHints ?? [])], 5),
+      origin: 'evidence',
+      focuses: ['evidence', 'source-limits', 'completion'],
+    })
+  })
+
+  getExhibitStudioStats(exhibitDraftState).activeDrafts.forEach(([themeId, draft]) => {
+    const theme = exhibitThemes.find((candidate) => candidate.id === themeId)
+    items.push({
+      id: `presentation:exhibit:${themeId}`,
+      title: draft.exhibitTitle.trim() || theme?.title || themeId,
+      sourceLabel: 'Public History Exhibit Studio',
+      description: draft.interpretiveClaim.trim() || draft.openingPanel.trim() || draft.layoutNote.trim() || 'Exhibit draft',
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips([theme?.title, ...(theme?.tags ?? [])], 5),
+      origin: 'presentation',
+      focuses: ['presentation', 'evidence', 'source-limits'],
+    })
+  })
+
+  return items.sort((first, second) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+}
+
+function formatPortfolioReviewBrief(reviewDraft: PortfolioReviewDraft, selectedItems: PortfolioReviewItem[]) {
+  const checklistItems = reviewDraft.revisionChecklist.split('\n').map((item) => item.trim()).filter(Boolean)
+
+  return [
+    'TimeAtlas Portfolio Review Brief / 作品档案复盘简报',
+    `导出时间：${new Date().toLocaleString()}`,
+    `状态：${reviewDraft.completed ? '已完成复盘' : '复盘草稿'}`,
+    `复盘焦点：${portfolioReviewFocusLabels[reviewDraft.reviewFocus]}`,
+    `已选作品：${selectedItems.length}`,
+    '',
+    'Review queue items:',
+    ...(selectedItems.length ? selectedItems.map((item, index) => `${index + 1}. ${item.title}｜${item.sourceLabel}｜${item.status === 'completed' ? 'completed' : 'draft'}｜${item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '未记录时间'}`) : ['1. 尚未选择作品条目']),
+    '',
+    `Strengths：${reviewDraft.strengths.trim() || '尚未填写'}`,
+    `Gaps：${reviewDraft.gaps.trim() || '尚未填写'}`,
+    `Evidence to add：${reviewDraft.evidenceToAdd.trim() || '尚未填写'}`,
+    `Source limit to fix：${reviewDraft.sourceLimitToFix.trim() || '尚未填写'}`,
+    `Next claim：${reviewDraft.nextClaim.trim() || '尚未填写'}`,
+    `Presentation plan：${reviewDraft.presentationPlan.trim() || '尚未填写'}`,
+    '',
+    'Revision checklist:',
+    ...(checklistItems.length ? checklistItems : portfolioRevisionChecklistItems).map((item) => `- ${item}`),
+  ].join('\n')
+}
+
+function formatRevisionChecklist(reviewDraft: PortfolioReviewDraft, selectedItems: PortfolioReviewItem[]) {
+  const customChecklistItems = reviewDraft.revisionChecklist.split('\n').map((item) => item.trim()).filter(Boolean)
+
+  return [
+    'TimeAtlas Revision Checklist / 修订清单',
+    `复盘焦点：${portfolioReviewFocusLabels[reviewDraft.reviewFocus]}`,
+    `适用作品：${selectedItems.map((item) => item.title).join('；') || '尚未选择'}`,
+    '',
+    ...portfolioRevisionChecklistItems.map((item) => `□ ${item}`),
+    ...(customChecklistItems.length ? ['', 'Current draft checklist:', ...customChecklistItems.map((item) => `□ ${item}`)] : []),
+    '',
+    `Evidence to add：${reviewDraft.evidenceToAdd.trim() || '__________'}`,
+    `Source limit to fix：${reviewDraft.sourceLimitToFix.trim() || '__________'}`,
+    `Next claim：${reviewDraft.nextClaim.trim() || '__________'}`,
+    `Presentation plan：${reviewDraft.presentationPlan.trim() || '__________'}`,
+  ].join('\n')
+}
+
 function formatLearningArchive(
   missionWorkState: MissionWorkState,
   completedMissionIdsByScenario: Record<string, string[]>,
@@ -9775,6 +10153,7 @@ function formatLearningArchive(
   assignmentLibraryTasks: LibraryTask[],
   taskWorkbenchDraftState: TaskWorkbenchState,
   sessionRunDraftState: SessionRunDraftState,
+  portfolioReviewDraft?: PortfolioReviewDraft,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
@@ -9809,6 +10188,8 @@ function formatLearningArchive(
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
+  const portfolioReviewItems = portfolioReviewDraft ? buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState }) : []
+  const selectedPortfolioReviewItems = portfolioReviewDraft ? portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id)) : []
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
@@ -9853,6 +10234,7 @@ function formatLearningArchive(
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- Live Session Runner：${sessionRunnerStats.draftCount} active routes，${sessionRunnerStats.completedCount} completed routes`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
+    `- Portfolio Review：${portfolioReviewDraft && hasPortfolioReviewActivity(portfolioReviewDraft) ? `${selectedPortfolioReviewItems.length} selected，${portfolioReviewDraft.completed ? 'completed' : 'draft'}，focus ${portfolioReviewFocusLabels[portfolioReviewDraft.reviewFocus]}` : '尚未开始'}`,
     '',
   ]
 
@@ -10585,8 +10967,13 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (portfolioReviewDraft && hasPortfolioReviewActivity(portfolioReviewDraft)) {
+    lines.push('Portfolio Review & Revision Planner / 作品档案复盘与修订计划：')
+    lines.push(...formatPortfolioReviewBrief(portfolioReviewDraft, selectedPortfolioReviewItems).split('\n').map((line) => `  ${line}`), '')
+  }
+
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Counterfactual Lab 草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Citation Trail 草稿、Question Bank 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Counterfactual Lab 草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Citation Trail 草稿、Question Bank 草稿、Portfolio Review 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -13673,6 +14060,7 @@ function App() {
   const [decisionReplayDraftState, setDecisionReplayDraftState] = useState<DecisionReplayDraftState>(loadDecisionReplayDraftState)
   const [dailyLedgerDraftState, setDailyLedgerDraftState] = useState<DailyLedgerDraftState>(loadDailyLedgerDraftState)
   const [exhibitDraftState, setExhibitDraftState] = useState<ExhibitStudioDraftState>(loadExhibitStudioDraftState)
+  const [portfolioReviewDraft, setPortfolioReviewDraft] = useState<PortfolioReviewDraft>(loadPortfolioReviewDraft)
   const [selectedExhibitThemeId, setSelectedExhibitThemeId] = useState(exhibitThemes[0]?.id ?? '')
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
@@ -14178,6 +14566,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [exhibitDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistPortfolioReviewDraft(portfolioReviewDraft)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [portfolioReviewDraft])
 
   useEffect(() => {
     if (compareScenarioA.id !== compareScenarioB.id) {
@@ -15309,6 +15709,8 @@ function App() {
                 exhibitDraftState={exhibitDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
                 sessionRunDraftState={sessionRunDraftState}
+                portfolioReviewDraft={portfolioReviewDraft}
+                onUpdatePortfolioReviewDraft={setPortfolioReviewDraft}
               />
             ) : null}
           </>
@@ -16700,7 +17102,7 @@ function SourceAtlasPanel({
   const [scenarioFilter, setScenarioFilter] = useState('all')
   const [evidenceTagFilter, setEvidenceTagFilter] = useState('all')
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [copyStatus, setCopyStatus] = useState<string>('idle')
   const sourceAtlasEntries = useMemo(buildSourceAtlasEntries, [])
   const sourceTypeCounts = useMemo(
     () =>
@@ -20381,6 +20783,8 @@ function PortfolioPanel({
   exhibitDraftState,
   taskWorkbenchDraftState,
   sessionRunDraftState,
+  portfolioReviewDraft,
+  onUpdatePortfolioReviewDraft,
 }: {
   completedMissionIdsByScenario: Record<string, string[]>
   missionWorkState: MissionWorkState
@@ -20416,8 +20820,10 @@ function PortfolioPanel({
   exhibitDraftState: ExhibitStudioDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
   sessionRunDraftState: SessionRunDraftState
+  portfolioReviewDraft: PortfolioReviewDraft
+  onUpdatePortfolioReviewDraft: Dispatch<SetStateAction<PortfolioReviewDraft>>
 }) {
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [copyStatus, setCopyStatus] = useState<string>('idle')
   const completedCount = getTotalCompletedMissions(completedMissionIdsByScenario)
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
   const chronologyDraftCount = getActiveChronologyDrafts(chronologyDraftState).length
@@ -20487,10 +20893,61 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentSessionRunDrafts = sessionRunnerStats.recentDrafts.slice(0, 3)
+  const portfolioReviewItems = buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState })
+  const selectedPortfolioReviewItems = portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id))
+  const [portfolioReviewFilter, setPortfolioReviewFilter] = useState<PortfolioReviewFilter>('all')
+  const visiblePortfolioReviewItems = portfolioReviewItems.filter((item, index) => {
+    if (portfolioReviewFilter === 'all') return true
+    if (portfolioReviewFilter === 'draft') return item.status === 'draft'
+    if (portfolioReviewFilter === 'completed') return item.status === 'completed'
+    if (portfolioReviewFilter === 'recent') return index < 8
+    if (portfolioReviewFilter === 'workbench') return item.origin === 'workbench' || item.origin === 'mission' || item.origin === 'workspace'
+    if (portfolioReviewFilter === 'writing') return item.origin === 'writing'
+    return item.origin === 'evidence' || item.origin === 'presentation'
+  }).slice(0, 12)
+
+  function updatePortfolioReviewDraft(patch: Partial<PortfolioReviewDraft>) {
+    onUpdatePortfolioReviewDraft((currentDraft) => ({
+      ...currentDraft,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    }))
+  }
+
+  function togglePortfolioReviewItem(itemId: string) {
+    const selectedItemIds = portfolioReviewDraft.selectedItemIds.includes(itemId)
+      ? portfolioReviewDraft.selectedItemIds.filter((id) => id !== itemId)
+      : [...portfolioReviewDraft.selectedItemIds, itemId].slice(0, 8)
+
+    updatePortfolioReviewDraft({ selectedItemIds })
+  }
+
+  async function copyPortfolioReviewBrief() {
+    try {
+      await copyTextToClipboard(formatPortfolioReviewBrief(portfolioReviewDraft, selectedPortfolioReviewItems))
+      setCopyStatus('review')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  async function copyPortfolioRevisionChecklist() {
+    try {
+      await copyTextToClipboard(formatRevisionChecklist(portfolioReviewDraft, selectedPortfolioReviewItems))
+      setCopyStatus('checklist')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function clearPortfolioReviewDraft() {
+    onUpdatePortfolioReviewDraft(getEmptyPortfolioReviewDraft())
+    setCopyStatus('idle')
+  }
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState, portfolioReviewDraft))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -20571,6 +21028,9 @@ function PortfolioPanel({
               { label: '模块开始', value: taskModuleStats.startedCount },
               { label: '模块完成', value: taskModuleStats.completedCount },
               { label: '模块步骤', value: taskModuleStats.checkedStepCount },
+              { label: '复盘队列', value: portfolioReviewDraft.selectedItemIds.length },
+              { label: '复盘完成', value: portfolioReviewDraft.completed ? 1 : 0 },
+              { label: '可复盘作品', value: portfolioReviewItems.length },
               { label: '跨场景勾选', value: workspaceStats.checkedEvidenceCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
@@ -20822,6 +21282,72 @@ function PortfolioPanel({
             ) : (
               <p className="mt-3 text-sm leading-6 text-stone-500">还没有草稿。进入任一历史任务或跨场景工作区后写下第一条证据即可生成档案。</p>
             )}
+          </div>
+        </div>
+
+        <div className="rounded-[1.75rem] border border-amber-200/15 bg-black/20 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-amber-100"><ClipboardList size={18} /> portfolio review queue</div>
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight text-stone-50">作品档案复盘与修订计划</h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">从现有 Portfolio 草稿、Workbench、Writing 和 Evidence 作品中选择 1-8 项，生成复盘队列和下一版修订计划；不新增 Tasks 子页面。</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void copyPortfolioReviewBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'review' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'review' ? 'Review Brief 已复制' : '复制 Portfolio Review Brief'}</button>
+              <button type="button" onClick={() => void copyPortfolioRevisionChecklist()} className="inline-flex items-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]">{copyStatus === 'checklist' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'checklist' ? 'Checklist 已复制' : '复制 Revision Checklist'}</button>
+              <button type="button" onClick={clearPortfolioReviewDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.05]">清空当前复盘草稿</button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-wrap gap-2">
+                {portfolioReviewFilters.map((filter) => (
+                  <button key={filter.value} type="button" onClick={() => setPortfolioReviewFilter(filter.value)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${portfolioReviewFilter === filter.value ? 'border-amber-200/40 bg-amber-100/[0.16] text-amber-100' : 'border-white/10 bg-black/20 text-stone-400 hover:bg-white/[0.05]'}`}>{filter.label}</button>
+                ))}
+              </div>
+              <div className="mt-3 max-h-[27rem] space-y-2 overflow-y-auto pr-1">
+                {visiblePortfolioReviewItems.length ? visiblePortfolioReviewItems.map((item) => {
+                  const selected = portfolioReviewDraft.selectedItemIds.includes(item.id)
+                  return (
+                    <button key={item.id} type="button" onClick={() => togglePortfolioReviewItem(item.id)} className={`w-full rounded-2xl border p-3 text-left transition ${selected ? 'border-amber-200/35 bg-amber-100/[0.09]' : 'border-white/10 bg-black/20 hover:bg-white/[0.05]'}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold text-stone-100">{item.title}</span>
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] ${item.status === 'completed' ? 'border-emerald-200/25 bg-emerald-100/[0.08] text-emerald-100' : 'border-amber-200/20 bg-amber-100/[0.06] text-amber-100'}`}>{item.status}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-stone-500">{item.sourceLabel} · {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '未记录时间'}</div>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-400">{item.description}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">{item.tags.slice(0, 4).map((tag) => <span key={`${item.id}-${tag}`} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-stone-400">{tag}</span>)}</div>
+                    </button>
+                  )
+                }) : <p className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-stone-500">暂无可复盘作品；先在 Tasks Workbench、Writing Studio 或 Evidence 工具中保存草稿。</p>}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs uppercase tracking-[0.18em] text-stone-500">Selected items</span>
+                {selectedPortfolioReviewItems.length ? selectedPortfolioReviewItems.map((item) => <button key={item.id} type="button" onClick={() => togglePortfolioReviewItem(item.id)} className="rounded-full border border-amber-200/20 bg-amber-100/[0.08] px-3 py-1 text-xs text-amber-100">{item.title} ×</button>) : <span className="text-xs text-stone-500">尚未选择</span>}
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="block md:col-span-2"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">review focus</span><select value={portfolioReviewDraft.reviewFocus} onChange={(event) => updatePortfolioReviewDraft({ reviewFocus: event.target.value as PortfolioReviewFocus })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none">{Object.entries(portfolioReviewFocusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">strengths</span><textarea value={portfolioReviewDraft.strengths} onChange={(event) => updatePortfolioReviewDraft({ strengths: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" placeholder="这一批作品已经做得好的地方。" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">gaps</span><textarea value={portfolioReviewDraft.gaps} onChange={(event) => updatePortfolioReviewDraft({ gaps: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" placeholder="下一版最需要补足的空白。" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">evidence to add</span><textarea value={portfolioReviewDraft.evidenceToAdd} onChange={(event) => updatePortfolioReviewDraft({ evidenceToAdd: event.target.value })} rows={2} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">source limit to fix</span><textarea value={portfolioReviewDraft.sourceLimitToFix} onChange={(event) => updatePortfolioReviewDraft({ sourceLimitToFix: event.target.value })} rows={2} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">next claim</span><textarea value={portfolioReviewDraft.nextClaim} onChange={(event) => updatePortfolioReviewDraft({ nextClaim: event.target.value })} rows={2} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label>
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">presentation plan</span><textarea value={portfolioReviewDraft.presentationPlan} onChange={(event) => updatePortfolioReviewDraft({ presentationPlan: event.target.value })} rows={2} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-teal-200/15 bg-teal-100/[0.045] p-3">
+                <h4 className="font-semibold text-teal-100">固定 revision checklist</h4>
+                <ul className="mt-2 space-y-1 text-sm leading-6 text-stone-400">{portfolioRevisionChecklistItems.map((item) => <li key={item}>□ {item}</li>)}</ul>
+                <label className="mt-3 block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">current checklist draft</span><textarea value={portfolioReviewDraft.revisionChecklist} onChange={(event) => updatePortfolioReviewDraft({ revisionChecklist: event.target.value })} rows={3} className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none" /></label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-100/[0.06] px-4 py-2 text-sm text-emerald-100"><input type="checkbox" checked={portfolioReviewDraft.completed} onChange={(event) => updatePortfolioReviewDraft({ completed: event.target.checked })} className="h-4 w-4 rounded border-white/20 bg-black text-emerald-300 focus:ring-emerald-200" />完成本轮复盘</label><span className="text-xs text-stone-500">{portfolioReviewDraft.updatedAt ? `已保存：${new Date(portfolioReviewDraft.updatedAt).toLocaleString()}` : 'localStorage 优先保存；受限时回退 sessionStorage。'} {copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : ''}</span></div>
+            </div>
           </div>
         </div>
       </div>
