@@ -224,6 +224,19 @@ export type CommunicationInquiry = {
   tags: string[]
 }
 
+export type InfrastructureInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  systemQuestion: string
+  flowFocus: string
+  bottleneckPrompt: string
+  evidencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type ConceptAtlasTopic = {
   id: string
   title: string
@@ -1094,6 +1107,106 @@ export const atlasMapRoutes: AtlasMapRoute[] = [
     ],
     deliverables: ['四站记录媒介路线图', '制度劳动可见性比较表', '非文字/文字证据边界卡', '230 字来源可信度论证'],
     tags: ['khipu', 'quipu', 'Inca', 'Qhapaq Ñan', 'mit’a', '非文字证据', '帝国劳动', '档案沉默'],
+  },
+]
+
+
+export const infrastructureInquiries: InfrastructureInquiry[] = [
+  {
+    id: 'monsoon-port-systems',
+    title: 'Monsoon port systems / 季风港口系统',
+    subtitle: '把 Fustat、基尔瓦、马六甲、广州和孟买放进等待、通译、税册、信用与装卸节点中。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    systemQuestion: '季风、港口、文书和中介如何共同让货物、信用、消息和劳役跨海流动，又在哪里形成等待与风险集中点？',
+    flowFocus: '船期与季风等待、港口经纪/通译、海关税册、信件/合约、仓储装卸、殖民或帝国监管。',
+    bottleneckPrompt: '找出至少两个节点：一个由自然节律或船期造成，一个由制度、语言、税册或信用造成；说明谁承担延误风险。',
+    evidencePrompts: [
+      '哪些证据显示港口不是简单地点，而是等待、验证、翻译、收费和结算的系统？',
+      '货物、消息、信用和劳役在同一节点上是否依赖不同守门人？',
+      '哪些来源让中介或商人更可见，却遮蔽装卸、迁移或被雇佣劳动？',
+    ],
+    deliverable: 'Infrastructure Brief：港口系统图、关键节点/瓶颈、受益与受损者、失败情境、来源边界与 confidence。',
+    tags: ['monsoon', 'ports', 'credit', 'warehousing', 'intermediaries', 'Indian Ocean'],
+  },
+  {
+    id: 'roads-warehouses-records',
+    title: 'Roads, warehouses, and records / 道路、仓储与记录',
+    subtitle: '从 Inca Qhapaq Ñan、qullqa 和 khipu 出发，比较道路与仓储如何把劳役、资源和命令组织起来。',
+    scenarioIds: ['inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'tang-changan-merchant', 'fustat-geniza-merchant-apprentice'],
+    systemQuestion: '道路、仓储和记录如何让资源、人力与命令可调度？这些节点如何把流动变成可见、可数和可控制？',
+    flowFocus: '道路节点、仓储、跑者/记录者、市场贡赋、账册、商人书信和行政可见性。',
+    bottleneckPrompt: '选择一个运输/道路节点和一个记录/仓储节点，说明如果它失灵，哪些劳动、资源或命令会被延迟。',
+    evidencePrompts: [
+      '哪条证据显示道路或仓储不仅移动物品，也移动义务、命令或责任？',
+      '记录媒介如何把普通人、货物或劳役转成可调度信息？',
+      '道路与仓储系统让谁获得能力，谁被更紧密地纳入控制？',
+    ],
+    deliverable: 'Infrastructure Brief：道路—仓储—记录链图、节点依赖、瓶颈和来源限制。',
+    tags: ['roads', 'warehouses', 'records', 'khipu', 'imperial labor', 'markets'],
+  },
+  {
+    id: 'paper-letter-archive-infrastructure',
+    title: 'Paper, letters, and archive infrastructure / 纸张、信件与档案基础设施',
+    subtitle: '追踪纸张、手稿、商人信件、考试文本和档案幸存如何让知识与信用流动。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'fustat-geniza-merchant-apprentice', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'song-bianjing-apprentice'],
+    systemQuestion: '纸张、书写、保存和学习空间如何成为知识、信用、资格与记忆流动的基础设施？',
+    flowFocus: '纸张与抄写、书信携带、手稿课堂、书房/考试、档案保存、读写门槛和信用验证。',
+    bottleneckPrompt: '找出一个媒介瓶颈（纸张/抄写/保存）和一个进入瓶颈（识字/身份/师承/资金），说明各自排除谁。',
+    evidencePrompts: [
+      '知识或信用通过什么物质媒介移动，而不是“自然传播”？',
+      '哪些人能制作、读取、复制、保存或验证这些媒介？',
+      '档案幸存是否让某些流动看起来比实际更清楚或稳定？',
+    ],
+    deliverable: 'Infrastructure Brief：媒介链、进入门槛、档案幸存风险和谨慎系统判断。',
+    tags: ['paper', 'letters', 'archives', 'knowledge', 'credit', 'access thresholds'],
+  },
+  {
+    id: 'factory-discipline-supply-chain',
+    title: 'Factory discipline and supply chains / 工厂纪律与供应链',
+    subtitle: '把糖、棉、工厂钟声、港口账簿和殖民城市连成劳动与商品流动系统。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'qing-guangzhou-comprador'],
+    systemQuestion: '供应链如何依赖工厂、港口、账册和强制/纪律机制，把商品流动转化为普通人的身体风险和时间压力？',
+    flowFocus: '糖/棉商品链、工厂时间、港口账簿、工资/强制劳动、迁移、机器风险和帝国市场压力。',
+    bottleneckPrompt: '选择一个生产节点和一个调解/口岸节点，说明它们如何把风险转移给不同劳动者。',
+    evidencePrompts: [
+      '哪条证据显示商品链的流动依赖被组织起来的身体和时间？',
+      '工厂或种植园纪律如何与港口、账册或市场需求连接？',
+      '来源是否把劳动者记录为声音、身体、数量、工资还是财产类别？',
+    ],
+    deliverable: 'Infrastructure Brief：供应链节点、劳动纪律、风险转移、失败情境和来源限制。',
+    tags: ['factory', 'supply chain', 'cotton', 'sugar', 'labor discipline', 'ports'],
+  },
+  {
+    id: 'market-gatekeeping-systems',
+    title: 'Market gatekeeping systems / 市场守门系统',
+    subtitle: '比较城市市场、港口中介、税册、度量、行规和价格消息如何决定谁能交易。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    systemQuestion: '市场如何通过门、时辰、税赋、度量、通译、信用和价格消息来组织交换，而不是作为自由真空运行？',
+    flowFocus: '市场入口、摊位/店铺、港口中介、税册/行规、价格传闻、度量标准和监管边界。',
+    bottleneckPrompt: '找出一个进入门槛和一个信息门槛：谁能越过，谁只能在边缘承担价格、税赋或规则风险？',
+    evidencePrompts: [
+      '哪些证据显示市场流动被规则或守门人筛选？',
+      '货物、消息和信用是否在同一个市场节点被控制？',
+      '市场系统让哪些人获得机会，又把哪些人推向不确定或被记录的位置？',
+    ],
+    deliverable: 'Infrastructure Brief：市场守门图、节点/瓶颈、受益受损者和来源边界。',
+    tags: ['markets', 'gatekeeping', 'taxation', 'prices', 'brokers', 'regulation'],
+  },
+  {
+    id: 'crisis-mobility-and-safety',
+    title: 'Crisis mobility and safety / 危机移动与安全系统',
+    subtitle: '追踪传闻、港口压力、街区警报、逃避路线和安全规则如何在危机中组织行动。',
+    scenarioIds: ['tang-changan-merchant', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'wwii-london-civilian'],
+    systemQuestion: '危机时，人、消息、货物和安全动作如何通过市场、港口、街区、警报和制度节点流动或受阻？',
+    flowFocus: '传闻路线、港口/市场过滤、街区避难、警报系统、口岸压力、征服或战争消息和家庭安全判断。',
+    bottleneckPrompt: '选择一个消息瓶颈和一个移动/安全瓶颈，说明如果它失灵，普通人的选择窗口如何缩小。',
+    evidencePrompts: [
+      '哪条证据显示危机已经改变移动、等待、交易或避难行为？',
+      '谁发布、过滤或延迟危机消息？谁承担误判或无法移动的风险？',
+      '如何避免把后来清楚的结局倒推成当时已经可知的系统信息？',
+    ],
+    deliverable: 'Infrastructure Brief：危机流动节点、消息/移动瓶颈、安全依赖、失败情境与 confidence。',
+    tags: ['crisis', 'mobility', 'safety', 'rumor', 'alarm', 'ports'],
   },
 ]
 
