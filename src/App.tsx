@@ -27,6 +27,7 @@ import {
   atlasInquiryPaths,
   atlasMapRoutes,
   chronologyChallenges,
+  counterfactualChallenges,
   compareLenses,
   conceptAtlasTopics,
   exhibitThemes,
@@ -35,6 +36,7 @@ import {
   type AtlasInquiryPath,
   type AtlasMapRoute,
   type ChronologyChallenge,
+  type CounterfactualChallenge,
   type CompareLens,
   type ConceptAtlasTopic,
   type ExhibitTheme,
@@ -67,6 +69,7 @@ const perspectivesLabStorageKey = 'timeatlas:perspectives-agency-lab-drafts'
 const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
 const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
+const counterfactualLabStorageKey = 'timeatlas:counterfactual-lab-drafts'
 const evidenceCaseFileStorageKey = 'timeatlas:evidence-case-file-drafts'
 const sourceAnnotationStorageKey = 'timeatlas:source-annotation-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
@@ -106,6 +109,7 @@ const sectionIds = {
   perspectivesLab: 'perspectives-agency-lab',
   contextLab: 'context-scale-lab',
   significanceLab: 'significance-memory-lab',
+  counterfactualLab: 'counterfactual-lab',
   conceptAtlas: 'concept-atlas',
   synthesisStudio: 'synthesis-writing-studio',
   compareLab: 'compare-lab',
@@ -121,7 +125,7 @@ const pageIds = [
   'about',
 ] as const
 
-const legacyLabPageIds = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'concepts', 'synthesis'] as const
+const legacyLabPageIds = ['causation', 'periodization', 'perspectives', 'context', 'significance', 'counterfactual', 'concepts', 'synthesis'] as const
 
 type PageId = typeof pageIds[number]
 
@@ -130,7 +134,7 @@ const pageLabels: Record<PageId, { label: string; eyebrow: string; description: 
   scenario: { label: '场景体验', eyebrow: 'Scenario', description: '进入一个历史身份的一天、任务与来源层' },
   atlas: { label: '时空路线', eyebrow: 'Atlas', description: '地图路线、跨场景挑战、探究路径与比较实验室' },
   evidence: { label: '史料证据', eyebrow: 'Evidence', description: '全站史料地图、证据篮与互证工作台' },
-  labs: { label: '历史思维', eyebrow: 'Labs', description: '因果、分期、多视角、情境化、概念图谱、历史意义与综合写作' },
+  labs: { label: '历史思维', eyebrow: 'Labs', description: '因果、分期、多视角、情境化、反事实、概念图谱、历史意义与综合写作' },
   tasks: { label: '任务档案', eyebrow: 'Tasks', description: '任务库、学习路径、作品集与导出' },
   about: { label: '项目理念', eyebrow: 'About', description: 'TimeAtlas 的设计思路与学习目标' },
 }
@@ -478,6 +482,44 @@ type ChronologyDraft = {
 
 type ChronologyDraftState = Record<string, ChronologyDraft>
 
+type CounterfactualEvidenceType = 'baseline-scenario' | 'daily-life' | 'scene-beat' | 'timeline' | 'decision-context' | 'decision-option' | 'source' | 'real-history' | 'interpretation-note'
+
+type CounterfactualEvidence = {
+  id: string
+  challengeId: string
+  scenario: Scenario
+  type: CounterfactualEvidenceType
+  typeLabel: string
+  title: string
+  text: string
+  tags: string[]
+  ctaHash: ScenarioSectionId
+}
+
+type CounterfactualDraft = {
+  selectedEvidenceIds: string[]
+  baselineClaim: string
+  changedCondition: string
+  plausibilityCheck: string
+  consequenceChain: string
+  continuityClaim: string
+  sourceLimitNote: string
+  finalCounterfactualBrief: string
+  confidence: ChronologyConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type CounterfactualDraftState = Record<string, CounterfactualDraft>
+
+type CounterfactualLabStats = {
+  activeDrafts: [string, CounterfactualDraft][]
+  draftCount: number
+  completedCount: number
+  selectedEvidenceCount: number
+  recentDrafts: [string, CounterfactualDraft][]
+}
+
 type PlaceEvidenceType = 'location' | 'coordinate' | 'daily-life' | 'scene' | 'timeline' | 'decision' | 'source' | 'object' | 'term'
 
 type PlaceEvidence = {
@@ -630,6 +672,7 @@ type SynthesisInquiryPreset = {
 }
 
 type SynthesisEvidenceOrigin =
+  | 'counterfactual'
   | 'vocabulary-clinic'
   | 'question-bank'
   | 'place-desk'
@@ -772,7 +815,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -835,6 +878,7 @@ const labsSubpages: SubpageNavItem<LabsSubpage>[] = [
   { id: 'perspectives', label: '多视角', eyebrow: 'Agency', description: '选择边界、能动性与反当下主义', hash: sectionIds.perspectivesLab },
   { id: 'context', label: '情境尺度', eyebrow: 'Context', description: '地方、区域、全球尺度与来源情境', hash: sectionIds.contextLab },
   { id: 'significance', label: '历史意义', eyebrow: 'Memory', description: '重要性、记忆、争议与档案沉默', hash: sectionIds.significanceLab },
+  { id: 'counterfactual', label: '条件推演', eyebrow: 'Counterfactual', description: '只改变一个条件，推演可能性边界', hash: sectionIds.counterfactualLab },
   { id: 'concepts', label: '概念图谱', eyebrow: 'Concepts', description: 'key terms、来源标签与跨场景概念任务', hash: sectionIds.conceptAtlas },
   { id: 'synthesis', label: '综合写作', eyebrow: 'Writing', description: '把所有草稿汇总成综合历史论证', hash: sectionIds.synthesisStudio },
 ]
@@ -1155,6 +1199,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'perspectives', label: 'Perspectives Lab' },
   { value: 'contextualization', label: 'Context & Scale Lab' },
   { value: 'significance', label: 'Significance Lab' },
+  { value: 'counterfactual', label: 'Counterfactual Lab' },
   { value: 'concept-atlas', label: 'Concept Atlas' },
   { value: 'synthesis', label: 'Synthesis Studio' },
   { value: 'case-file', label: 'Evidence Case Files' },
@@ -1506,6 +1551,7 @@ const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corrobora
 const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
 const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const conceptAtlasConfidenceLabels: Record<ConceptAtlasConfidence, string> = corroborationConfidenceLabels
+const counterfactualConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const exhibitStudioConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const evidenceCaseConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 
@@ -2090,6 +2136,51 @@ function parseChronologyDraftState(rawState: string | null): ChronologyDraftStat
     )
   } catch {
     return {} as ChronologyDraftState
+  }
+}
+
+function parseCounterfactualDraftState(rawState: string | null): CounterfactualDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as CounterfactualDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<CounterfactualDraft>
+        const selectedEvidenceIds = Array.isArray(draft.selectedEvidenceIds)
+          ? draft.selectedEvidenceIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in counterfactualConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            selectedEvidenceIds,
+            baselineClaim: typeof draft.baselineClaim === 'string' ? draft.baselineClaim : '',
+            changedCondition: typeof draft.changedCondition === 'string' ? draft.changedCondition : '',
+            plausibilityCheck: typeof draft.plausibilityCheck === 'string' ? draft.plausibilityCheck : '',
+            consequenceChain: typeof draft.consequenceChain === 'string' ? draft.consequenceChain : '',
+            continuityClaim: typeof draft.continuityClaim === 'string' ? draft.continuityClaim : '',
+            sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+            finalCounterfactualBrief: typeof draft.finalCounterfactualBrief === 'string' ? draft.finalCounterfactualBrief : '',
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies CounterfactualDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as CounterfactualDraftState
   }
 }
 
@@ -2817,6 +2908,30 @@ function persistChronologyDraftState(state: ChronologyDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(chronologyDeskStorageKey, serializedState)
+}
+
+function loadCounterfactualDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseCounterfactualDraftState(localStorage?.getItem(counterfactualLabStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasCounterfactualDraftActivity)) {
+    return localState
+  }
+
+  return parseCounterfactualDraftState(sessionStorage?.getItem(counterfactualLabStorageKey) ?? null)
+}
+
+function persistCounterfactualDraftState(state: CounterfactualDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(counterfactualLabStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(counterfactualLabStorageKey, serializedState)
 }
 
 
@@ -5028,6 +5143,55 @@ function getActiveChronologyDrafts(chronologyDraftState: ChronologyDraftState) {
   return Object.entries(chronologyDraftState).filter(([, draft]) => hasChronologyDraftActivity(draft))
 }
 
+function getEmptyCounterfactualDraft(challenge?: CounterfactualChallenge): CounterfactualDraft {
+  return {
+    selectedEvidenceIds: challenge ? buildCounterfactualEvidence(challenge).slice(0, 5).map((entry) => entry.id) : [],
+    baselineClaim: '',
+    changedCondition: challenge?.changedCondition ?? '',
+    plausibilityCheck: challenge?.plausibilityGuardrail ?? '',
+    consequenceChain: '',
+    continuityClaim: '',
+    sourceLimitNote: '',
+    finalCounterfactualBrief: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function hasCounterfactualDraftActivity(draft: CounterfactualDraft) {
+  return Boolean(
+    draft.selectedEvidenceIds.length
+      || draft.baselineClaim.trim()
+      || draft.changedCondition.trim()
+      || draft.plausibilityCheck.trim()
+      || draft.consequenceChain.trim()
+      || draft.continuityClaim.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.finalCounterfactualBrief.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveCounterfactualDrafts(counterfactualDraftState: CounterfactualDraftState) {
+  return Object.entries(counterfactualDraftState).filter((entry): entry is [string, CounterfactualDraft] => hasCounterfactualDraftActivity(entry[1]))
+}
+
+function getCounterfactualLabStats(counterfactualDraftState: CounterfactualDraftState): CounterfactualLabStats {
+  const activeDrafts = getActiveCounterfactualDrafts(counterfactualDraftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => new Date(second[1].updatedAt ?? 0).getTime() - new Date(first[1].updatedAt ?? 0).getTime())
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedEvidenceCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedEvidenceIds.length, 0),
+    recentDrafts,
+  }
+}
+
 function getEmptyConceptAtlasDraft(topic?: ConceptAtlasTopic): ConceptAtlasDraft {
   return {
     selectedScenarioIds: topic?.scenarioIds.slice(0, 3) ?? [],
@@ -7123,6 +7287,7 @@ function formatExhibitTaskSheet(theme: ExhibitTheme) {
 
 function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
   return {
+    counterfactual: 'Counterfactual Lab draft / 条件推演草稿',
     'vocabulary-clinic': 'Vocabulary Clinic draft / 术语练习草稿',
     chronology: 'Chronology Desk draft / 时间证据草稿',
     corroboration: 'Corroboration draft / 互证草稿',
@@ -7163,6 +7328,7 @@ function buildSynthesisEvidencePool({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  counterfactualDraftState,
   conceptAtlasDraftState,
   compareDraftState,
   caseFileDraftState,
@@ -7184,6 +7350,7 @@ function buildSynthesisEvidencePool({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  counterfactualDraftState: CounterfactualDraftState
   conceptAtlasDraftState: ConceptAtlasDraftState
   compareDraftState: CompareDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
@@ -7203,6 +7370,7 @@ function buildSynthesisEvidencePool({
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
+  const counterfactualEvidenceByChallenge = Object.fromEntries(counterfactualChallenges.map((challenge) => [challenge.id, buildCounterfactualEvidence(challenge)])) as Record<string, CounterfactualEvidence[]>
   const vocabularyPracticeItems = buildVocabularyPracticeItems()
   const questionBankItems = buildQuestionBankItems()
   const entries: SynthesisEvidence[] = []
@@ -7391,6 +7559,25 @@ function buildSynthesisEvidencePool({
     })
   })
 
+  getActiveCounterfactualDrafts(counterfactualDraftState).forEach(([challengeId, draft]) => {
+    const challenge = counterfactualChallenges.find((candidate) => candidate.id === challengeId)
+    if (!challenge) return
+    const evidence = counterfactualEvidenceByChallenge[challengeId] ?? []
+    const selectedEvidence = draft.selectedEvidenceIds
+      .map((evidenceId) => evidence.find((entry) => entry.id === evidenceId))
+      .filter((entry): entry is CounterfactualEvidence => Boolean(entry))
+    entries.push({
+      id: makeSynthesisEvidenceId('counterfactual', challengeId),
+      origin: 'counterfactual',
+      originLabel: getSynthesisOriginLabel('counterfactual'),
+      title: challenge.title,
+      text: [`Baseline：${draft.baselineClaim}`, `Changed condition：${draft.changedCondition}`, `Plausibility：${draft.plausibilityCheck}`, `Consequence chain：${draft.consequenceChain}`, `Continuity：${draft.continuityClaim}`, `Source limits：${draft.sourceLimitNote}`, `Final brief：${draft.finalCounterfactualBrief}`].filter((line) => !line.match(/：\s*$|:\s*$/)).join('｜'),
+      tags: ['counterfactual', 'constraint lab', ...challenge.tags, ...selectedEvidence.slice(0, 3).map((entry) => `${entry.scenario.title} ${entry.typeLabel}`), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      inquiryTitle: challenge.drivingQuestion,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
   getActiveSignificanceDrafts(significanceDraftState).forEach(([inquiryId, draft]) => {
     const inquiry = significanceInquiryDefinitions.find((candidate) => candidate.id === inquiryId)
     const evidence = significanceEvidenceByInquiry[inquiryId] ?? []
@@ -7564,6 +7751,194 @@ function buildSynthesisEvidencePool({
   })
 
   return [...deduped.values()].sort((first, second) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? '') || first.origin.localeCompare(second.origin))
+}
+
+function getCounterfactualEvidenceTypeLabel(type: CounterfactualEvidenceType) {
+  return {
+    'baseline-scenario': 'Baseline scenario',
+    'daily-life': 'Daily life',
+    'scene-beat': 'Scene beat',
+    timeline: 'Timeline',
+    'decision-context': 'Decision context',
+    'decision-option': 'Decision option',
+    source: 'Source',
+    'real-history': 'Real history',
+    'interpretation-note': 'Interpretation note',
+  }[type]
+}
+
+function buildCounterfactualEvidence(challenge: CounterfactualChallenge): CounterfactualEvidence[] {
+  return challenge.scenarioIds.flatMap((scenarioId) => {
+    const scenario = getScenarioById(scenarioId)
+    if (!scenario) return []
+    const baseTags = [scenario.era, scenario.location, scenario.region, scenario.theme]
+    const entries: CounterfactualEvidence[] = [
+      {
+        id: `${challenge.id}:${scenario.id}:baseline`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'baseline-scenario',
+        typeLabel: getCounterfactualEvidenceTypeLabel('baseline-scenario'),
+        title: scenario.title,
+        text: `${scenario.identity}｜${scenario.summary}`,
+        tags: [...baseTags, 'baseline', scenario.identity],
+        ctaHash: sectionIds.experience,
+      },
+      ...scenario.dailyLife.slice(0, 3).map((section) => ({
+        id: `${challenge.id}:${scenario.id}:daily:${section.key}`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'daily-life' as const,
+        typeLabel: `${getCounterfactualEvidenceTypeLabel('daily-life')} · ${section.label}`,
+        title: section.title,
+        text: section.text,
+        tags: [...baseTags, section.key, section.label],
+        ctaHash: sectionIds.dailyLife,
+      } satisfies CounterfactualEvidence)),
+      ...scenario.sceneBeats.slice(0, 3).map((beat, index) => ({
+        id: `${challenge.id}:${scenario.id}:scene:${index}`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'scene-beat' as const,
+        typeLabel: getCounterfactualEvidenceTypeLabel('scene-beat'),
+        title: `${beat.timeLabel} · ${beat.title}`,
+        text: `${beat.historicalTension}｜${beat.evidenceHook}｜追问：${beat.learnerPrompt}`,
+        tags: [...baseTags, ...beat.linkedDailyLifeKeys, ...beat.linkedSourceTitles.slice(0, 2)],
+        ctaHash: sectionIds.sceneReader,
+      } satisfies CounterfactualEvidence)),
+      ...scenario.timeline.slice(0, 3).map((event, index) => ({
+        id: `${challenge.id}:${scenario.id}:timeline:${index}`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'timeline' as const,
+        typeLabel: getCounterfactualEvidenceTypeLabel('timeline'),
+        title: event.title,
+        text: `${event.year}｜${event.text}`,
+        tags: [...baseTags, 'timeline', event.year],
+        ctaHash: sectionIds.experience,
+      } satisfies CounterfactualEvidence)),
+      {
+        id: `${challenge.id}:${scenario.id}:decision:context`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'decision-context',
+        typeLabel: getCounterfactualEvidenceTypeLabel('decision-context'),
+        title: scenario.decision.prompt,
+        text: scenario.decision.context,
+        tags: [...baseTags, 'decision', 'baseline choice'],
+        ctaHash: sectionIds.decisionPanel,
+      },
+      ...scenario.decision.options.slice(0, 2).map((option) => ({
+        id: `${challenge.id}:${scenario.id}:decision:${option.id}`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'decision-option' as const,
+        typeLabel: getCounterfactualEvidenceTypeLabel('decision-option'),
+        title: option.label,
+        text: `${option.stance}：${option.description}｜即时：${option.immediate}｜长期：${option.longTerm}`,
+        tags: [...baseTags, 'decision option', option.stance],
+        ctaHash: sectionIds.decisionPanel,
+      } satisfies CounterfactualEvidence)),
+      ...scenario.sources.slice(0, 3).map((source, index) => ({
+        id: `${challenge.id}:${scenario.id}:source:${index}`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'source' as const,
+        typeLabel: sourceTypeLabels[source.sourceType],
+        title: source.title,
+        text: `${source.excerpt}｜视角：${source.perspective}｜可靠边界：${source.reliabilityNote}`,
+        tags: [...baseTags, source.creator, ...source.evidenceTags],
+        ctaHash: sectionIds.sourceReader,
+      } satisfies CounterfactualEvidence)),
+      {
+        id: `${challenge.id}:${scenario.id}:real-history`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'real-history',
+        typeLabel: getCounterfactualEvidenceTypeLabel('real-history'),
+        title: '真实历史对照',
+        text: scenario.realHistory,
+        tags: [...baseTags, 'real history', 'continuity'],
+        ctaHash: sectionIds.decisionPanel,
+      },
+      {
+        id: `${challenge.id}:${scenario.id}:interpretation-note`,
+        challengeId: challenge.id,
+        scenario,
+        type: 'interpretation-note',
+        typeLabel: getCounterfactualEvidenceTypeLabel('interpretation-note'),
+        title: '解释边界',
+        text: scenario.interpretationNote,
+        tags: [...baseTags, 'source limits', 'interpretation'],
+        ctaHash: sectionIds.sourceReader,
+      },
+    ]
+
+    return entries
+  })
+}
+
+function formatCounterfactualBrief(challenge: CounterfactualChallenge, draft: CounterfactualDraft, selectedEvidence: CounterfactualEvidence[]) {
+  const evidenceForExport = selectedEvidence.length ? selectedEvidence : buildCounterfactualEvidence(challenge).slice(0, 10)
+
+  return [
+    'TimeAtlas Counterfactual & Constraint Lab / 条件推演与反事实边界工作台',
+    `生成时间：${new Date().toLocaleString()}`,
+    `挑战：${challenge.title}｜${challenge.subtitle}`,
+    `核心问题：${challenge.drivingQuestion}`,
+    `Baseline condition：${challenge.baselineCondition}`,
+    `Changed condition：${challenge.changedCondition}`,
+    `Plausibility guardrail：${challenge.plausibilityGuardrail}`,
+    `状态：${draft.completed ? '已完成' : hasCounterfactualDraftActivity(draft) ? '草稿' : '未开始'}`,
+    '',
+    '一、Selected baseline evidence / 已选真实历史证据',
+    ...evidenceForExport.map((entry, index) => `${index + 1}. ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}\n   ${entry.text}\n   标签：${entry.tags.slice(0, 8).join('、') || '无'}`),
+    '',
+    '二、Guardrail checklist / 反事实边界',
+    '- 只改变一个条件，不同时改变动机、技术、制度和来源幸存。',
+    '- 至少引用一条 baseline evidence，并说明其真实历史约束。',
+    '- 明确说明什么不会变，避免把反事实写成愿望清单。',
+    '- 写出来源限制、缺席声音和信心等级。',
+    '',
+    '三、Workspace draft / 工作区草稿',
+    `Baseline claim：${draft.baselineClaim.trim() || '尚未填写'}`,
+    `Changed condition：${draft.changedCondition.trim() || challenge.changedCondition}`,
+    `Plausibility check：${draft.plausibilityCheck.trim() || challenge.plausibilityGuardrail}`,
+    `Consequence chain：${draft.consequenceChain.trim() || '尚未填写'}`,
+    `What would not change：${draft.continuityClaim.trim() || '尚未填写'}`,
+    `Source limit note：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+    `Final Counterfactual Brief：${draft.finalCounterfactualBrief.trim() || '尚未填写'}`,
+    `Confidence：${counterfactualConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatCounterfactualTaskSheet(challenge: CounterfactualChallenge) {
+  const evidence = buildCounterfactualEvidence(challenge).slice(0, 8)
+
+  return [
+    `TimeAtlas Counterfactual Lab Assignment：${challenge.title}`,
+    challenge.subtitle,
+    '',
+    `核心问题：${challenge.drivingQuestion}`,
+    `Baseline condition：${challenge.baselineCondition}`,
+    `只改变的条件：${challenge.changedCondition}`,
+    `Guardrail：${challenge.plausibilityGuardrail}`,
+    '',
+    '任务：在真实历史证据约束下，只改变一个条件，写出一份谨慎 Counterfactual Brief。',
+    '',
+    'Evidence prompts：',
+    ...challenge.evidencePrompts.map((prompt) => `- ${prompt}`),
+    '',
+    'Consequence prompts：',
+    ...challenge.consequencePrompts.map((prompt) => `- ${prompt}`),
+    '',
+    '建议 baseline evidence 起点：',
+    ...evidence.map((entry) => `- ${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}：${entry.text}`),
+    '',
+    '自检：□ 只改变一个条件  □ 引用 baseline evidence  □ 说明什么不会变  □ 写来源限制',
+    `交付物：${challenge.deliverable}`,
+  ].join('\n')
 }
 
 function formatSynthesisWritingBrief(preset: SynthesisInquiryPreset, evidencePool: SynthesisEvidence[], draft: SynthesisDraft) {
@@ -7754,6 +8129,7 @@ function formatLearningArchive(
   perspectivesDraftState: PerspectivesDraftState,
   contextDraftState: ContextDraftState,
   significanceDraftState: SignificanceDraftState,
+  counterfactualDraftState: CounterfactualDraftState,
   conceptAtlasDraftState: ConceptAtlasDraftState,
   synthesisDraftState: SynthesisDraftState,
   caseFileDraftState: EvidenceCaseFileDraftState,
@@ -7779,6 +8155,7 @@ function formatLearningArchive(
   const activePerspectivesDrafts = getActivePerspectivesDrafts(perspectivesDraftState)
   const activeContextDrafts = getActiveContextDrafts(contextDraftState)
   const activeSignificanceDrafts = getActiveSignificanceDrafts(significanceDraftState)
+  const counterfactualLabStats = getCounterfactualLabStats(counterfactualDraftState)
   const activeConceptAtlasDrafts = getActiveConceptAtlasDrafts(conceptAtlasDraftState)
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
   const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
@@ -7802,7 +8179,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -7821,6 +8198,7 @@ function formatLearningArchive(
     `- 多视角与能动性草稿：${activePerspectivesDrafts.length}`,
     `- 历史情境化与尺度草稿：${activeContextDrafts.length}`,
     `- 历史意义与记忆草稿：${activeSignificanceDrafts.length}`,
+    `- Counterfactual Lab 条件推演草稿：${counterfactualLabStats.draftCount} drafts，${counterfactualLabStats.completedCount} completed，${counterfactualLabStats.selectedEvidenceCount} selected evidence`,
     `- Concept Atlas 概念图谱草稿：${activeConceptAtlasDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
@@ -8189,6 +8567,33 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (counterfactualLabStats.activeDrafts.length > 0) {
+    lines.push('Counterfactual & Constraint Lab / 条件推演与反事实边界工作台：')
+    counterfactualLabStats.activeDrafts.forEach(([challengeId, draft]) => {
+      const challenge = counterfactualChallenges.find((candidate) => candidate.id === challengeId)
+      if (!challenge) return
+      const selectedEvidenceTitles = draft.selectedEvidenceIds
+        .map((evidenceId) => buildCounterfactualEvidence(challenge).find((entry) => entry.id === evidenceId))
+        .filter((entry): entry is CounterfactualEvidence => Boolean(entry))
+        .map((entry) => `${entry.scenario.title}｜${entry.typeLabel}｜${entry.title}`)
+
+      lines.push(
+        `  - ${challenge.title}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选 baseline evidence：${selectedEvidenceTitles.join('；') || '尚未勾选证据'}`,
+        `    Baseline claim：${draft.baselineClaim.trim() || '尚未填写'}`,
+        `    Changed condition：${draft.changedCondition.trim() || challenge.changedCondition}`,
+        `    Plausibility check：${draft.plausibilityCheck.trim() || challenge.plausibilityGuardrail}`,
+        `    Consequence chain：${draft.consequenceChain.trim() || '尚未填写'}`,
+        `    What would not change：${draft.continuityClaim.trim() || '尚未填写'}`,
+        `    Source limits：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    Final brief：${draft.finalCounterfactualBrief.trim() || '尚未填写'}`,
+        `    Confidence：${counterfactualConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeSignificanceDrafts.length > 0) {
     lines.push('历史意义与记忆工作台：')
     activeSignificanceDrafts.forEach(([inquiryId, draft]) => {
@@ -8409,7 +8814,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Question Bank 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Counterfactual Lab 草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、Question Bank 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -8462,6 +8867,7 @@ function getLabDraftCount({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  counterfactualDraftState,
 }: {
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
@@ -8469,6 +8875,7 @@ function getLabDraftCount({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  counterfactualDraftState?: CounterfactualDraftState
 }) {
   return getActiveCorroborationDrafts(corroborationDraftState).length
     + getActiveCausationDrafts(causationDraftState).length
@@ -8476,6 +8883,7 @@ function getLabDraftCount({
     + getActivePerspectivesDrafts(perspectivesDraftState).length
     + getActiveContextDrafts(contextDraftState).length
     + getActiveSignificanceDrafts(significanceDraftState).length
+    + (counterfactualDraftState ? getActiveCounterfactualDrafts(counterfactualDraftState).length : 0)
 }
 
 function getMissionDraftCount(missionWorkState: MissionWorkState) {
@@ -8532,6 +8940,7 @@ function buildLearningCoachRecommendations({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  counterfactualDraftState,
   synthesisDraftState,
   sourceAnnotationDraftState,
   vocabularyClinicDraftState,
@@ -8555,6 +8964,7 @@ function buildLearningCoachRecommendations({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  counterfactualDraftState: CounterfactualDraftState
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
@@ -8574,7 +8984,7 @@ function buildLearningCoachRecommendations({
   const moduleStats = getTaskModuleProgressStats(taskModuleProgressState)
   const incompleteModule = moduleStats.details.find((detail) => !detail.isComplete)
   const workspaceStats = getWorkspaceStats(workspaceState)
-  const labDraftCount = getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState })
+  const labDraftCount = getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState })
   const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
   const vocabularyClinicStats = getVocabularyClinicStats(vocabularyClinicDraftState)
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
@@ -8719,6 +9129,23 @@ function buildLearningCoachRecommendations({
 
 const taskPacks: TaskPack[] = [
   {
+    id: 'counterfactual-constraint-lab',
+    title: 'Counterfactual Constraint Lab',
+    audience: '历史思维、反事实推理与论证边界训练课',
+    totalMinutes: 45,
+    learningGoal: '用真实历史证据约束“只改变一个条件”的可能性推理，区分后果变化、连续性和来源限制。',
+    finalDeliverable: '一份 Counterfactual Brief：baseline evidence、changed condition、plausibility check、consequence chain、what would not change、source limits。',
+    teacherNotes: '强调反事实不是自由想象；每组必须先引用 baseline evidence，再写单一条件变化和不会改变的约束。',
+    studentInstructions: '选择一个 Counterfactual Lab challenge；只改变一个条件，不添加超出证据的全知信息；最终写出可辩护的简报。',
+    rubricFocus: 'baseline evidence、单一变量、可行性边界、连续性、来源限制',
+    tags: ['counterfactual', 'constraint lab', 'guardrails', 'historical reasoning'],
+    coverage: ['Labs Counterfactual', 'Task Workbench', 'Synthesis evidence pool'],
+    selectors: [
+      { sources: ['counterfactual'], keywords: ['counterfactual', 'changed condition', 'guardrail', 'baseline', '反事实', '条件推演', '只改变'] },
+    ],
+    fallbackKeywords: ['counterfactual', 'plausibility', 'guardrail', 'baseline', 'changed condition', '反事实', '条件推演', '边界', '只改变'],
+  },
+  {
     id: 'first-45-minutes',
     title: 'First 45 Minutes',
     audience: '第一次进入 TimeAtlas 的中学历史课堂 / 社团体验课',
@@ -8752,7 +9179,7 @@ const taskPacks: TaskPack[] = [
     selectors: [
       { taskIds: ['compare:source-credibility'] },
       { sources: ['activity'], sourceBasedOnly: true, keywords: ['source-lab', 'credibility', 'silence', '来源', '可靠'] },
-      { sources: ['perspectives', 'significance', 'causation'], sourceBasedOnly: true, keywords: ['source', 'evidence', 'archive', 'silence', '来源', '证据', '档案', '沉默'] },
+      { sources: ['perspectives', 'significance', 'causation', 'counterfactual'], sourceBasedOnly: true, keywords: ['source', 'evidence', 'archive', 'silence', 'missing side', '来源', '证据', '档案', '沉默', '缺席'] },
     ],
     fallbackKeywords: ['source', 'evidence', 'credibility', 'corroboration', 'archive', 'silence', '来源', '证据', '互证', '可靠', '档案', '沉默'],
   },
@@ -8911,6 +9338,17 @@ function getTaskDiscoveryCollections(): TaskDiscoveryCollection[] {
       audience: '经济史、全球史、市场不是自由真空讨论',
       duration: '35-75 分钟',
       matcher: (task) => taskMatchesAny(task, ['market', 'exchange', 'power', 'regulation', 'empire', 'trade', 'credit', '市场', '交换', '权力', '监管', '帝国', '贸易', '信用']),
+      secondaryAction: 'open-first',
+    },
+    {
+      id: 'counterfactual-boundaries',
+      label: 'Counterfactual Boundaries · 条件推演边界',
+      reason: '聚合只改变一个条件的反事实挑战，训练学习者引用 baseline evidence、写后果链、说明不会改变的约束与来源限制。',
+      audience: '历史思维训练、可能性推理、反事实写作课',
+      duration: '45 分钟',
+      source: 'counterfactual',
+      sourceBasedOnly: true,
+      matcher: (task) => task.source === 'counterfactual' || taskMatchesAny(task, ['counterfactual', 'changed condition', 'guardrail', 'plausibility', '反事实', '条件推演', '只改变', '边界']),
       secondaryAction: 'open-first',
     },
     {
@@ -9747,6 +10185,7 @@ function buildTaskLibraryTasks({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
@@ -9767,6 +10206,7 @@ function buildTaskLibraryTasks({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge?: (challengeId: string) => void
   onOpenPlaceInquiry?: (inquiryId: string) => void
+  onOpenCounterfactualChallenge?: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
@@ -10144,6 +10584,41 @@ function buildTaskLibraryTasks({
     }
 
     task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, challenge.subtitle, challenge.timeFocus, challenge.taskPrompt, ...tags, ...challenge.evidencePrompts].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  counterfactualChallenges.forEach((challenge) => {
+    const challengeScenarios = challenge.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 45
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Counterfactual Lab', '条件推演', 'one-condition change', ...challenge.tags]
+    const task: LibraryTask = {
+      id: `counterfactual:${challenge.id}`,
+      title: challenge.title,
+      context: challengeScenarios.map((scenario) => scenario.title).join(' × ') || 'Counterfactual Lab',
+      scenarioId: challengeScenarios[0]?.id,
+      category: '条件推演与反事实边界',
+      source: 'counterfactual',
+      sourceLabel: 'Counterfactual Lab',
+      durationMinutes,
+      durationBand,
+      summary: challenge.drivingQuestion,
+      deliverable: challenge.deliverable,
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Counterfactual Lab',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onOpenCounterfactualChallenge?.(challenge.id),
+      onSecondaryAction: () => challengeScenarios[0] ? onOpenScenario(challengeScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [challenge.drivingQuestion, challenge.baselineCondition, `只改变：${challenge.changedCondition}`, `Guardrail：${challenge.plausibilityGuardrail}`],
+      checklist: ['选择至少 3 条 baseline evidence', '写出 baseline claim', '明确只改变一个条件', '检查 plausibility guardrail', '写出后果链', '说明什么不会变与来源限制', '完成 Counterfactual Brief'],
+      evidencePrompts: [...challenge.evidencePrompts, ...challenge.consequencePrompts],
+      formatSheet: () => formatCounterfactualTaskSheet(challenge),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, challenge.subtitle, challenge.baselineCondition, challenge.changedCondition, challenge.plausibilityGuardrail, ...tags, ...challenge.evidencePrompts, ...challenge.consequencePrompts].join(' ').toLowerCase()
     tasks.push(task)
   })
 
@@ -11097,8 +11572,10 @@ function App() {
   const [selectedCausationInquiryId, setSelectedCausationInquiryId] = useState(causationInquiryDefinitions[0]?.id ?? '')
   const [periodizationDraftState, setPeriodizationDraftState] = useState<PeriodizationDraftState>(loadPeriodizationDraftState)
   const [chronologyDraftState, setChronologyDraftState] = useState<ChronologyDraftState>(loadChronologyDraftState)
+  const [counterfactualDraftState, setCounterfactualDraftState] = useState<CounterfactualDraftState>(loadCounterfactualDraftState)
   const [placeDraftState, setPlaceDraftState] = useState<PlaceDraftState>(loadPlaceDraftState)
   const [selectedChronologyChallengeId, setSelectedChronologyChallengeId] = useState(chronologyChallenges[0]?.id ?? '')
+  const [selectedCounterfactualChallengeId, setSelectedCounterfactualChallengeId] = useState(counterfactualChallenges[0]?.id ?? '')
   const [selectedPlaceInquiryId, setSelectedPlaceInquiryId] = useState(placeInquiries[0]?.id ?? '')
   const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
   const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
@@ -11165,8 +11642,8 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -11177,7 +11654,7 @@ function App() {
   const workspaceStats = useMemo(() => getWorkspaceStats(workspaceState), [workspaceState])
   const taskModuleStats = useMemo(() => getTaskModuleProgressStats(taskModuleProgressState), [taskModuleProgressState])
   const taskWorkbenchStats = useMemo(() => getTaskWorkbenchStats(taskWorkbenchDraftState), [taskWorkbenchDraftState])
-  const labDraftCount = useMemo(() => getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState }) + getActiveConceptAtlasDrafts(conceptAtlasDraftState).length, [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState])
+  const labDraftCount = useMemo(() => getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState }) + getActiveConceptAtlasDrafts(conceptAtlasDraftState).length, [corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState])
   const compareDraftCount = useMemo(() => getActiveCompareDrafts(compareDraftState).length, [compareDraftState])
   const synthesisDraftCount = useMemo(() => getActiveSynthesisDrafts(synthesisDraftState).length, [synthesisDraftState])
   const caseFileDraftCount = useMemo(() => getActiveEvidenceCaseFileDrafts(caseFileDraftState).length, [caseFileDraftState])
@@ -11205,6 +11682,7 @@ function App() {
     perspectivesDraftState,
     contextDraftState,
     significanceDraftState,
+    counterfactualDraftState,
     synthesisDraftState,
     caseFileDraftState,
     sourceAnnotationDraftState,
@@ -11309,6 +11787,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [chronologyDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistCounterfactualDraftState(counterfactualDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [counterfactualDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -11931,6 +12421,22 @@ function App() {
     scrollToSection('chronology-desk', prefersReducedMotion)
   }
 
+  function openCounterfactualChallenge(challengeId: string) {
+    if (!counterfactualChallenges.some((challenge) => challenge.id === challengeId)) {
+      return
+    }
+
+    setSelectedCounterfactualChallengeId(challengeId)
+    setActivePage('labs')
+    setActiveLabsSubpage('counterfactual')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('labs', sectionIds.counterfactualLab))
+    }
+
+    scrollToSection(sectionIds.counterfactualLab, prefersReducedMotion)
+  }
+
   function openPlaceInquiry(inquiryId: string) {
     if (!placeInquiries.some((inquiry) => inquiry.id === inquiryId)) {
       return
@@ -12088,6 +12594,11 @@ function App() {
     }
 
     if (action.type === 'labs') {
+      if (action.lab === 'counterfactual' && action.inquiryId) {
+        openCounterfactualChallenge(action.inquiryId)
+        return
+      }
+
       if (action.lab === 'causation' && action.inquiryId) {
         loadCausationInquiry(action.inquiryId)
         return
@@ -12309,6 +12820,7 @@ function App() {
               perspectivesDraftState={perspectivesDraftState}
               contextDraftState={contextDraftState}
               significanceDraftState={significanceDraftState}
+              counterfactualDraftState={counterfactualDraftState}
               conceptAtlasDraftState={conceptAtlasDraftState}
               synthesisDraftState={synthesisDraftState}
               onOpenEvidence={() => navigateToPage('evidence', 'source-atlas')}
@@ -12370,6 +12882,15 @@ function App() {
                 onOpenScenario={selectScenario}
               />
             ) : null}
+            {activeLabsSubpage === 'counterfactual' ? (
+              <CounterfactualLabPanel
+                selectedChallengeId={selectedCounterfactualChallengeId}
+                draftState={counterfactualDraftState}
+                onSelectChallenge={setSelectedCounterfactualChallengeId}
+                onUpdateDraftState={setCounterfactualDraftState}
+                onOpenScenario={selectScenario}
+              />
+            ) : null}
             {activeLabsSubpage === 'concepts' ? (
               <ConceptAtlasPanel
                 selectedTopicId={selectedConceptTopicId}
@@ -12412,6 +12933,7 @@ function App() {
                 onLoadCompareLens={loadCompareLens}
                 onOpenChronologyChallenge={openChronologyChallenge}
                 onOpenPlaceInquiry={openPlaceInquiry}
+                onOpenCounterfactualChallenge={openCounterfactualChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
                 onLoadPeriodizationInquiry={loadPeriodizationInquiry}
                 onLoadPerspectivesInquiry={loadPerspectivesInquiry}
@@ -12437,6 +12959,7 @@ function App() {
                 onLoadCompareLens={loadCompareLens}
                 onOpenChronologyChallenge={openChronologyChallenge}
                 onOpenPlaceInquiry={openPlaceInquiry}
+                onOpenCounterfactualChallenge={openCounterfactualChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
                 onLoadPeriodizationInquiry={loadPeriodizationInquiry}
                 onLoadPerspectivesInquiry={loadPerspectivesInquiry}
@@ -12545,6 +13068,7 @@ function App() {
                 perspectivesDraftState={perspectivesDraftState}
                 contextDraftState={contextDraftState}
                 significanceDraftState={significanceDraftState}
+                counterfactualDraftState={counterfactualDraftState}
                 conceptAtlasDraftState={conceptAtlasDraftState}
                 synthesisDraftState={synthesisDraftState}
                 caseFileDraftState={caseFileDraftState}
@@ -12708,6 +13232,7 @@ function LabsMethodChooser({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  counterfactualDraftState,
   conceptAtlasDraftState,
   synthesisDraftState,
   onOpenEvidence,
@@ -12719,6 +13244,7 @@ function LabsMethodChooser({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  counterfactualDraftState: CounterfactualDraftState
   conceptAtlasDraftState: ConceptAtlasDraftState
   synthesisDraftState: SynthesisDraftState
   onOpenEvidence: () => void
@@ -12771,6 +13297,15 @@ function LabsMethodChooser({
       draftCount: getActiveSignificanceDrafts(significanceDraftState).length,
     },
     {
+      id: 'counterfactual',
+      title: '条件推演',
+      eyebrow: 'Counterfactual',
+      question: '如果只改变一个条件，哪些后果可能改变，哪些真实约束不会变？',
+      useCase: '适合在证据边界内训练历史可能性，而不是写没有约束的假设故事。',
+      availableLabel: `${counterfactualChallenges.length} 个挑战`,
+      draftCount: getActiveCounterfactualDrafts(counterfactualDraftState).length,
+    },
+    {
       id: 'concepts',
       title: '概念图谱',
       eyebrow: 'Concepts',
@@ -12817,7 +13352,7 @@ function LabsMethodChooser({
                 </button>
                 <span className="hidden text-stone-500 sm:inline">→</span>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-stone-300">
-                  因果 / 分期 / 多视角 / 情境 / 意义 / 概念
+                  因果 / 分期 / 多视角 / 情境 / 意义 / 反事实 / 概念
                 </span>
                 <span className="hidden text-stone-500 sm:inline">→</span>
                 <button
@@ -17398,6 +17933,7 @@ function PortfolioPanel({
   perspectivesDraftState,
   contextDraftState,
   significanceDraftState,
+  counterfactualDraftState,
   conceptAtlasDraftState,
   synthesisDraftState,
   caseFileDraftState,
@@ -17427,6 +17963,7 @@ function PortfolioPanel({
   perspectivesDraftState: PerspectivesDraftState
   contextDraftState: ContextDraftState
   significanceDraftState: SignificanceDraftState
+  counterfactualDraftState: CounterfactualDraftState
   conceptAtlasDraftState: ConceptAtlasDraftState
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
@@ -17451,6 +17988,7 @@ function PortfolioPanel({
   const perspectivesDraftCount = getActivePerspectivesDrafts(perspectivesDraftState).length
   const contextDraftCount = getActiveContextDrafts(contextDraftState).length
   const significanceDraftCount = getActiveSignificanceDrafts(significanceDraftState).length
+  const counterfactualLabStats = getCounterfactualLabStats(counterfactualDraftState)
   const conceptAtlasDraftCount = getActiveConceptAtlasDrafts(conceptAtlasDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
@@ -17494,13 +18032,14 @@ function PortfolioPanel({
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentCounterfactualDrafts = counterfactualLabStats.recentDrafts.slice(0, 3)
   const recentConceptAtlasDrafts = getActiveConceptAtlasDrafts(conceptAtlasDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -17548,6 +18087,8 @@ function PortfolioPanel({
               { label: '多视角草稿', value: perspectivesDraftCount },
               { label: '情境化草稿', value: contextDraftCount },
               { label: '意义草稿', value: significanceDraftCount },
+              { label: '条件推演', value: counterfactualLabStats.draftCount },
+              { label: '推演完成', value: counterfactualLabStats.completedCount },
               { label: '概念图谱', value: conceptAtlasDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
               { label: 'Case Files', value: caseFileDraftCount },
@@ -17580,7 +18121,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -17634,6 +18175,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{challenge?.title ?? challengeId}</div>
                       <div>Chronology Desk · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEventIds.length} 条时间证据</div>
                       <div className="mt-1 text-stone-500">{draft.finalChronologyBrief.trim() || draft.turningPointClaim.trim() || draft.sequenceNotes.trim() || '尚未填写 chronology brief'}</div>
+                    </div>
+                  )
+                })}
+                {recentCounterfactualDrafts.map(([challengeId, draft]) => {
+                  const challenge = counterfactualChallenges.find((candidate) => candidate.id === challengeId)
+
+                  return (
+                    <div key={challengeId} className="rounded-2xl border border-violet-200/15 bg-violet-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{challenge?.title ?? challengeId}</div>
+                      <div>Counterfactual Lab · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条 baseline evidence</div>
+                      <div className="mt-1 text-stone-500">{draft.finalCounterfactualBrief.trim() || draft.consequenceChain.trim() || draft.baselineClaim.trim() || '尚未填写 counterfactual brief'}</div>
                     </div>
                   )
                 })}
@@ -17835,6 +18387,7 @@ function TaskDiscoveryPanel({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
@@ -17858,6 +18411,7 @@ function TaskDiscoveryPanel({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge: (challengeId: string) => void
   onOpenPlaceInquiry: (inquiryId: string) => void
+  onOpenCounterfactualChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
@@ -17875,8 +18429,8 @@ function TaskDiscoveryPanel({
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -19119,6 +19673,7 @@ function TaskLibraryPanel({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
   onLoadPeriodizationInquiry,
   onLoadPerspectivesInquiry,
@@ -19141,6 +19696,7 @@ function TaskLibraryPanel({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge: (challengeId: string) => void
   onOpenPlaceInquiry: (inquiryId: string) => void
+  onOpenCounterfactualChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
   onLoadPeriodizationInquiry: (inquiryId: string) => void
   onLoadPerspectivesInquiry: (inquiryId: string) => void
@@ -19164,8 +19720,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -20070,6 +20626,277 @@ function GuidedSessionPanel({
   )
 }
 
+
+function CounterfactualLabPanel({
+  selectedChallengeId,
+  draftState,
+  onSelectChallenge,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedChallengeId: string
+  draftState: CounterfactualDraftState
+  onSelectChallenge: (challengeId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<CounterfactualDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const selectedChallenge = counterfactualChallenges.find((challenge) => challenge.id === selectedChallengeId) ?? counterfactualChallenges[0]
+  const evidenceEntries = useMemo(() => selectedChallenge ? buildCounterfactualEvidence(selectedChallenge) : [], [selectedChallenge])
+  const currentDraft = selectedChallenge ? draftState[selectedChallenge.id] ?? getEmptyCounterfactualDraft(selectedChallenge) : getEmptyCounterfactualDraft()
+  const selectedEvidence = currentDraft.selectedEvidenceIds.map((evidenceId) => evidenceEntries.find((entry) => entry.id === evidenceId)).filter((entry): entry is CounterfactualEvidence => Boolean(entry))
+  const stats = getCounterfactualLabStats(draftState)
+  const visibleEvidence = evidenceEntries.slice(0, 24)
+
+  function updateDraft(patch: Partial<CounterfactualDraft>) {
+    if (!selectedChallenge) return
+
+    onUpdateDraftState((currentState) => {
+      const baseDraft = currentState[selectedChallenge.id] ?? getEmptyCounterfactualDraft(selectedChallenge)
+
+      return {
+        ...currentState,
+        [selectedChallenge.id]: {
+          ...baseDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+  }
+
+  function toggleEvidence(evidenceId: string) {
+    const selectedEvidenceIds = currentDraft.selectedEvidenceIds.includes(evidenceId)
+      ? currentDraft.selectedEvidenceIds.filter((id) => id !== evidenceId)
+      : [...currentDraft.selectedEvidenceIds, evidenceId]
+
+    updateDraft({ selectedEvidenceIds })
+  }
+
+  function clearDraft() {
+    if (!selectedChallenge) return
+    onUpdateDraftState((currentState) => ({ ...currentState, [selectedChallenge.id]: getEmptyCounterfactualDraft(selectedChallenge) }))
+  }
+
+  async function copyBrief() {
+    if (!selectedChallenge) return
+
+    try {
+      await copyTextToClipboard(formatCounterfactualBrief(selectedChallenge, currentDraft, selectedEvidence))
+      setCopyStatus('brief')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    if (!selectedChallenge) return
+    const safeTitle = selectedChallenge.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'counterfactual'
+    downloadTextFile(`timeatlas-${safeTitle}-counterfactual-brief.txt`, formatCounterfactualBrief(selectedChallenge, currentDraft, selectedEvidence))
+  }
+
+  if (!selectedChallenge) {
+    return null
+  }
+
+  return (
+    <section id={sectionIds.counterfactualLab} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="counterfactual-lab-title">
+      <div className="rounded-[2rem] border border-violet-200/15 bg-violet-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-violet-100">
+          <ShieldAlert size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">counterfactual lab</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="counterfactual-lab-title" className="text-3xl font-semibold tracking-tight text-stone-50">
+              Counterfactual & Constraint Lab / 条件推演与反事实边界工作台
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">
+              在真实历史证据约束下训练“只改变一个条件”：先引用 baseline evidence，再写可行性边界、后果链、不会改变的连续性和来源限制。
+            </p>
+          </div>
+          <div className="rounded-3xl border border-violet-200/20 bg-violet-100/[0.08] px-4 py-3 text-sm text-violet-100">
+            {counterfactualChallenges.length} challenges · {stats.draftCount} drafts · {stats.completedCount} completed
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.45fr]">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            {counterfactualChallenges.map((challenge) => {
+              const draft = draftState[challenge.id]
+              const isActive = challenge.id === selectedChallenge.id
+              const status = draft?.completed ? '已完成' : draft && hasCounterfactualDraftActivity(draft) ? '草稿' : '未开始'
+
+              return (
+                <button
+                  key={challenge.id}
+                  type="button"
+                  onClick={() => onSelectChallenge(challenge.id)}
+                  className={`rounded-3xl border p-4 text-left transition ${isActive ? 'border-violet-200/50 bg-violet-100/[0.1]' : 'border-white/10 bg-black/20 hover:border-violet-100/25'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-violet-100">{status}</p>
+                      <h3 className="mt-2 font-semibold text-stone-50">{challenge.title}</h3>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-stone-400">{challenge.scenarioIds.length} scenes</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-stone-400">{challenge.subtitle}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {challenge.tags.slice(0, 3).map((tag) => <Tag key={tag}>{tag}</Tag>)}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[0.95fr_1fr]">
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-violet-200/15 bg-black/20 p-4">
+                <h3 className="text-xl font-semibold text-stone-50">{selectedChallenge.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-stone-400">{selectedChallenge.drivingQuestion}</p>
+                <div className="mt-3 grid gap-2 text-sm leading-6">
+                  <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-stone-300"><span className="font-semibold text-violet-100">Baseline：</span>{selectedChallenge.baselineCondition}</p>
+                  <p className="rounded-2xl border border-violet-200/15 bg-violet-100/[0.06] p-3 text-violet-50"><span className="font-semibold">Changed condition：</span>{selectedChallenge.changedCondition}</p>
+                  <p className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.06] p-3 text-amber-50"><span className="font-semibold">Guardrail：</span>{selectedChallenge.plausibilityGuardrail}</p>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedChallenge.scenarioIds.map((scenarioId) => {
+                    const scenario = getScenarioById(scenarioId)
+                    return scenario ? (
+                      <button key={scenario.id} type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-stone-300 transition hover:border-violet-100/30">
+                        {scenario.year} · {scenario.title}
+                      </button>
+                    ) : null
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="font-semibold text-stone-50">Evidence & condition board</h4>
+                  <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{selectedEvidence.length}/{evidenceEntries.length}</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                  {visibleEvidence.map((entry) => {
+                    const isSelected = currentDraft.selectedEvidenceIds.includes(entry.id)
+                    return (
+                      <label key={entry.id} className={`block cursor-pointer rounded-2xl border p-3 transition ${isSelected ? 'border-violet-200/45 bg-violet-100/[0.08]' : 'border-white/10 bg-white/[0.025] hover:border-violet-100/25'}`}>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEvidence(entry.id)}
+                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black text-violet-300 focus:ring-violet-200"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+                              <span className="text-violet-100">{entry.typeLabel}</span>
+                              <span>{entry.scenario.title}</span>
+                            </span>
+                            <span className="mt-1 block font-semibold text-stone-100">{entry.title}</span>
+                            <span className="mt-1 block text-sm leading-6 text-stone-400">{entry.text}</span>
+                          </span>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                <h4 className="font-semibold text-amber-100">Selected evidence</h4>
+                <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                  {(selectedEvidence.length ? selectedEvidence : evidenceEntries.slice(0, 5)).map((entry) => (
+                    <li key={`selected-${entry.id}`}>
+                      <span className="font-semibold text-stone-100">{entry.scenario.title}</span> — {entry.typeLabel}｜{entry.title}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="rounded-3xl border border-teal-200/15 bg-teal-100/[0.045] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h4 className="font-semibold text-teal-100">Workspace draft fields</h4>
+                  <button
+                    type="button"
+                    onClick={() => updateDraft({ completed: !currentDraft.completed })}
+                    aria-pressed={currentDraft.completed}
+                    className="inline-flex items-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-3 py-1.5 text-xs font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"
+                  >
+                    {currentDraft.completed ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                    {currentDraft.completed ? '已完成' : '标记完成'}
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {([
+                    ['baselineClaim', 'Baseline claim / 真实历史基线', 3],
+                    ['changedCondition', 'Changed condition / 只改变的条件', 3],
+                    ['plausibilityCheck', 'Plausibility check / 可行性边界', 3],
+                    ['consequenceChain', 'Consequence chain / 后果链', 4],
+                    ['continuityClaim', 'What would not change / 什么不会变', 3],
+                    ['sourceLimitNote', 'Source limit note / 来源限制', 3],
+                    ['finalCounterfactualBrief', 'Final Counterfactual Brief / 最终简报', 5],
+                  ] as [keyof CounterfactualDraft, string, number][]).map(([field, label, rows]) => (
+                    <label key={field} className="block">
+                      <span className="text-sm font-semibold text-stone-100">{label}</span>
+                      <textarea
+                        value={String(currentDraft[field] ?? '')}
+                        onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<CounterfactualDraft>)}
+                        rows={rows}
+                        className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-teal-200/60"
+                        placeholder={field === 'changedCondition' ? selectedChallenge.changedCondition : field === 'plausibilityCheck' ? selectedChallenge.plausibilityGuardrail : selectedChallenge.deliverable}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="mt-3 block">
+                  <span className="text-sm font-semibold text-stone-100">Confidence / 信心等级</span>
+                  <select value={currentDraft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ChronologyConfidence })} className="mt-2 w-full rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-stone-100 outline-none focus:border-teal-200/60">
+                    {(Object.entries(counterfactualConfidenceLabels) as [ChronologyConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="rounded-3xl border border-violet-200/15 bg-violet-100/[0.045] p-4 text-sm leading-6 text-stone-300">
+                <h4 className="font-semibold text-violet-100">Guardrails / 边界规则</h4>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-stone-400">
+                  <li>只改变一个条件，不同时改动制度、技术、动机和来源幸存。</li>
+                  <li>至少引用一条 baseline evidence，说明真实历史约束。</li>
+                  <li>必须写出什么不会变，以及为什么不会变。</li>
+                  <li>必须写来源限制、缺席声音和 confidence。</li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-amber-200">
+                  {copyStatus === 'brief' ? <Check size={18} /> : <Copy size={18} />}
+                  {copyStatus === 'brief' ? 'Counterfactual Brief 已复制' : '复制 Counterfactual Brief'}
+                </button>
+                <button type="button" onClick={downloadBrief} className="inline-flex items-center justify-center gap-2 rounded-full border border-violet-200/25 bg-violet-100/[0.08] px-5 py-3 font-semibold text-violet-100 transition hover:bg-violet-100/[0.14]">
+                  <ScrollText size={18} />
+                  下载 txt
+                </button>
+                <button type="button" onClick={clearDraft} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-3 font-semibold text-stone-100 transition hover:bg-white/[0.08]">
+                  清空草稿
+                </button>
+                <button type="button" onClick={() => selectedChallenge.scenarioIds[0] ? onOpenScenario(selectedChallenge.scenarioIds[0], sectionIds.sceneReader) : undefined} className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-5 py-3 font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]">
+                  打开相关 scenario
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+              <p className="text-xs text-stone-500" aria-live="polite">
+                {copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '草稿优先保存在 localStorage，受限时回退 sessionStorage。'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 function ChronologyDeskPanel({
   selectedChallengeId,

@@ -169,6 +169,21 @@ export type ChronologyChallenge = {
   tags: string[]
 }
 
+export type CounterfactualChallenge = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  drivingQuestion: string
+  baselineCondition: string
+  changedCondition: string
+  plausibilityGuardrail: string
+  evidencePrompts: string[]
+  consequencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type PlaceInquiry = {
   id: string
   title: string
@@ -1469,6 +1484,141 @@ export const chronologyChallenges: ChronologyChallenge[] = [
     ],
     deliverable: '一份 Market Rules Chronology Brief：时序、前后主张、转折点、节奏与来源限制。',
     tags: ['market rules', 'long duration', 'credit', 'taxation', 'ports', 'urban markets'],
+  },
+]
+
+export const counterfactualChallenges: CounterfactualChallenge[] = [
+  {
+    id: 'crisis-news-earlier-later',
+    title: 'Crisis news arrives earlier/later',
+    subtitle: '把危机消息的抵达时间提前或推迟，检验普通人的安全判断会怎样改变。',
+    scenarioIds: ['tang-changan-merchant', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'wwii-london-civilian'],
+    drivingQuestion: '如果危机消息只早到或晚到一天、一周或一个季节，普通人还能做出哪些不同选择，哪些结构条件不会改变？',
+    baselineCondition: '危机消息按现有场景中的速度、可靠性和制度过滤抵达日常生活。',
+    changedCondition: '只改变消息抵达的时间：更早、更晚或更同步；不改变战争、征服、道路、口岸或家庭责任本身。',
+    plausibilityGuardrail: '不得让当事人知道后世结局；必须说明消息渠道、可信度和行动窗口，不把“早知道”写成万能解决。',
+    evidencePrompts: [
+      '哪条 baseline evidence 显示当事人当时能知道或不能知道什么？',
+      '消息抵达时间如何受道路、警报、港口、市场或传闻网络限制？',
+      '真实历史对照中哪些后果不会因消息早/晚到而自动消失？',
+    ],
+    consequencePrompts: [
+      '第一步行动会改变吗：等待、避险、囤货、迁移、通报还是保持原计划？',
+      '短期风险如何改变，长期结构为什么可能仍然存在？',
+      '哪些群体仍然被排除在可靠消息之外？',
+    ],
+    deliverable: '一份 Crisis Timing Counterfactual Brief：baseline evidence、单一条件变化、因果链、不会改变的连续性、来源限制与信心等级。',
+    tags: ['counterfactual', 'crisis news', 'ordinary safety', 'risk', 'timing'],
+  },
+  {
+    id: 'credit-fails-before-goods-move',
+    title: 'Credit fails before goods move',
+    subtitle: '在货物移动前让信用、担保或文书失效，观察贸易链如何停顿或转嫁风险。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'kilwa-swahili-gold-merchant', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador', 'colonial-bombay-mill-worker'],
+    drivingQuestion: '如果信用在货物出港、装船或进厂前失效，远距离交易和劳动安排会如何重排？',
+    baselineCondition: '货物流动依赖书信、合约、名声、中介翻译、港口规则和未来结算。',
+    changedCondition: '只改变一项信用条件：担保失败、信件未到、预付款取消或合约不被承认；不改变季风、商品需求或港口地理。',
+    plausibilityGuardrail: '必须解释信用失败发生在哪个节点；不能把所有贸易网络写成同时崩溃。',
+    evidencePrompts: [
+      '哪条来源或场景证据显示信用先于货物移动？',
+      '谁承担信用失败后的等待、库存、工资或身份风险？',
+      '哪些制度或关系可能缓冲信用失败？',
+    ],
+    consequencePrompts: [
+      '交易链的下一步是暂停、换中介、提高费用还是转嫁给劳动者？',
+      '信用失败改变的是速度、信任对象、成本还是权力关系？',
+      '哪些长期贸易条件仍然存在？',
+    ],
+    deliverable: '一份 Credit Failure Counterfactual Brief：信用节点、baseline evidence、单一变化、连锁后果、连续性和来源边界。',
+    tags: ['counterfactual', 'credit', 'ports', 'contracts', 'trade risk'],
+  },
+  {
+    id: 'labor-discipline-loosens-tightens',
+    title: 'Labor discipline loosens or tightens',
+    subtitle: '只改变劳动纪律强度，比较身体风险、工资、强制和逃避空间的边界。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'colonial-bombay-mill-worker', 'inca-cusco-khipu-runner', 'song-bianjing-apprentice'],
+    drivingQuestion: '如果劳动纪律更松或更紧，普通劳动者的行动空间、风险和产出会怎样变化？',
+    baselineCondition: '劳动节奏受种植园暴力、工厂钟点、殖民管理、mit’a 义务或学徒/店铺规矩约束。',
+    changedCondition: '只改变一种纪律机制的强度：监督、惩罚、计时、配给或迁移限制；不改变商品需求、身份等级或基本技术条件。',
+    plausibilityGuardrail: '必须说明谁有能力放松/收紧纪律，以及为什么其他权力关系仍然限制结果。',
+    evidencePrompts: [
+      '哪条日常生活或 scene beat 证据显示纪律如何进入身体和时间？',
+      '纪律变化最先影响工作节奏、受伤风险、工资/配给还是逃避空间？',
+      '来源记录更可能保存管理者视角还是劳动者感受？',
+    ],
+    consequencePrompts: [
+      '劳动者会获得协商空间、被迫加速、转向隐性抵抗还是承担新风险？',
+      '短期产出与长期制度关系是否朝同一方向变化？',
+      '哪些强制或不平等不会因为纪律强度改变而消失？',
+    ],
+    deliverable: '一份 Labor Discipline Counterfactual Brief：纪律机制、baseline evidence、单一强度变化、后果链、连续性和来源限制。',
+    tags: ['counterfactual', 'labor discipline', 'body risk', 'coercion', 'factory time'],
+  },
+  {
+    id: 'knowledge-access-cheaper-not-equal',
+    title: 'Knowledge access becomes cheaper but not equal',
+    subtitle: '让纸张、书信、抄写或学习成本下降，但保留身份、师承和制度门槛。',
+    scenarioIds: ['abbasid-baghdad-scribe', 'timbuktu-manuscript-student', 'ming-jiangnan-scholar', 'fustat-geniza-merchant-apprentice', 'tang-changan-merchant'],
+    drivingQuestion: '如果知识媒介变便宜，为什么知识进入仍然不会自动平等？',
+    baselineCondition: '知识进入依赖纸张/手稿/书信成本、文字能力、师承、考试、赞助、性别/身份和档案保存。',
+    changedCondition: '只改变媒介成本或复制速度：纸更便宜、书信更易送达、抄写更快；不改变身份制度、考试名额或家庭资源。',
+    plausibilityGuardrail: '必须区分“可获得材料”与“可获得社会资格”；不能把媒介便宜直接等同于教育平等。',
+    evidencePrompts: [
+      '哪条证据显示知识媒介的成本或复制条件？',
+      '哪些进入门槛不是由媒介价格决定的？',
+      '来源幸存让我们更容易看见哪类学习者？',
+    ],
+    consequencePrompts: [
+      '谁最先受益：抄写员、商人、学生、家族、赞助者还是考试参与者？',
+      '新便宜媒介会扩大进入、提高竞争，还是制造新的筛选？',
+      '哪些缺席声音仍然不会被保存？',
+    ],
+    deliverable: '一份 Knowledge Access Counterfactual Brief：媒介成本变化、baseline evidence、仍不平等的门槛、后果链与来源限制。',
+    tags: ['counterfactual', 'knowledge access', 'paper', 'manuscripts', 'inequality'],
+  },
+  {
+    id: 'source-survives-missing-side',
+    title: 'A source survives from the missing side',
+    subtitle: '假设缺席一方留下来源，检验解释会被修正到哪里、不能被改写到哪里。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'inca-cusco-khipu-runner', 'tenochtitlan-market-seller', 'fustat-geniza-merchant-apprentice', 'malacca-monsoon-port-broker'],
+    drivingQuestion: '如果缺席一方的来源幸存下来，我们的历史解释会怎样变得更具体，同时仍受真实证据边界约束？',
+    baselineCondition: '现有证据由殖民文本、商人档案、制度记录、考古/非文字材料或后世研究过滤普通人的声音。',
+    changedCondition: '只增加一条来自缺席方的幸存来源：口述转录、个人信件、khipu 解读、市场记录或劳动者证词；不改变事件本身。',
+    plausibilityGuardrail: '新增来源只能修正视角和细节，不能凭空推翻所有已知结构；必须说明该来源也有视角和保存限制。',
+    evidencePrompts: [
+      '现有 baseline evidence 哪些地方显示了缺席声音？',
+      '新增来源最可能补充经验、动机、风险还是术语？',
+      '它与现有来源会互证、冲突还是只改变语气？',
+    ],
+    consequencePrompts: [
+      '解释会从“制度如何记录人”转向哪些人的行动、感受或策略？',
+      '哪些结论因新增来源而更谨慎，哪些仍然保持？',
+      '新增来源本身还会遗漏谁？',
+    ],
+    deliverable: '一份 Missing-Side Source Counterfactual Brief：baseline silence、新幸存来源、解释修正、不会改变的事实和来源限制。',
+    tags: ['counterfactual', 'archive silence', 'missing voices', 'source survival', 'corroboration'],
+  },
+  {
+    id: 'market-rule-changes-at-gate',
+    title: 'Market rule changes at the gate',
+    subtitle: '只改变市场入口规则，观察交易、税赋、身份和信用风险如何重新分配。',
+    scenarioIds: ['tang-changan-merchant', 'song-bianjing-apprentice', 'tenochtitlan-market-seller', 'malacca-monsoon-port-broker', 'qing-guangzhou-comprador'],
+    drivingQuestion: '如果市场门口的一条规则改变，谁更容易进入交易，谁承担新的成本或风险？',
+    baselineCondition: '市场进入受开闭市、门禁、行规、贡赋、税册、通译、口岸规制和身份资格约束。',
+    changedCondition: '只改变一条入口规则：延长开市、降低税费、放宽外来商人进入、收紧通译/牌照或改变检查顺序；不改变商品结构和城市权力。',
+    plausibilityGuardrail: '必须把规则变化放在具体 gate / market / port 节点；不能把单条规则变化写成完全自由市场。',
+    evidencePrompts: [
+      '哪条 evidence 显示市场不是规则真空？',
+      '入口规则连接了税、身份、信用、空间控制还是安全？',
+      '哪些人没有能力利用规则变化？',
+    ],
+    consequencePrompts: [
+      '交易速度、价格、信用、执法成本或中介权力哪一个先变？',
+      '规则变化会扩大机会，还是把风险转给更弱势的参与者？',
+      '哪些长期制度逻辑仍会继续塑造市场？',
+    ],
+    deliverable: '一份 Market Gate Counterfactual Brief：入口规则、baseline evidence、单一变化、交易后果、连续性与来源限制。',
+    tags: ['counterfactual', 'market rules', 'gatekeeping', 'taxation', 'credit'],
   },
 ]
 
