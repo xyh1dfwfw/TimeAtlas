@@ -895,6 +895,134 @@ const scenarioExperienceTabs: {
   { id: 'argument', label: '论证', eyebrow: 'Argument', description: '把证据转成完整历史论证', hash: sectionIds.argumentStudio },
 ]
 
+type ScenarioBriefingCardKind = 'orientation' | 'first-task' | 'best-source' | 'compare' | 'writing-output'
+
+type ScenarioBriefingCardAction = {
+  label: string
+  onClick: () => void
+}
+
+type ScenarioBriefingCard = {
+  id: string
+  kind: ScenarioBriefingCardKind
+  eyebrow: string
+  title: string
+  summary: string
+  whyItMatters: string
+  evidenceChips: string[]
+  primaryCta: ScenarioBriefingCardAction
+  secondaryCta: ScenarioBriefingCardAction
+}
+
+type ScenarioBriefingHandlers = {
+  openScenarioSection: (hash: ScenarioSectionId) => void
+  openScenario: (scenarioId: string, hash: ScenarioSectionId) => void
+  startTaskWorkbench: (taskId: string) => void
+  openCompareLab: (scenarioId: string, lensKey: CompareLens['key'], compareWithScenarioId?: string) => void
+}
+
+function compactText(text: string, fallback: string, maxLength = 150) {
+  const normalizedText = text.replace(/\s+/g, ' ').trim() || fallback
+
+  return normalizedText.length > maxLength ? `${normalizedText.slice(0, maxLength - 1)}…` : normalizedText
+}
+
+function uniqueChips(items: (string | undefined | null)[], limit = 4) {
+  return [...new Set(items.map((item) => item?.trim()).filter((item): item is string => Boolean(item)))].slice(0, limit)
+}
+
+function buildScenarioBriefingCards(scenario: Scenario, handlers: ScenarioBriefingHandlers): ScenarioBriefingCard[] {
+  const firstBeat = scenario.sceneBeats[0]
+  const firstDailyLife = scenario.dailyLife[0]
+  const firstMission = scenario.missions[0]
+  const sourceMission = scenario.missions.find((mission) => mission.linkedSourceTitles.length > 0) ?? firstMission
+  const bestSource = scenario.sources.find((source) => source.sourceType === 'primary') ?? scenario.sources[0]
+  const comparePath = atlasInquiryPaths.find((path) => path.scenarioIds.includes(scenario.id))
+  const compareLens = comparePath ? getCompareLensByKey(comparePath.lensKey) : compareLenses[0]
+  const compareScenario = comparePath?.scenarioIds
+    .map((id) => getScenarioById(id))
+    .find((candidate): candidate is Scenario => Boolean(candidate && candidate.id !== scenario.id))
+    ?? getScenarioById(getFallbackCompareScenarioId(scenario.id))
+  const compareAngle = scenario.compareAngles[0]
+  const writingMission = scenario.missions.find((mission) => mission.taskType === '观点论证') ?? sourceMission
+  const missionTaskId = firstMission ? `mission:${scenario.id}:${firstMission.id}` : `mission:${scenario.id}:overview`
+  const writingTaskId = writingMission ? `mission:${scenario.id}:${writingMission.id}` : missionTaskId
+
+  return [
+    {
+      id: `${scenario.id}:briefing:orientation`,
+      kind: 'orientation',
+      eyebrow: 'Orientation',
+      title: '先定位你的历史身份',
+      summary: compactText(scenario.summary, `${scenario.era} · ${scenario.location} · ${scenario.identity}`),
+      whyItMatters: compactText(firstBeat?.historicalTension ?? firstDailyLife?.text ?? scenario.atmosphere, '从身份、地点和时代条件进入场景，避免把现代判断直接套进过去。', 140),
+      evidenceChips: uniqueChips([scenario.era, scenario.location, scenario.identity, firstBeat?.title]),
+      primaryCta: { label: '读现场', onClick: () => handlers.openScenarioSection(sectionIds.sceneReader) },
+      secondaryCta: { label: '看日常', onClick: () => handlers.openScenarioSection(sectionIds.dailyLife) },
+    },
+    {
+      id: `${scenario.id}:briefing:first-task`,
+      kind: 'first-task',
+      eyebrow: 'First task',
+      title: firstMission?.title ?? '从一个任务开始',
+      summary: compactText(firstMission?.instruction ?? scenario.lessonPack.quickStart[0] ?? scenario.lessonPack.inquiryQuestion, '选择一个入门任务，把观察转成可提交的证据说明。'),
+      whyItMatters: compactText(firstMission ? `${firstMission.deliverable}｜${firstMission.evidenceUse}` : scenario.lessonPack.inquiryQuestion, '把阅读后的第一步变成可完成、可检查的学习输出。', 140),
+      evidenceChips: uniqueChips([firstMission?.taskType, firstMission?.difficulty, ...(firstMission?.linkedSourceTitles ?? []), firstBeat?.title]),
+      primaryCta: { label: '启动任务台', onClick: () => handlers.startTaskWorkbench(missionTaskId) },
+      secondaryCta: { label: '打开任务板', onClick: () => handlers.openScenarioSection(sectionIds.missionBoard) },
+    },
+    {
+      id: `${scenario.id}:briefing:best-source`,
+      kind: 'best-source',
+      eyebrow: 'Best source',
+      title: bestSource?.title ?? '先读一条来源',
+      summary: compactText(bestSource?.relevance ?? scenario.sourceEvidenceUse, '从来源层开始检查这个场景哪些线索有证据支撑。'),
+      whyItMatters: compactText(bestSource ? `${bestSource.sourceQuestion}｜${bestSource.reliabilityNote}` : scenario.interpretationNote, '来源问题和可靠性边界能提醒你哪些判断仍需谨慎。', 150),
+      evidenceChips: uniqueChips([bestSource ? sourceTypeLabels[bestSource.sourceType] : 'Source Reader', bestSource?.creator, ...(bestSource?.evidenceTags ?? []), sourceMission?.title]),
+      primaryCta: { label: '打开来源层', onClick: () => handlers.openScenarioSection(sectionIds.sourceReader) },
+      secondaryCta: { label: '看关联任务', onClick: () => handlers.openScenarioSection(sectionIds.missionBoard) },
+    },
+    {
+      id: `${scenario.id}:briefing:compare`,
+      kind: 'compare',
+      eyebrow: 'Compare',
+      title: comparePath?.title ?? compareAngle?.title ?? `对照 ${compareScenario?.title ?? '另一个身份'}`,
+      summary: compactText(comparePath?.drivingQuestion ?? compareAngle?.prompt ?? compareLens.prompt, '用同一个比较镜头，把当前身份和另一个场景放在一起读。'),
+      whyItMatters: compactText(comparePath?.whyTheseScenarios ?? compareLens.description, '比较能让当前身份的日常、制度限制或来源边界变得更清楚。', 140),
+      evidenceChips: uniqueChips([compareLens.shortLabel, compareScenario?.title, comparePath?.subtitle, scenario.compareAngles[0]?.title]),
+      primaryCta: { label: '载入 Compare Lab', onClick: () => handlers.openCompareLab(scenario.id, compareLens.key, compareScenario?.id) },
+      secondaryCta: { label: '打开对照身份', onClick: () => handlers.openScenario(compareScenario?.id ?? scenario.id, sectionIds.sceneReader) },
+    },
+    {
+      id: `${scenario.id}:briefing:writing-output`,
+      kind: 'writing-output',
+      eyebrow: 'Writing output',
+      title: writingMission?.deliverable ?? '写出一段证据论证',
+      summary: compactText(writingMission?.outputTemplate[0] ?? scenario.lessonPack.exitTickets[0] ?? scenario.decision.prompt, '把身份阅读、任务证据和来源限制组织成一段可提交的历史解释。'),
+      whyItMatters: compactText(writingMission?.reflectionPrompt ?? scenario.interpretationNote, '最终产出要把“我看到什么”推进到“这说明什么，以及证据有什么边界”。', 150),
+      evidenceChips: uniqueChips([writingMission?.taskType, writingMission?.title, scenario.keyTerms[0]?.term, scenario.sources[0]?.title]),
+      primaryCta: { label: '打开论证工作室', onClick: () => handlers.openScenarioSection(sectionIds.argumentStudio) },
+      secondaryCta: { label: '启动写作任务', onClick: () => handlers.startTaskWorkbench(writingTaskId) },
+    },
+  ]
+}
+
+function formatScenarioBriefingCards(scenario: Scenario, cards: ScenarioBriefingCard[]) {
+  return [
+    `TimeAtlas Scenario Briefing Cards · ${scenario.title}`,
+    `身份：${scenario.identity}`,
+    `时空：${scenario.era}｜${scenario.location}｜${scenario.year}`,
+    '',
+    ...cards.flatMap((card, index) => [
+      `${index + 1}. ${card.eyebrow}｜${card.title}`,
+      `摘要：${card.summary}`,
+      `为什么重要：${card.whyItMatters}`,
+      `证据 chips：${card.evidenceChips.join(' / ') || '当前场景字段'}`,
+      `行动：${card.primaryCta.label}；${card.secondaryCta.label}`,
+      '',
+    ]),
+  ].join('\n')
+}
 
 type SubpageNavItem<T extends string> = {
   id: T
@@ -14144,6 +14272,31 @@ function App() {
     })
   }
 
+  function openScenarioCompare(scenarioId: string, lensKey: CompareLens['key'], compareWithScenarioId?: string) {
+    if (!getScenarioById(scenarioId)) {
+      return
+    }
+
+    const compareWithScenario = compareWithScenarioId && compareWithScenarioId !== scenarioId ? getScenarioById(compareWithScenarioId) : null
+
+    setCompareScenarioAId(scenarioId)
+    setCompareScenarioBId(compareWithScenario?.id ?? getFallbackCompareScenarioId(scenarioId))
+    setSelectedLensKey(lensKey)
+    setActivePage('atlas')
+    setActiveAtlasSubpage('compare')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('atlas', sectionIds.compareLab))
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById(sectionIds.compareLab)?.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      })
+    })
+  }
+
   function openChronologyChallenge(challengeId: string) {
     if (!chronologyChallenges.some((challenge) => challenge.id === challengeId)) {
       return
@@ -14464,6 +14617,7 @@ function App() {
             onOpenDebateStudio={openDebateStudio}
             onOpenScenario={selectScenario}
             onStartTask={startTaskWorkbench}
+            onOpenCompareLab={openScenarioCompare}
           />
         ) : null}
 
@@ -24311,6 +24465,7 @@ function ScenarioExperience({
   onOpenDebateStudio,
   onOpenScenario,
   onStartTask,
+  onOpenCompareLab,
 }: {
   scenario: Scenario
   selectedTab: ScenarioExperienceTab
@@ -24338,6 +24493,7 @@ function ScenarioExperience({
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onStartTask: (taskId: string) => void
+  onOpenCompareLab: (scenarioId: string, lensKey: CompareLens['key']) => void
 }) {
   const scenarioMotion = prefersReducedMotion
     ? { initial: false, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } }
@@ -24348,6 +24504,12 @@ function ScenarioExperience({
         transition: { duration: 0.28 },
       }
   const completedLabel = `${completedMissionCount}/${scenario.missions.length}`
+  const scenarioBriefingCards = buildScenarioBriefingCards(scenario, {
+    openScenarioSection: (hash) => onOpenScenario(scenario.id, hash),
+    openScenario: onOpenScenario,
+    startTaskWorkbench: onStartTask,
+    openCompareLab: onOpenCompareLab,
+  })
 
   return (
     <section id={sectionIds.experience} className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
@@ -24403,15 +24565,18 @@ function ScenarioExperience({
       <AnimatePresence mode="wait">
         <motion.div key={`${scenario.id}:${selectedTab}`} {...scenarioMotion}>
           {selectedTab === 'overview' ? (
-            <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
-              <aside className="space-y-6">
-                <ScenarioPassport scenario={scenario} />
-                <TimelinePanel scenario={scenario} />
-              </aside>
-              <div className="space-y-6">
-                <NarrativePanel scenario={scenario} />
-                <KeyTermsPanel scenario={scenario} />
-                <CompareAnglesPanel scenario={scenario} />
+            <div className="space-y-6">
+              <ScenarioBriefingCardsPanel scenario={scenario} cards={scenarioBriefingCards} />
+              <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+                <aside className="space-y-6">
+                  <ScenarioPassport scenario={scenario} />
+                  <TimelinePanel scenario={scenario} />
+                </aside>
+                <div className="space-y-6">
+                  <NarrativePanel scenario={scenario} />
+                  <KeyTermsPanel scenario={scenario} />
+                  <CompareAnglesPanel scenario={scenario} />
+                </div>
               </div>
             </div>
           ) : null}
@@ -24836,6 +25001,67 @@ function ActorNetworkPanel({
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+function ScenarioBriefingCardsPanel({ scenario, cards }: { scenario: Scenario, cards: ScenarioBriefingCard[] }) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    setCopyStatus('idle')
+  }, [scenario.id])
+
+  async function copyBriefingCards() {
+    try {
+      await copyTextToClipboard(formatScenarioBriefingCards(scenario, cards))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-5 shadow-2xl shadow-black/20" aria-labelledby="scenario-briefing-cards-title">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-3 flex items-center gap-3 text-amber-100">
+            <Compass size={20} />
+            <span className="text-sm uppercase tracking-[0.3em]">Scenario Briefing Cards</span>
+          </div>
+          <h2 id="scenario-briefing-cards-title" className="text-2xl font-semibold tracking-tight text-stone-50">场景导览卡片组</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">5 张紧凑卡片从现有场景字段派生，串起身份定位、起步任务、最佳来源、比较跳转与写作产出。</p>
+        </div>
+        <button type="button" onClick={() => void copyBriefingCards()} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">
+          {copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}
+          {copyStatus === 'copied' ? '已复制导览' : copyStatus === 'failed' ? '复制失败' : '复制场景导览'}
+        </button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {cards.map((card) => (
+          <article key={card.id} className="flex min-h-full flex-col rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-amber-100/80">{card.eyebrow}</div>
+            <h3 className="mt-2 text-lg font-semibold leading-6 text-stone-50">{card.title}</h3>
+            <p className="mt-2 line-clamp-3 text-sm leading-6 text-stone-400">{card.summary}</p>
+            <p className="mt-3 line-clamp-3 text-xs leading-5 text-stone-500">{card.whyItMatters}</p>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {card.evidenceChips.map((chip) => (
+                <span key={chip} className="rounded-full border border-white/10 bg-white/[0.035] px-2 py-1 text-[0.68rem] leading-none text-stone-400">{chip}</span>
+              ))}
+            </div>
+            <div className="mt-auto grid gap-2 pt-4">
+              <button type="button" onClick={card.primaryCta.onClick} className="inline-flex items-center justify-center gap-2 rounded-full bg-teal-100 px-3 py-2 text-xs font-semibold text-stone-950 transition hover:bg-teal-50">
+                {card.primaryCta.label}
+                <ArrowRight size={14} />
+              </button>
+              <button type="button" onClick={card.secondaryCta.onClick} className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-stone-300 transition hover:border-amber-100/30 hover:bg-white/[0.05] hover:text-amber-100">
+                {card.secondaryCta.label}
+              </button>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   )
