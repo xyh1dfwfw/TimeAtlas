@@ -197,6 +197,19 @@ export type PlaceInquiry = {
   tags: string[]
 }
 
+export type PatternInquiry = {
+  id: string
+  title: string
+  subtitle: string
+  scenarioIds: string[]
+  drivingQuestion: string
+  metricFocus: string
+  interpretationTrap: string
+  evidencePrompts: string[]
+  deliverable: string
+  tags: string[]
+}
+
 export type CommunicationInquiry = {
   id: string
   title: string
@@ -1302,6 +1315,106 @@ export const exhibitThemes: ExhibitTheme[] = [
   },
 ]
 
+
+
+export const patternInquiries: PatternInquiry[] = [
+  {
+    id: 'source-survival-pattern',
+    title: 'Source Survival Pattern',
+    subtitle: '比较哪些场景留下更多来源、哪些只留下间接或管理者视角。',
+    scenarioIds: ['fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker', 'inca-cusco-khipu-runner', 'kilwa-swahili-gold-merchant', 'qing-guangzhou-comprador'],
+    drivingQuestion: 'TimeAtlas 教学数据集中，来源幸存模式如何影响我们对普通人经验的信心？',
+    metricFocus: 'source-count、source-type、tag-frequency、selected scenario coverage',
+    interpretationTrap: '来源数量多不等于真实历史中声音更多；它只说明本教学数据集为该场景提供了更多可练习来源。',
+    evidencePrompts: [
+      '哪些 scenario 的 sources 数量或 primary/institution/scholarship 组合最不平衡？',
+      'source type 的差异会让哪些行动者、劳动或风险更容易/更难被看见？',
+      '如果只看幸存来源，最可能误读哪个主题或人群？',
+    ],
+    deliverable: 'Pattern Brief：来源幸存观察、异常或偏斜解释、比较判断、来源限制说明与 confidence。',
+    tags: ['source survival', 'archive silence', 'sample bias', 'source type', 'evidence limits'],
+  },
+  {
+    id: 'time-coverage-pattern',
+    title: 'Time Coverage Pattern',
+    subtitle: '观察年份跨度、时间线密度与早晚场景分布是否均衡。',
+    scenarioIds: ['tang-changan-merchant', 'fustat-geniza-merchant-apprentice', 'inca-cusco-khipu-runner', 'industrial-manchester-mill-worker', 'wwii-london-civilian'],
+    drivingQuestion: '数据集的时间覆盖如何塑造我们练习连续性、转折和长时段比较的方式？',
+    metricFocus: 'year、timeline-event-count、scene-count、time-gap / outlier years',
+    interpretationTrap: '场景年份的间隔不是历史变化速度；它是课程样本的选择结果。',
+    evidencePrompts: [
+      '哪些年份或时期在数据集中更密集，哪些跨度较大？',
+      '时间线事件数量是否与场景年份早晚有关？',
+      '哪个时间 outlier 能帮助练习“不要把样本间隔当作真实规模”？',
+    ],
+    deliverable: 'Time Coverage Pattern Brief：分布观察、时间异常值、可比较与不可比较边界。',
+    tags: ['time coverage', 'chronology', 'distribution', 'outlier', 'sample interval'],
+  },
+  {
+    id: 'region-route-coverage-pattern',
+    title: 'Region & Route Coverage Pattern',
+    subtitle: '把场景地区与 Atlas routes 的覆盖关系转成可检查的样本地图。',
+    scenarioIds: ['malacca-monsoon-port-broker', 'kilwa-swahili-gold-merchant', 'fustat-geniza-merchant-apprentice', 'colonial-bombay-mill-worker', 'tenochtitlan-market-seller'],
+    drivingQuestion: '地区与路线覆盖会怎样影响我们对“跨区域连接”的练习判断？',
+    metricFocus: 'region-frequency、route-coverage、scenario-route-count、route tags',
+    interpretationTrap: 'Route coverage 多不代表某地区历史更重要，只代表它在 TimeAtlas 路线练习中被多次连接。',
+    evidencePrompts: [
+      '哪些 region 或 scenario 被最多 routes 连接？',
+      '哪些路线让港口/市场/知识/危机主题重叠？',
+      'route coverage 较低的场景应如何避免被误读为“不重要”？',
+    ],
+    deliverable: 'Region & Route Coverage Brief：覆盖模式、路线偏斜、比较限制和下一步补证问题。',
+    tags: ['region coverage', 'route coverage', 'atlas routes', 'sample bias', 'spatial history'],
+  },
+  {
+    id: 'task-difficulty-evidence-load',
+    title: 'Task Difficulty & Evidence Load',
+    subtitle: '比较任务难度、时长、来源链接和 evidence prompts 的负荷。',
+    scenarioIds: ['saint-domingue-sugar-worker', 'industrial-manchester-mill-worker', 'ming-jiangnan-scholar', 'song-bianjing-apprentice', 'wwii-london-civilian'],
+    drivingQuestion: '任务难度与证据负荷是否均衡？哪些场景更适合入门或挑战型证据训练？',
+    metricFocus: 'task-count、task-duration、difficulty-frequency、linked-source-load、evidence-prompt-count',
+    interpretationTrap: '任务更多或更难不代表历史对象更复杂；它反映教学设计中的练习密度。',
+    evidencePrompts: [
+      '哪些 scenario 的 missions 和 activity packs 总时长最高？',
+      '难度标签与 linked source 数量是否同步增加？',
+      '哪一个 task-load outlier 适合拆成分层课堂任务？',
+    ],
+    deliverable: 'Task Load Pattern Brief：任务负荷观察、异常值解释、分层使用建议和证据限制。',
+    tags: ['task difficulty', 'evidence load', 'duration', 'missions', 'teaching design'],
+  },
+  {
+    id: 'people-objects-sources-coverage',
+    title: 'People / Objects / Sources Coverage',
+    subtitle: '检查人物、物件、来源与场景 beat 的覆盖是否支持多维证据判断。',
+    scenarioIds: ['tang-changan-merchant', 'inca-cusco-khipu-runner', 'malacca-monsoon-port-broker', 'colonial-bombay-mill-worker', 'abbasid-baghdad-scribe'],
+    drivingQuestion: '人物、物件、来源和 scene beats 的组合如何影响我们能练习哪些证据角度？',
+    metricFocus: 'actor-count、object-count、source-count、scene-count、coverage balance',
+    interpretationTrap: '覆盖维度齐全不等于真实历史材料完整；它只代表页面中可用于教学练习的证据入口更多。',
+    evidencePrompts: [
+      '哪些场景在 people / objects / sources / scenes 四类覆盖上最均衡？',
+      '哪个维度不足会限制多视角、物质文化或来源判断？',
+      '如何在 brief 中把“可用入口”与“真实史料完整性”分开？',
+    ],
+    deliverable: 'Coverage Pattern Brief：覆盖矩阵观察、缺口说明、可用证据路径与 confidence。',
+    tags: ['coverage balance', 'actors', 'objects', 'sources', 'scene beats'],
+  },
+  {
+    id: 'outlier-case-finder',
+    title: 'Outlier Case Finder',
+    subtitle: '专门寻找极高/极低 metric，并训练异常值解释而非快速排除。',
+    scenarioIds: ['wwii-london-civilian', 'inca-cusco-khipu-runner', 'fustat-geniza-merchant-apprentice', 'saint-domingue-sugar-worker', 'timbuktu-manuscript-student'],
+    drivingQuestion: '哪些 TimeAtlas 教学指标是异常值？异常值帮助提出什么问题，又不能证明什么？',
+    metricFocus: 'outlier badge across source-count、task-duration、route-coverage、tag-frequency、year、coverage balance',
+    interpretationTrap: '异常值不是错误，也不自动代表真实历史规模；先问它来自数据设计、来源幸存还是主题选择。',
+    evidencePrompts: [
+      '选择 2-3 个最高或最低 metric，解释它们为什么突出。',
+      '异常值会带来怎样的课堂机会或误读风险？',
+      '如果要补充样本，最需要新增哪类 scenario、source 或 route？',
+    ],
+    deliverable: 'Outlier Pattern Brief：异常指标、解释假设、比较 claim、source/sample limit 与 confidence。',
+    tags: ['outlier', 'quant evidence', 'sample bias', 'distribution', 'coverage gap'],
+  },
+]
 
 export const placeInquiries: PlaceInquiry[] = [
   {

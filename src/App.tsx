@@ -32,6 +32,7 @@ import {
   conceptAtlasTopics,
   exhibitThemes,
   placeInquiries,
+  patternInquiries,
   communicationInquiries,
   scenarios,
   type AtlasInquiryPath,
@@ -42,6 +43,7 @@ import {
   type ConceptAtlasTopic,
   type ExhibitTheme,
   type PlaceInquiry,
+  type PatternInquiry,
   type CommunicationInquiry,
   type DailyLifeKey,
   type ActivityPack,
@@ -78,6 +80,7 @@ const citationTrailStorageKey = 'timeatlas:citation-trail-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const chronologyDeskStorageKey = 'timeatlas:chronology-desk-drafts'
 const placeDeskStorageKey = 'timeatlas:place-desk-drafts'
+const patternDeskStorageKey = 'timeatlas:pattern-desk-drafts'
 const messageFlowDeskStorageKey = 'timeatlas:message-flow-desk-drafts'
 const conceptAtlasDraftStorageKey = 'timeatlas:concept-atlas-drafts'
 const exhibitStudioStorageKey = 'timeatlas:exhibit-studio-drafts'
@@ -569,6 +572,46 @@ type PlaceDeskStats = {
   recentDrafts: [string, PlaceDraft][]
 }
 
+type PatternMetricType = 'year' | 'source-count' | 'source-type' | 'task-count' | 'task-duration' | 'actor-count' | 'object-count' | 'scene-count' | 'route-coverage' | 'tag-frequency' | 'coverage-balance'
+
+type PatternMetric = {
+  id: string
+  inquiryId: string
+  type: PatternMetricType
+  label: string
+  value: number
+  unit: string
+  maxValue: number
+  scenarioIds: string[]
+  scenarioTitle?: string
+  detail: string
+  evidence: string[]
+  tags: string[]
+  outlier: 'high' | 'low' | 'none'
+}
+
+type PatternDraft = {
+  selectedMetricIds: string[]
+  observation: string
+  outlierExplanation: string
+  comparisonClaim: string
+  sourceLimitNote: string
+  finalPatternBrief: string
+  confidence: ChronologyConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type PatternDraftState = Record<string, PatternDraft>
+
+type PatternDeskStats = {
+  activeDrafts: [string, PatternDraft][]
+  draftCount: number
+  completedCount: number
+  selectedMetricCount: number
+  recentDrafts: [string, PatternDraft][]
+}
+
 type MessageFlowEvidenceType = 'scene-message' | 'timeline' | 'source' | 'decision' | 'daily-life' | 'key-term' | 'real-history' | 'interpretation-boundary'
 
 type MessageFlowEvidence = {
@@ -730,6 +773,7 @@ type SynthesisEvidenceOrigin =
   | 'vocabulary-clinic'
   | 'question-bank'
   | 'place-desk'
+  | 'pattern-desk'
   | 'case-file'
   | 'corroboration'
   | 'causation'
@@ -871,7 +915,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'citation-trail' | 'message-flow' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'decision-replay' | 'daily-ledger' | 'source-annotation' | 'citation-trail' | 'message-flow' | 'vocabulary-clinic' | 'question-bank' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'pattern-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'counterfactual' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -1034,7 +1078,7 @@ type SubpageNavItem<T extends string> = {
   hash: string
 }
 
-type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'missions' | 'pathways' | 'compare'
+type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'patterns' | 'missions' | 'pathways' | 'compare'
 type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'citation-trail' | 'message-flow' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
 type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'questions' | 'practice' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
@@ -1053,6 +1097,7 @@ const atlasSubpages: SubpageNavItem<AtlasSubpage>[] = [
   { id: 'routes', label: '路线地图', eyebrow: 'Routes', description: '地图 pins、路线时间轨与 Route Notebook', hash: 'time-space-atlas' },
   { id: 'chronology', label: '时间证据', eyebrow: 'Chronology', description: 'Chronology Desk 时间证据排序、节奏与 brief', hash: 'chronology-desk' },
   { id: 'places', label: '空间证据', eyebrow: 'Places', description: 'Place Evidence Studio 空间路径、边界与 brief', hash: 'place-desk' },
+  { id: 'patterns', label: '模式证据', eyebrow: 'Patterns', description: 'Historical Pattern & Quant Evidence Desk 分布、异常值与样本偏差', hash: 'pattern-desk' },
   { id: 'missions', label: '跨场景挑战', eyebrow: 'Missions', description: 'Atlas Workspace 任务草稿与勾选', hash: 'atlas-missions' },
   { id: 'pathways', label: '探究路径', eyebrow: 'Pathways', description: '策展 inquiry paths 与 Compare 入口', hash: 'atlas-inquiry-paths' },
   { id: 'compare', label: '比较实验室', eyebrow: 'Compare', description: '双场景比较镜头与作业生成', hash: sectionIds.compareLab },
@@ -1356,7 +1401,7 @@ type TaskWorkbenchStats = {
 
 type PortfolioReviewFocus = 'evidence' | 'source-limits' | 'argument' | 'presentation' | 'completion'
 type PortfolioReviewFilter = 'all' | 'draft' | 'completed' | 'recent' | 'workbench' | 'writing' | 'evidence'
-type PortfolioReviewItemOrigin = 'mission' | 'workbench' | 'workspace' | 'writing' | 'evidence' | 'presentation'
+type PortfolioReviewItemOrigin = 'mission' | 'workbench' | 'workspace' | 'writing' | 'evidence' | 'presentation' | 'pattern'
 
 type PortfolioReviewItem = {
   id: string
@@ -1540,6 +1585,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'place-desk', label: 'Place Evidence Studio' },
+  { value: 'pattern-desk', label: 'Pattern Evidence Desk' },
   { value: 'causation', label: 'Causation Lab' },
   { value: 'periodization', label: 'Periodization Lab' },
   { value: 'perspectives', label: 'Perspectives Lab' },
@@ -1930,6 +1976,7 @@ const significanceConfidenceLabels: Record<SignificanceConfidence, string> = cor
 const synthesisConfidenceLabels: Record<SynthesisConfidence, string> = corroborationConfidenceLabels
 const compareConfidenceLabels: Record<CompareConfidence, string> = corroborationConfidenceLabels
 const chronologyConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
+const patternConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const conceptAtlasConfidenceLabels: Record<ConceptAtlasConfidence, string> = corroborationConfidenceLabels
 const counterfactualConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
 const decisionReplayConfidenceLabels: Record<ChronologyConfidence, string> = corroborationConfidenceLabels
@@ -3555,6 +3602,109 @@ function persistPlaceDraftState(state: PlaceDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(placeDeskStorageKey, serializedState)
+}
+
+
+function getEmptyPatternDraft(inquiry?: PatternInquiry): PatternDraft {
+  return {
+    selectedMetricIds: inquiry ? buildPatternMetrics(inquiry).slice(0, 4).map((metric) => metric.id) : [],
+    observation: '',
+    outlierExplanation: '',
+    comparisonClaim: '',
+    sourceLimitNote: '这些是 TimeAtlas 教学数据集内部指标，不代表真实历史规模或重要性。',
+    finalPatternBrief: '',
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function parsePatternDraftState(rawState: string | null): PatternDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as PatternDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+        const draft = value as Partial<PatternDraft>
+        const selectedMetricIds = Array.isArray(draft.selectedMetricIds)
+          ? draft.selectedMetricIds.filter((item): item is string => typeof item === 'string')
+          : []
+        const confidence = draft.confidence && draft.confidence in patternConfidenceLabels ? draft.confidence : 'uncertain'
+
+        return [[key, {
+          selectedMetricIds,
+          observation: typeof draft.observation === 'string' ? draft.observation : '',
+          outlierExplanation: typeof draft.outlierExplanation === 'string' ? draft.outlierExplanation : '',
+          comparisonClaim: typeof draft.comparisonClaim === 'string' ? draft.comparisonClaim : '',
+          sourceLimitNote: typeof draft.sourceLimitNote === 'string' ? draft.sourceLimitNote : '',
+          finalPatternBrief: typeof draft.finalPatternBrief === 'string' ? draft.finalPatternBrief : '',
+          confidence,
+          completed: Boolean(draft.completed),
+          updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+        } satisfies PatternDraft]]
+      }),
+    )
+  } catch {
+    return {} as PatternDraftState
+  }
+}
+
+function hasPatternDraftActivity(draft: PatternDraft) {
+  return Boolean(
+    draft.selectedMetricIds.length
+      || draft.observation.trim()
+      || draft.outlierExplanation.trim()
+      || draft.comparisonClaim.trim()
+      || draft.sourceLimitNote.trim()
+      || draft.finalPatternBrief.trim()
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActivePatternDrafts(patternDraftState: PatternDraftState) {
+  return Object.entries(patternDraftState).filter((entry): entry is [string, PatternDraft] => hasPatternDraftActivity(entry[1]))
+}
+
+function getPatternDeskStats(patternDraftState: PatternDraftState): PatternDeskStats {
+  const activeDrafts = getActivePatternDrafts(patternDraftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => new Date(second[1].updatedAt ?? 0).getTime() - new Date(first[1].updatedAt ?? 0).getTime())
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    selectedMetricCount: activeDrafts.reduce((count, [, draft]) => count + draft.selectedMetricIds.length, 0),
+    recentDrafts,
+  }
+}
+
+function loadPatternDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parsePatternDraftState(localStorage?.getItem(patternDeskStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasPatternDraftActivity)) return localState
+
+  return parsePatternDraftState(sessionStorage?.getItem(patternDeskStorageKey) ?? null)
+}
+
+function persistPatternDraftState(state: PatternDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(patternDeskStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(patternDeskStorageKey, serializedState)
 }
 
 function parseConceptAtlasDraftState(rawState: string | null): ConceptAtlasDraftState {
@@ -8958,7 +9108,7 @@ function formatExhibitTaskSheet(theme: ExhibitTheme) {
 }
 
 function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
-  return {
+  const labels: Record<SynthesisEvidenceOrigin, string> = {
     counterfactual: 'Counterfactual Lab draft / 条件推演草稿',
     'vocabulary-clinic': 'Vocabulary Clinic draft / 术语练习草稿',
     chronology: 'Chronology Desk draft / 时间证据草稿',
@@ -8982,9 +9132,12 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     'place-desk': 'Place Evidence Studio draft / 空间证据草稿',
+    'pattern-desk': 'Pattern Desk draft / 模式证据草稿',
     workspace: 'Workspace entry / 跨场景工作区',
     exhibit: 'Exhibit Studio draft / 展览策展草稿',
-  }[origin]
+  }
+
+  return labels[origin]
 }
 
 function getSynthesisEvidenceOriginLabel(entry: SynthesisEvidence) {
@@ -8995,9 +9148,154 @@ function makeSynthesisEvidenceId(origin: SynthesisEvidenceOrigin, key: string) {
   return `synthesis:${origin}:${key.replace(/[^a-zA-Z0-9:_|-]+/g, '-')}`
 }
 
+
+function getMetricOutlier(value: number, values: number[]): PatternMetric['outlier'] {
+  if (values.length < 3) return 'none'
+  const sorted = [...values].sort((a, b) => a - b)
+  const min = sorted[0]
+  const max = sorted[sorted.length - 1]
+  if (value === max && max > sorted[sorted.length - 2]) return 'high'
+  if (value === min && min < sorted[1]) return 'low'
+  return 'none'
+}
+
+function getScenarioRouteCoverage(scenarioId: string) {
+  return atlasMapRoutes.filter((route) => route.scenarioIds.includes(scenarioId)).length
+}
+
+function getScenarioTagFrequency(scenario: Scenario, inquiry: PatternInquiry) {
+  const inquiryTags = inquiry.tags.map((tag) => tag.toLowerCase())
+  const textItems = [scenario.theme, scenario.summary, scenario.interpretationNote, ...scenario.sources.flatMap((source) => source.evidenceTags), ...scenario.materialObjects.flatMap((object) => object.tags), ...scenario.keyTerms.map((term) => term.term)]
+  return textItems.reduce((count, item) => count + (inquiryTags.some((tag) => item.toLowerCase().includes(tag.split(' ')[0])) ? 1 : 0), 0)
+}
+
+function buildPatternMetrics(inquiry: PatternInquiry): PatternMetric[] {
+  const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const allSourceCounts = inquiryScenarios.map((scenario) => scenario.sources.length)
+  const allTaskCounts = inquiryScenarios.map((scenario) => scenario.missions.length + scenario.activityPacks.length)
+  const allDurations = inquiryScenarios.map((scenario) => scenario.missions.reduce((sum, mission) => sum + mission.estimatedMinutes, 0) + scenario.activityPacks.reduce((sum, activity) => sum + activity.durationMinutes, 0))
+  const allActorCounts = inquiryScenarios.map((scenario) => scenario.socialActors.length)
+  const allObjectCounts = inquiryScenarios.map((scenario) => scenario.materialObjects.length)
+  const allSceneCounts = inquiryScenarios.map((scenario) => scenario.sceneBeats.length)
+  const allRouteCounts = inquiryScenarios.map((scenario) => getScenarioRouteCoverage(scenario.id))
+  const allTagCounts = inquiryScenarios.map((scenario) => getScenarioTagFrequency(scenario, inquiry))
+  const allCoverageBalances = inquiryScenarios.map((scenario) => scenario.sources.length + scenario.socialActors.length + scenario.materialObjects.length + scenario.sceneBeats.length)
+  const yearValues = inquiryScenarios.map((scenario) => scenario.year)
+  const yearRange = Math.max(...yearValues) - Math.min(...yearValues) || 1
+  const maxValue = (values: number[]) => Math.max(...values, 1)
+
+  const metrics = inquiryScenarios.flatMap((scenario, index) => {
+    const sourceTypeCounts = ['primary', 'institution', 'scholarship'].map((type) => `${type}:${scenario.sources.filter((source) => source.sourceType === type).length}`).join(' / ')
+    const duration = allDurations[index]
+    const coverageBalance = allCoverageBalances[index]
+    const base = [scenario.era, scenario.location, scenario.region, scenario.theme]
+    return [
+      { type: 'year' as const, label: 'Year position', value: scenario.year, unit: '', maxValue: Math.max(...yearValues), detail: `${scenario.year} in selected teaching sample`, values: yearValues, evidence: [`${scenario.title}｜${scenario.era}｜${scenario.location}`], tags: base },
+      { type: 'source-count' as const, label: 'Source count', value: scenario.sources.length, unit: 'sources', maxValue: maxValue(allSourceCounts), detail: `${scenario.sources.length} source cards`, values: allSourceCounts, evidence: scenario.sources.map((source) => `${source.sourceType}｜${source.title}`), tags: [...base, 'source survival'] },
+      { type: 'source-type' as const, label: 'Source type mix', value: new Set(scenario.sources.map((source) => source.sourceType)).size, unit: 'types', maxValue: 3, detail: sourceTypeCounts, values: inquiryScenarios.map((item) => new Set(item.sources.map((source) => source.sourceType)).size), evidence: [sourceTypeCounts], tags: [...base, 'source type'] },
+      { type: 'task-count' as const, label: 'Task count', value: allTaskCounts[index], unit: 'tasks', maxValue: maxValue(allTaskCounts), detail: `${scenario.missions.length} missions + ${scenario.activityPacks.length} activities`, values: allTaskCounts, evidence: [...scenario.missions.map((mission) => mission.title), ...scenario.activityPacks.map((activity) => activity.title)].slice(0, 8), tags: [...base, 'task load'] },
+      { type: 'task-duration' as const, label: 'Task duration', value: duration, unit: 'min', maxValue: maxValue(allDurations), detail: `${duration} estimated minutes across missions and activities`, values: allDurations, evidence: [...scenario.missions.map((mission) => `${mission.title}｜${mission.estimatedMinutes} min`), ...scenario.activityPacks.map((activity) => `${activity.title}｜${activity.durationMinutes} min`)].slice(0, 8), tags: [...base, 'duration'] },
+      { type: 'actor-count' as const, label: 'Actor count', value: scenario.socialActors.length, unit: 'actors', maxValue: maxValue(allActorCounts), detail: `${scenario.socialActors.length} social actors`, values: allActorCounts, evidence: scenario.socialActors.map((actor) => `${actor.name}｜${actor.role}`), tags: [...base, 'people coverage'] },
+      { type: 'object-count' as const, label: 'Object count', value: scenario.materialObjects.length, unit: 'objects', maxValue: maxValue(allObjectCounts), detail: `${scenario.materialObjects.length} material objects`, values: allObjectCounts, evidence: scenario.materialObjects.map((object) => `${object.shortLabel}｜${object.category}`), tags: [...base, 'object coverage'] },
+      { type: 'scene-count' as const, label: 'Scene count', value: scenario.sceneBeats.length, unit: 'beats', maxValue: maxValue(allSceneCounts), detail: `${scenario.sceneBeats.length} scene beats`, values: allSceneCounts, evidence: scenario.sceneBeats.map((beat) => `${beat.timeLabel}｜${beat.title}`), tags: [...base, 'scene coverage'] },
+      { type: 'route-coverage' as const, label: 'Route coverage', value: allRouteCounts[index], unit: 'routes', maxValue: maxValue(allRouteCounts), detail: `${allRouteCounts[index]} Atlas routes include this scenario`, values: allRouteCounts, evidence: atlasMapRoutes.filter((route) => route.scenarioIds.includes(scenario.id)).map((route) => route.title), tags: [...base, 'route coverage'] },
+      { type: 'tag-frequency' as const, label: 'Tag frequency', value: allTagCounts[index], unit: 'hits', maxValue: maxValue(allTagCounts), detail: `${allTagCounts[index]} inquiry-tag matches in scenario metadata`, values: allTagCounts, evidence: scenario.sources.flatMap((source) => source.evidenceTags).slice(0, 8), tags: [...base, 'tag frequency'] },
+      { type: 'coverage-balance' as const, label: 'Coverage balance', value: coverageBalance, unit: 'entries', maxValue: maxValue(allCoverageBalances), detail: `sources + actors + objects + scenes = ${coverageBalance}`, values: allCoverageBalances, evidence: [`Sources ${scenario.sources.length}`, `Actors ${scenario.socialActors.length}`, `Objects ${scenario.materialObjects.length}`, `Scenes ${scenario.sceneBeats.length}`], tags: [...base, 'coverage balance'] },
+    ].map((metric) => ({
+      id: `${inquiry.id}:${scenario.id}:${metric.type}`,
+      inquiryId: inquiry.id,
+      type: metric.type,
+      label: metric.label,
+      value: metric.value,
+      unit: metric.unit,
+      maxValue: metric.type === 'year' ? Math.max(...yearValues) : metric.maxValue,
+      scenarioIds: [scenario.id],
+      scenarioTitle: scenario.title,
+      detail: metric.type === 'year' ? `${metric.detail}; normalized span ${Math.round(((scenario.year - Math.min(...yearValues)) / yearRange) * 100)}%` : metric.detail,
+      evidence: metric.evidence,
+      tags: metric.tags,
+      outlier: metric.type === 'year' ? getMetricOutlier(scenario.year, yearValues) : getMetricOutlier(metric.value, metric.values),
+    } satisfies PatternMetric))
+  })
+
+  const regionCounts = [...new Set(inquiryScenarios.map((scenario) => scenario.region))].map((region) => ({ region, count: inquiryScenarios.filter((scenario) => scenario.region === region).length }))
+  const regionMax = Math.max(...regionCounts.map((entry) => entry.count), 1)
+  const regionMetrics = regionCounts.map((entry) => ({
+    id: `${inquiry.id}:region:${normalizeSourceTitleForId(entry.region)}`,
+    inquiryId: inquiry.id,
+    type: 'route-coverage' as const,
+    label: 'Region frequency',
+    value: entry.count,
+    unit: 'scenarios',
+    maxValue: regionMax,
+    scenarioIds: inquiryScenarios.filter((scenario) => scenario.region === entry.region).map((scenario) => scenario.id),
+    detail: `${entry.region} appears ${entry.count} time(s) in this inquiry sample`,
+    evidence: inquiryScenarios.filter((scenario) => scenario.region === entry.region).map((scenario) => scenario.title),
+    tags: ['region coverage', entry.region, ...inquiry.tags],
+    outlier: getMetricOutlier(entry.count, regionCounts.map((item) => item.count)),
+  } satisfies PatternMetric))
+
+  return [...regionMetrics, ...metrics]
+}
+
+function getPatternMetricsByInquiryMap() {
+  return Object.fromEntries(patternInquiries.map((inquiry) => [inquiry.id, buildPatternMetrics(inquiry)])) as Record<string, PatternMetric[]>
+}
+
+function formatPatternBrief(inquiry: PatternInquiry, draft: PatternDraft, selectedMetrics: PatternMetric[]) {
+  const metricsForExport = selectedMetrics.length ? selectedMetrics : buildPatternMetrics(inquiry).filter((metric) => metric.outlier !== 'none').slice(0, 10)
+
+  return [
+    'TimeAtlas Historical Pattern & Quant Evidence Desk / 历史模式与数量证据工作台',
+    `生成时间：${new Date().toLocaleString()}`,
+    `探究：${inquiry.title}｜${inquiry.subtitle}`,
+    `核心问题：${inquiry.drivingQuestion}`,
+    `Metric focus：${inquiry.metricFocus}`,
+    `解释陷阱：${inquiry.interpretationTrap}`,
+    `状态：${draft.completed ? '已完成' : hasPatternDraftActivity(draft) ? '草稿' : '未开始'}`,
+    '',
+    '一、Selected teaching metrics / 已选教学指标',
+    ...metricsForExport.map((metric, index) => `${index + 1}. ${metric.label}｜${metric.scenarioTitle ?? metric.scenarioIds.join(', ')}｜${metric.value}${metric.unit ? ` ${metric.unit}` : ''}${metric.outlier !== 'none' ? `｜outlier:${metric.outlier}` : ''}\n   ${metric.detail}\n   Evidence：${metric.evidence.slice(0, 5).join('；') || '当前 TimeAtlas 数据字段'}`),
+    '',
+    '二、Pattern workspace / 模式证据草稿',
+    `Observation：${draft.observation.trim() || '尚未填写'}`,
+    `Outlier explanation：${draft.outlierExplanation.trim() || '尚未填写'}`,
+    `Comparison claim：${draft.comparisonClaim.trim() || '尚未填写'}`,
+    `Source / sample limit：${draft.sourceLimitNote.trim() || '这些是 TimeAtlas 数据集的教学指标，不代表真实历史规模。'}`,
+    `Final Pattern Brief：${draft.finalPatternBrief.trim() || '尚未填写'}`,
+    `Confidence：${patternConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].join('\n')
+}
+
+function formatPatternTaskSheet(inquiry: PatternInquiry) {
+  const metrics = buildPatternMetrics(inquiry).filter((metric) => metric.outlier !== 'none').slice(0, 8)
+
+  return [
+    `TimeAtlas Pattern Desk Assignment：${inquiry.title}`,
+    inquiry.subtitle,
+    '',
+    `核心问题：${inquiry.drivingQuestion}`,
+    `Metric focus：${inquiry.metricFocus}`,
+    `解释陷阱：${inquiry.interpretationTrap}`,
+    '',
+    '任务：选择 4-8 个教学指标，练习分布、覆盖、异常值和样本偏差判断。不要把指标解释成真实历史规模。',
+    '',
+    'Evidence prompts：',
+    ...inquiry.evidencePrompts.map((prompt) => `- ${prompt}`),
+    '',
+    '建议 metric 起点：',
+    ...(metrics.length ? metrics.map((metric) => `- ${metric.label}｜${metric.scenarioTitle ?? metric.scenarioIds.join(', ')}｜${metric.value}${metric.unit ? ` ${metric.unit}` : ''}｜${metric.detail}`) : ['- 打开 Pattern Desk 查看 metric board。']),
+    '',
+    '自检：□ 分布观察 □ 至少一个 outlier □ 比较 claim □ source/sample limit □ confidence',
+    `交付物：${inquiry.deliverable}`,
+  ].join('\n')
+}
+
 function buildSynthesisEvidencePool({
   chronologyDraftState,
   placeDraftState,
+  patternDraftState,
   messageFlowDraftState,
   corroborationDraftState,
   causationDraftState,
@@ -9024,6 +9322,7 @@ function buildSynthesisEvidencePool({
 }: {
   chronologyDraftState: ChronologyDraftState
   placeDraftState: PlaceDraftState
+  patternDraftState: PatternDraftState
   messageFlowDraftState: MessageFlowDraftState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
@@ -9129,6 +9428,25 @@ function buildSynthesisEvidencePool({
       text: [`草图：${draft.placeSketchNotes}`, `路线：${draft.movementRoute}`, `边界/控制点：${draft.boundaryOrControlPoint}`, `进入不平等：${draft.accessInequality}`, `尺度连接：${draft.scaleConnection}`, `来源限制：${draft.sourceLimitNote}`, `最终简报：${draft.finalPlaceBrief}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
       tags: ['place evidence', 'spatial history', ...inquiry.tags, ...selectedEvidence.slice(0, 3).map((entry) => `${entry.scenario.title} ${entry.typeLabel}`), draft.confidence, draft.completed ? 'completed' : 'draft'],
       inquiryTitle: inquiry.spatialQuestion,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActivePatternDrafts(patternDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = patternInquiries.find((candidate) => candidate.id === inquiryId)
+    if (!inquiry) return
+    const metrics = buildPatternMetrics(inquiry)
+    const selectedMetrics = draft.selectedMetricIds
+      .map((metricId) => metrics.find((entry) => entry.id === metricId))
+      .filter((entry): entry is PatternMetric => Boolean(entry))
+    entries.push({
+      id: makeSynthesisEvidenceId('pattern-desk', inquiryId),
+      origin: 'pattern-desk',
+      originLabel: getSynthesisOriginLabel('pattern-desk'),
+      title: inquiry.title,
+      text: [`观察：${draft.observation}`, `异常解释：${draft.outlierExplanation}`, `比较主张：${draft.comparisonClaim}`, `样本限制：${draft.sourceLimitNote}`, `最终简报：${draft.finalPatternBrief}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['pattern desk', 'quant evidence', ...inquiry.tags, ...selectedMetrics.slice(0, 4).map((metric) => `${metric.label} ${metric.value}${metric.unit}`), draft.confidence, draft.completed ? 'completed' : 'draft'],
+      inquiryTitle: inquiry.drivingQuestion,
       updatedAt: draft.updatedAt,
     })
   })
@@ -9892,6 +10210,7 @@ function buildPortfolioReviewItems({
   workspaceState,
   assignmentLibraryTasks,
   taskWorkbenchDraftState,
+  patternDraftState,
   synthesisDraftState,
   compareDraftState,
   sourceAnnotationDraftState,
@@ -9905,6 +10224,7 @@ function buildPortfolioReviewItems({
   workspaceState: WorkspaceState
   assignmentLibraryTasks: LibraryTask[]
   taskWorkbenchDraftState: TaskWorkbenchState
+  patternDraftState: PatternDraftState
   synthesisDraftState: SynthesisDraftState
   compareDraftState: CompareDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
@@ -9964,6 +10284,21 @@ function buildPortfolioReviewItems({
       tags: uniqueChips([category, 'cross-scenario', 'workspace'], 5),
       origin: 'workspace',
       focuses: ['evidence', 'argument', 'completion'],
+    })
+  })
+
+  getActivePatternDrafts(patternDraftState).forEach(([inquiryId, draft]) => {
+    const inquiry = patternInquiries.find((candidate) => candidate.id === inquiryId)
+    items.push({
+      id: `pattern:${inquiryId}`,
+      title: inquiry?.title ?? inquiryId,
+      sourceLabel: 'Pattern Evidence Desk',
+      description: draft.finalPatternBrief.trim() || draft.comparisonClaim.trim() || draft.observation.trim() || `${draft.selectedMetricIds.length} selected metrics`,
+      status: draft.completed ? 'completed' : 'draft',
+      updatedAt: draft.updatedAt,
+      tags: uniqueChips(['pattern desk', 'quant evidence', ...(inquiry?.tags ?? []), draft.confidence], 5),
+      origin: 'pattern',
+      focuses: ['evidence', 'source-limits', 'argument'],
     })
   })
 
@@ -10126,6 +10461,7 @@ function formatLearningArchive(
   workspaceState: WorkspaceState,
   chronologyDraftState: ChronologyDraftState,
   placeDraftState: PlaceDraftState,
+  patternDraftState: PatternDraftState,
   messageFlowDraftState: MessageFlowDraftState,
   corroborationDraftState: CorroborationDraftState,
   causationDraftState: CausationDraftState,
@@ -10158,6 +10494,7 @@ function formatLearningArchive(
   const workspaceStats = getWorkspaceStats(workspaceState)
   const activeChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
   const placeDeskStats = getPlaceDeskStats(placeDraftState)
+  const patternDeskStats = getPatternDeskStats(patternDraftState)
   const messageFlowDeskStats = getMessageFlowDeskStats(messageFlowDraftState)
   const activeCorroborationDrafts = getActiveCorroborationDrafts(corroborationDraftState)
   const activeCausationDrafts = getActiveCausationDrafts(causationDraftState)
@@ -10188,14 +10525,14 @@ function formatLearningArchive(
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
-  const portfolioReviewItems = portfolioReviewDraft ? buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState }) : []
+  const portfolioReviewItems = portfolioReviewDraft ? buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, patternDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState }) : []
   const selectedPortfolioReviewItems = portfolioReviewDraft ? portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id)) : []
   const causationEvidenceByInquiry = getCausationInquiryEvidenceMap()
   const periodizationEvidenceByInquiry = getPeriodizationInquiryEvidenceMap()
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, patternDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -10208,6 +10545,7 @@ function formatLearningArchive(
     `- 跨场景已勾选证据/步骤：${workspaceStats.checkedEvidenceCount}`,
     `- Chronology Desk 时间证据草稿：${activeChronologyDrafts.length}`,
     `- Place Evidence Studio 空间证据草稿：${placeDeskStats.draftCount} drafts，${placeDeskStats.completedCount} completed，${placeDeskStats.selectedEvidenceCount} selected evidence`,
+    `- Pattern Desk 模式证据草稿：${patternDeskStats.draftCount} drafts，${patternDeskStats.completedCount} completed，${patternDeskStats.selectedMetricCount} selected metrics`,
     `- Message Flow Desk 信息流草稿：${messageFlowDeskStats.draftCount} drafts，${messageFlowDeskStats.completedCount} completed，${messageFlowDeskStats.selectedEvidenceCount} selected evidence`,
     `- 史料互证草稿：${activeCorroborationDrafts.length}`,
     `- 因果变化草稿：${activeCausationDrafts.length}`,
@@ -10460,6 +10798,31 @@ function formatLearningArchive(
         `    Source limits：${draft.sourceLimitNote.trim() || '尚未填写'}`,
         `    Final brief：${draft.finalPlaceBrief.trim() || '尚未填写'}`,
         `    Confidence：${chronologyConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (patternDeskStats.activeDrafts.length > 0) {
+    lines.push('Historical Pattern & Quant Evidence Desk / 历史模式与数量证据工作台：')
+    patternDeskStats.activeDrafts.forEach(([inquiryId, draft]) => {
+      const inquiry = patternInquiries.find((candidate) => candidate.id === inquiryId)
+      const metrics = inquiry ? buildPatternMetrics(inquiry) : []
+      const selectedMetricTitles = draft.selectedMetricIds
+        .map((metricId) => metrics.find((metric) => metric.id === metricId))
+        .filter((metric): metric is PatternMetric => Boolean(metric))
+        .map((metric) => `${metric.label}｜${metric.scenarioTitle ?? metric.scenarioIds.join(', ')}｜${metric.value}${metric.unit ? ` ${metric.unit}` : ''}`)
+
+      lines.push(
+        `  - ${inquiry?.title ?? inquiryId}（${draft.completed ? '已完成' : '草稿'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    已选指标：${selectedMetricTitles.join('；') || '尚未勾选指标'}`,
+        `    Observation：${draft.observation.trim() || '尚未填写'}`,
+        `    Outlier explanation：${draft.outlierExplanation.trim() || '尚未填写'}`,
+        `    Comparison claim：${draft.comparisonClaim.trim() || '尚未填写'}`,
+        `    Source/sample limit：${draft.sourceLimitNote.trim() || '尚未填写'}`,
+        `    Final brief：${draft.finalPatternBrief.trim() || '尚未填写'}`,
+        `    Confidence：${patternConfidenceLabels[draft.confidence]}`,
       )
     })
     lines.push('')
@@ -11782,6 +12145,7 @@ function getAtlasSubpageFromHash(hash: string | null): AtlasSubpage {
 
   if (normalizedHash === 'chronology-desk') return 'chronology'
   if (normalizedHash === 'place-desk') return 'places'
+  if (normalizedHash === 'pattern-desk') return 'patterns'
   if (normalizedHash === 'atlas-missions') return 'missions'
   if (normalizedHash === 'atlas-inquiry-paths') return 'pathways'
   if (normalizedHash === sectionIds.compareLab) return 'compare'
@@ -12500,6 +12864,7 @@ function buildTaskLibraryTasks({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenPatternInquiry,
   onOpenMessageFlowInquiry,
   onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
@@ -12523,6 +12888,7 @@ function buildTaskLibraryTasks({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge?: (challengeId: string) => void
   onOpenPlaceInquiry?: (inquiryId: string) => void
+  onOpenPatternInquiry?: (inquiryId: string) => void
   onOpenMessageFlowInquiry?: (inquiryId: string) => void
   onOpenCounterfactualChallenge?: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
@@ -13064,6 +13430,41 @@ function buildTaskLibraryTasks({
     }
 
     task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.subtitle, inquiry.spatialFocus, inquiry.taskPrompt, ...tags, ...inquiry.evidencePrompts].join(' ').toLowerCase()
+    tasks.push(task)
+  })
+
+  patternInquiries.forEach((inquiry) => {
+    const inquiryScenarios = inquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+    const durationMinutes = 40
+    const durationBand = getDurationBand(durationMinutes)
+    const tags = ['Pattern Desk', 'Quant Evidence', '模式证据', ...inquiry.tags]
+    const task: LibraryTask = {
+      id: `pattern-desk:${inquiry.id}`,
+      title: inquiry.title,
+      context: inquiryScenarios.map((scenario) => scenario.title).join(' × ') || 'Pattern Evidence Desk',
+      scenarioId: inquiryScenarios[0]?.id,
+      category: '模式证据与数量判断',
+      source: 'pattern-desk',
+      sourceLabel: 'Pattern Evidence Desk',
+      durationMinutes,
+      durationBand,
+      summary: inquiry.drivingQuestion,
+      deliverable: inquiry.deliverable,
+      tags,
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开 Pattern Desk',
+      secondaryActionLabel: '打开首个场景',
+      onPrimaryAction: () => onOpenPatternInquiry?.(inquiry.id),
+      onSecondaryAction: () => inquiryScenarios[0] ? onOpenScenario(inquiryScenarios[0].id, sectionIds.sceneReader) : undefined,
+      onStartTask: onStartTask ? () => onStartTask(task.id) : undefined,
+      workbenchPrompts: [inquiry.drivingQuestion, inquiry.metricFocus, inquiry.interpretationTrap],
+      checklist: ['选择 4-8 个教学指标', '写出分布观察', '解释至少一个 outlier', '形成比较 claim', '明确 source/sample limit 与 confidence', '完成 Pattern Brief'],
+      evidencePrompts: inquiry.evidencePrompts,
+      formatSheet: () => formatPatternTaskSheet(inquiry),
+    }
+
+    task.searchText = [task.title, task.context, task.category, task.sourceLabel, task.summary, task.deliverable, inquiry.subtitle, inquiry.metricFocus, inquiry.interpretationTrap, ...tags, ...inquiry.evidencePrompts].join(' ').toLowerCase()
     tasks.push(task)
   })
 
@@ -14018,10 +14419,12 @@ function App() {
   const [chronologyDraftState, setChronologyDraftState] = useState<ChronologyDraftState>(loadChronologyDraftState)
   const [counterfactualDraftState, setCounterfactualDraftState] = useState<CounterfactualDraftState>(loadCounterfactualDraftState)
   const [placeDraftState, setPlaceDraftState] = useState<PlaceDraftState>(loadPlaceDraftState)
+  const [patternDraftState, setPatternDraftState] = useState<PatternDraftState>(loadPatternDraftState)
   const [messageFlowDraftState, setMessageFlowDraftState] = useState<MessageFlowDraftState>(loadMessageFlowDraftState)
   const [selectedChronologyChallengeId, setSelectedChronologyChallengeId] = useState(chronologyChallenges[0]?.id ?? '')
   const [selectedCounterfactualChallengeId, setSelectedCounterfactualChallengeId] = useState(counterfactualChallenges[0]?.id ?? '')
   const [selectedPlaceInquiryId, setSelectedPlaceInquiryId] = useState(placeInquiries[0]?.id ?? '')
+  const [selectedPatternInquiryId, setSelectedPatternInquiryId] = useState(patternInquiries[0]?.id ?? '')
   const [selectedMessageFlowInquiryId, setSelectedMessageFlowInquiryId] = useState(communicationInquiries[0]?.id ?? '')
   const [selectedPeriodizationInquiryId, setSelectedPeriodizationInquiryId] = useState(periodizationInquiryDefinitions[0]?.id ?? '')
   const [perspectivesDraftState, setPerspectivesDraftState] = useState<PerspectivesDraftState>(loadPerspectivesDraftState)
@@ -14094,8 +14497,9 @@ function App() {
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
   const messageFlowEvidenceByInquiry = useMemo(getMessageFlowEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenCitationTrail: openCitationTrailSources, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
+  const patternMetricsByInquiry = useMemo(getPatternMetricsByInquiryMap, [])
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, patternDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, patternDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenPatternInquiry: openPatternInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenCitationTrail: openCitationTrailSources, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -14264,6 +14668,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [placeDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistPatternDraftState(patternDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [patternDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -15029,6 +15445,22 @@ function App() {
     scrollToSection('place-desk', prefersReducedMotion)
   }
 
+  function openPatternInquiry(inquiryId: string) {
+    if (!patternInquiries.some((inquiry) => inquiry.id === inquiryId)) {
+      return
+    }
+
+    setSelectedPatternInquiryId(inquiryId)
+    setActivePage('atlas')
+    setActiveAtlasSubpage('patterns')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('atlas', 'pattern-desk'))
+    }
+
+    scrollToSection('pattern-desk', prefersReducedMotion)
+  }
+
   function openMessageFlowInquiry(inquiryId: string = selectedMessageFlowInquiryId) {
     if (communicationInquiries.some((inquiry) => inquiry.id === inquiryId)) {
       setSelectedMessageFlowInquiryId(inquiryId)
@@ -15341,6 +15773,18 @@ function App() {
                 onOpenScenario={selectScenario}
               />
             ) : null}
+            {activeAtlasSubpage === 'patterns' ? (
+              <PatternDeskPanel
+                selectedInquiryId={selectedPatternInquiryId}
+                metricsByInquiry={patternMetricsByInquiry}
+                draftState={patternDraftState}
+                onSelectInquiry={setSelectedPatternInquiryId}
+                onUpdateDraftState={setPatternDraftState}
+                onOpenScenario={selectScenario}
+                onOpenRoute={(routeId) => navigateToPage('atlas', routeId ? 'time-space-atlas' : 'time-space-atlas')}
+                onOpenCompare={() => navigateToPage('atlas', sectionIds.compareLab)}
+              />
+            ) : null}
             {activeAtlasSubpage === 'missions' ? (
               <AtlasMissionsPanel
                 workspaceState={workspaceState}
@@ -15551,6 +15995,7 @@ function App() {
                 onLoadCompareLens={loadCompareLens}
                 onOpenChronologyChallenge={openChronologyChallenge}
                 onOpenPlaceInquiry={openPlaceInquiry}
+                onOpenPatternInquiry={openPatternInquiry}
                 onOpenMessageFlowInquiry={openMessageFlowInquiry}
                 onOpenCounterfactualChallenge={openCounterfactualChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
@@ -15578,6 +16023,7 @@ function App() {
                 onLoadCompareLens={loadCompareLens}
                 onOpenChronologyChallenge={openChronologyChallenge}
                 onOpenPlaceInquiry={openPlaceInquiry}
+                onOpenPatternInquiry={openPatternInquiry}
                 onOpenMessageFlowInquiry={openMessageFlowInquiry}
                 onOpenCounterfactualChallenge={openCounterfactualChallenge}
                 onLoadCausationInquiry={loadCausationInquiry}
@@ -15685,6 +16131,7 @@ function App() {
                 assignmentLibraryTasks={assignmentLibraryTasks}
                 chronologyDraftState={chronologyDraftState}
                 placeDraftState={placeDraftState}
+                patternDraftState={patternDraftState}
                 messageFlowDraftState={messageFlowDraftState}
                 corroborationDraftState={corroborationDraftState}
                 causationDraftState={causationDraftState}
@@ -20759,6 +21206,7 @@ function PortfolioPanel({
   assignmentLibraryTasks,
   chronologyDraftState,
   placeDraftState,
+  patternDraftState,
   messageFlowDraftState,
   corroborationDraftState,
   causationDraftState,
@@ -20796,6 +21244,7 @@ function PortfolioPanel({
   assignmentLibraryTasks: LibraryTask[]
   chronologyDraftState: ChronologyDraftState
   placeDraftState: PlaceDraftState
+  patternDraftState: PatternDraftState
   messageFlowDraftState: MessageFlowDraftState
   corroborationDraftState: CorroborationDraftState
   causationDraftState: CausationDraftState
@@ -20828,6 +21277,7 @@ function PortfolioPanel({
   const draftCount = scenarios.reduce((count, scenario) => count + countScenarioMissionWork(scenario, missionWorkState), 0)
   const chronologyDraftCount = getActiveChronologyDrafts(chronologyDraftState).length
   const placeDeskStats = getPlaceDeskStats(placeDraftState)
+  const patternDeskStats = getPatternDeskStats(patternDraftState)
   const messageFlowDeskStats = getMessageFlowDeskStats(messageFlowDraftState)
   const corroborationDraftCount = getActiveCorroborationDrafts(corroborationDraftState).length
   const causationDraftCount = getActiveCausationDrafts(causationDraftState).length
@@ -20893,7 +21343,7 @@ function PortfolioPanel({
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
   const recentSessionRunDrafts = sessionRunnerStats.recentDrafts.slice(0, 3)
-  const portfolioReviewItems = buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState })
+  const portfolioReviewItems = buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, patternDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState })
   const selectedPortfolioReviewItems = portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id))
   const [portfolioReviewFilter, setPortfolioReviewFilter] = useState<PortfolioReviewFilter>('all')
   const visiblePortfolioReviewItems = portfolioReviewItems.filter((item, index) => {
@@ -20947,7 +21397,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState, portfolioReviewDraft))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, patternDraftState, messageFlowDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState, portfolioReviewDraft))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -20989,6 +21439,8 @@ function PortfolioPanel({
               { label: '时间证据', value: chronologyDraftCount },
               { label: '空间证据', value: placeDeskStats.draftCount },
               { label: '空间完成', value: placeDeskStats.completedCount },
+              { label: '模式证据', value: patternDeskStats.draftCount },
+              { label: '模式完成', value: patternDeskStats.completedCount },
               { label: '信息流', value: messageFlowDeskStats.draftCount },
               { label: '信息流完成', value: messageFlowDeskStats.completedCount },
               { label: '互证草稿', value: corroborationDraftCount },
@@ -21437,6 +21889,7 @@ function TaskDiscoveryPanel({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenPatternInquiry,
   onOpenMessageFlowInquiry,
   onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
@@ -21463,6 +21916,7 @@ function TaskDiscoveryPanel({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge: (challengeId: string) => void
   onOpenPlaceInquiry: (inquiryId: string) => void
+  onOpenPatternInquiry: (inquiryId: string) => void
   onOpenMessageFlowInquiry: (inquiryId: string) => void
   onOpenCounterfactualChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
@@ -21483,8 +21937,8 @@ function TaskDiscoveryPanel({
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -22727,6 +23181,7 @@ function TaskLibraryPanel({
   onLoadCompareLens,
   onOpenChronologyChallenge,
   onOpenPlaceInquiry,
+  onOpenPatternInquiry,
   onOpenMessageFlowInquiry,
   onOpenCounterfactualChallenge,
   onLoadCausationInquiry,
@@ -22752,6 +23207,7 @@ function TaskLibraryPanel({
   onLoadCompareLens: (lens: CompareLens) => void
   onOpenChronologyChallenge: (challengeId: string) => void
   onOpenPlaceInquiry: (inquiryId: string) => void
+  onOpenPatternInquiry: (inquiryId: string) => void
   onOpenMessageFlowInquiry: (inquiryId: string) => void
   onOpenCounterfactualChallenge: (challengeId: string) => void
   onLoadCausationInquiry: (inquiryId: string) => void
@@ -22778,8 +23234,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onOpenPatternInquiry, onOpenMessageFlowInquiry, onOpenCounterfactualChallenge, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenCitationTrail, onOpenDebateStudio, onOpenExhibitTheme, onOpenVocabularyClinic, onOpenQuestionBank, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
@@ -23236,6 +23692,230 @@ function ExhibitStudioPanel({
                     <button type="button" onClick={() => selectedEvidence[0] ? onOpenScenario(selectedEvidence[0].scenario.id, sectionIds.sceneReader) : themeScenarios[0] && onOpenScenario(themeScenarios[0].id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">Scene Reader</button>
                   </div>
                   <p className="mt-3 text-xs text-stone-500" aria-live="polite">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '任意填写或选择会保存到本机；localStorage 不可用时回退 sessionStorage。'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
+function PatternDeskPanel({
+  selectedInquiryId,
+  metricsByInquiry,
+  draftState,
+  onSelectInquiry,
+  onUpdateDraftState,
+  onOpenScenario,
+  onOpenRoute,
+  onOpenCompare,
+}: {
+  selectedInquiryId: string
+  metricsByInquiry: Record<string, PatternMetric[]>
+  draftState: PatternDraftState
+  onSelectInquiry: (inquiryId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<PatternDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+  onOpenRoute: (routeId?: string) => void
+  onOpenCompare: () => void
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [metricFilter, setMetricFilter] = useState<'all' | PatternMetricType>('all')
+  const selectedInquiry = patternInquiries.find((inquiry) => inquiry.id === selectedInquiryId) ?? patternInquiries[0]
+  const metrics = metricsByInquiry[selectedInquiry.id] ?? []
+  const draft = draftState[selectedInquiry.id] ?? getEmptyPatternDraft(selectedInquiry)
+  const selectedMetrics = draft.selectedMetricIds.map((id) => metrics.find((metric) => metric.id === id)).filter((metric): metric is PatternMetric => Boolean(metric))
+  const visibleMetrics = metrics.filter((metric) => metricFilter === 'all' || metric.type === metricFilter)
+  const metricTypes = [...new Set(metrics.map((metric) => metric.type))]
+  const stats = getPatternDeskStats(draftState)
+  const inquiryScenarios = selectedInquiry.scenarioIds.map((id) => getScenarioById(id)).filter((scenario): scenario is Scenario => Boolean(scenario))
+  const outlierCount = metrics.filter((metric) => metric.outlier !== 'none').length
+
+  function updateDraft(patch: Partial<PatternDraft>) {
+    onUpdateDraftState((currentState) => {
+      const currentDraft = currentState[selectedInquiry.id] ?? getEmptyPatternDraft(selectedInquiry)
+      return {
+        ...currentState,
+        [selectedInquiry.id]: {
+          ...currentDraft,
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+    })
+    setCopyStatus('idle')
+  }
+
+  function toggleMetric(metricId: string) {
+    const selectedMetricIds = draft.selectedMetricIds.includes(metricId)
+      ? draft.selectedMetricIds.filter((id) => id !== metricId)
+      : [...draft.selectedMetricIds, metricId]
+    updateDraft({ selectedMetricIds })
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedInquiry.id]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copyBrief() {
+    try {
+      await copyTextToClipboard(formatPatternBrief(selectedInquiry, draft, selectedMetrics))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadBrief() {
+    downloadTextFile(`timeatlas-${selectedInquiry.id}-pattern-brief.txt`, formatPatternBrief(selectedInquiry, draft, selectedMetrics))
+  }
+
+  return (
+    <section id="pattern-desk" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="pattern-desk-title">
+      <div className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.04] p-5">
+        <div className="mb-4 flex items-center gap-3 text-cyan-100">
+          <Scale size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">quant evidence desk</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="pattern-desk-title" className="text-3xl font-semibold tracking-tight text-stone-50">Historical Pattern & Quant Evidence Desk / 历史模式与数量证据工作台</h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">作为 Atlas 内部子页面，从 TimeAtlas scenarios、sources、tasks、actors、objects、scene beats 与 routes 派生教学指标，用于练习分布、异常值、覆盖与样本偏差判断。</p>
+          </div>
+          <div className="rounded-3xl border border-cyan-200/20 bg-cyan-100/[0.08] px-4 py-3 text-sm text-cyan-100">
+            {patternInquiries.length} inquiries · {stats.draftCount} drafts · {stats.completedCount} completed · {stats.selectedMetricCount} selected metrics
+          </div>
+        </div>
+        <div className="mt-4 rounded-3xl border border-amber-200/20 bg-amber-100/[0.06] p-4 text-sm leading-6 text-amber-50">
+          边界提醒：这些数值只描述 TimeAtlas 教学数据集的页面内容与任务设计，不代表真实历史规模、重要性或完整档案分布。
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.65fr_1.35fr]">
+          <aside className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {patternInquiries.map((inquiry) => {
+              const inquiryDraft = draftState[inquiry.id] ?? getEmptyPatternDraft(inquiry)
+              const isActive = inquiry.id === selectedInquiry.id
+              return (
+                <button key={inquiry.id} type="button" onClick={() => onSelectInquiry(inquiry.id)} className={`rounded-3xl border p-4 text-left transition ${isActive ? 'border-cyan-200/50 bg-cyan-100/[0.1]' : 'border-white/10 bg-black/20 hover:border-cyan-100/25'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-cyan-100">{inquiryDraft.completed ? '已完成' : hasPatternDraftActivity(inquiryDraft) ? '草稿' : 'inquiry'}</p>
+                      <h3 className="mt-2 font-semibold text-stone-50">{inquiry.title}</h3>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-stone-400">{inquiry.scenarioIds.length} cases</span>
+                  </div>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-stone-400">{inquiry.drivingQuestion}</p>
+                </button>
+              )
+            })}
+          </aside>
+
+          <div className="space-y-4">
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.035] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.28em] text-cyan-200/70">pattern inquiry</div>
+                  <h3 className="mt-2 text-2xl font-semibold text-stone-50">{selectedInquiry.title}</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-7 text-stone-400">{selectedInquiry.drivingQuestion}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void copyBrief()} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200"><Copy size={16} />{copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制 Pattern Brief'}</button>
+                  <button type="button" onClick={downloadBrief} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-200 transition hover:border-cyan-100/30"><ScrollText size={16} />下载 txt</button>
+                  <button type="button" onClick={clearDraft} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-stone-400 transition hover:border-red-200/30 hover:text-red-100">清空草稿</button>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-3xl border border-cyan-200/15 bg-cyan-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-cyan-100">Metric focus：</span>{selectedInquiry.metricFocus}</div>
+                <div className="rounded-3xl border border-amber-200/15 bg-amber-100/[0.045] p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-amber-100">Trap：</span>{selectedInquiry.interpretationTrap}</div>
+                <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-stone-300"><span className="font-semibold text-stone-100">Board：</span>{metrics.length} metrics · {outlierCount} outliers</div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-[2rem] border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-stone-50">Metric board</h4>
+                    <p className="mt-1 text-xs text-stone-500">Compact cards + CSS bars；outlier badge 只标记当前 inquiry 样本内的高/低值。</p>
+                  </div>
+                  <select value={metricFilter} onChange={(event) => setMetricFilter(event.target.value as 'all' | PatternMetricType)} className="rounded-full border border-white/10 bg-stone-950 px-3 py-2 text-xs text-stone-100 outline-none">
+                    <option value="all">全部 metric</option>
+                    {metricTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                </div>
+                <div className="mt-4 grid max-h-[42rem] gap-3 overflow-y-auto pr-1 md:grid-cols-2">
+                  {visibleMetrics.map((metric) => {
+                    const selected = draft.selectedMetricIds.includes(metric.id)
+                    const width = metric.type === 'year'
+                      ? `${Math.max(6, Math.round((metric.value / Math.max(metric.maxValue, 1)) * 100))}%`
+                      : `${Math.max(6, Math.round((metric.value / Math.max(metric.maxValue, 1)) * 100))}%`
+                    return (
+                      <article key={metric.id} className={`rounded-2xl border p-3 text-sm transition ${selected ? 'border-cyan-200/40 bg-cyan-100/[0.08]' : 'border-white/10 bg-white/[0.025]'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <button type="button" onClick={() => toggleMetric(metric.id)} className="text-left font-medium text-stone-100">{selected ? '✓ ' : ''}{metric.label}</button>
+                          {metric.outlier !== 'none' ? <span className={`rounded-full border px-2 py-0.5 text-[11px] ${metric.outlier === 'high' ? 'border-amber-200/30 text-amber-100' : 'border-sky-200/30 text-sky-100'}`}>{metric.outlier} outlier</span> : null}
+                        </div>
+                        <div className="mt-1 text-xs text-cyan-100/80">{metric.scenarioTitle ?? metric.scenarioIds.join(', ')} · {metric.type}</div>
+                        <div className="mt-3 flex items-center gap-3">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-300/70" style={{ width }} /></div>
+                          <div className="w-20 text-right text-xs font-semibold text-stone-100">{metric.value}{metric.unit ? ` ${metric.unit}` : ''}</div>
+                        </div>
+                        <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-500">{metric.detail}</p>
+                      </article>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-[2rem] border border-amber-200/15 bg-amber-100/[0.045] p-4">
+                  <h4 className="font-semibold text-amber-100">Selected metric evidence</h4>
+                  <ol className="mt-3 space-y-2 text-sm leading-6 text-stone-400">
+                    {(selectedMetrics.length ? selectedMetrics : metrics.filter((metric) => metric.outlier !== 'none').slice(0, 4)).map((metric) => (
+                      <li key={`selected-pattern-${metric.id}`}><span className="font-semibold text-stone-100">{metric.label}</span> — {metric.scenarioTitle ?? metric.scenarioIds.join(', ')}｜{metric.detail}</li>
+                    ))}
+                  </ol>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {inquiryScenarios.slice(0, 3).map((scenario) => <button key={scenario.id} type="button" onClick={() => onOpenScenario(scenario.id, sectionIds.sceneReader)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">打开 {scenario.title}</button>)}
+                    <button type="button" onClick={() => onOpenRoute()} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">打开 route</button>
+                    <button type="button" onClick={onOpenCompare} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-stone-300 transition hover:border-cyan-100/30 hover:text-cyan-100">Compare CTA</button>
+                  </div>
+                </div>
+
+                <div className="rounded-[2rem] border border-cyan-200/15 bg-cyan-100/[0.045] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="font-semibold text-cyan-100">Pattern workspace</h4>
+                    <label className="flex items-center gap-2 text-xs text-stone-400"><input type="checkbox" checked={draft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} />完成</label>
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {([
+                      ['observation', 'Observation / 分布观察', 3],
+                      ['outlierExplanation', 'Outlier explanation / 异常值解释', 3],
+                      ['comparisonClaim', 'Comparison claim / 比较判断', 3],
+                      ['sourceLimitNote', 'Source & sample limit / 来源与样本边界', 3],
+                      ['finalPatternBrief', 'Final Pattern Brief / 最终模式简报', 5],
+                    ] as [keyof PatternDraft, string, number][]).map(([field, label, rows]) => (
+                      <label key={field} className="block text-sm font-medium text-stone-300">
+                        {label}
+                        <textarea value={String(draft[field] ?? '')} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<PatternDraft>)} rows={rows} placeholder={field === 'sourceLimitNote' ? selectedInquiry.interpretationTrap : selectedInquiry.deliverable} className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-stone-100 outline-none transition focus:border-cyan-200/40" />
+                      </label>
+                    ))}
+                    <label className="block text-sm font-medium text-stone-300">
+                      Confidence
+                      <select value={draft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as ChronologyConfidence })} className="mt-2 w-full rounded-2xl border border-white/10 bg-stone-950 p-3 text-sm text-stone-100 outline-none focus:border-cyan-200/40">
+                        {(Object.entries(patternConfidenceLabels) as [ChronologyConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-3 text-xs text-stone-500" aria-live="polite">{draft.updatedAt ? `已保存：${new Date(draft.updatedAt).toLocaleString()}` : '草稿优先保存到 localStorage；失败时回退 sessionStorage。'}</p>
                 </div>
               </div>
             </div>
