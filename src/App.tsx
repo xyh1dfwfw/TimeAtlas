@@ -68,6 +68,7 @@ const contextLabStorageKey = 'timeatlas:context-scale-lab-drafts'
 const significanceLabStorageKey = 'timeatlas:significance-memory-lab-drafts'
 const synthesisStudioStorageKey = 'timeatlas:synthesis-writing-studio-drafts'
 const evidenceCaseFileStorageKey = 'timeatlas:evidence-case-file-drafts'
+const sourceAnnotationStorageKey = 'timeatlas:source-annotation-drafts'
 const compareLabStorageKey = 'timeatlas:compare-lab-drafts'
 const chronologyDeskStorageKey = 'timeatlas:chronology-desk-drafts'
 const placeDeskStorageKey = 'timeatlas:place-desk-drafts'
@@ -96,6 +97,7 @@ const sectionIds = {
   argumentStudio: 'argument-studio',
   sourceReader: 'source-reader',
   evidenceCaseFiles: 'case-files',
+  sourceAnnotationStudio: 'source-annotation-studio',
   causationLab: 'causation-lab',
   periodizationLab: 'periodization-lab',
   perspectivesLab: 'perspectives-agency-lab',
@@ -639,6 +641,7 @@ type SynthesisEvidenceOrigin =
   | 'actor-network'
   | 'material-culture'
   | 'dispatch'
+  | 'source-annotation'
   | 'mission-work'
   | 'workspace'
   | 'exhibit'
@@ -764,7 +767,7 @@ type WorkspaceStats = {
   }[]
 }
 
-type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
+type TaskLibrarySource = 'mission' | 'activity' | 'lesson' | 'debate' | 'actor-network' | 'material-culture' | 'dispatch' | 'source-annotation' | 'inquiry' | 'compare' | 'chronology' | 'place-desk' | 'causation' | 'periodization' | 'perspectives' | 'contextualization' | 'significance' | 'concept-atlas' | 'synthesis' | 'case-file' | 'exhibit'
 type DurationBand = 'short' | 'medium' | 'long' | 'extended'
 type ScenarioSectionId = typeof sectionIds[keyof typeof sectionIds]
 type ScenarioExperienceTab = 'overview' | 'scenes' | 'daily' | 'dispatches' | 'objects' | 'lesson' | 'activities' | 'missions' | 'actors' | 'decision' | 'sources' | 'argument'
@@ -800,7 +803,7 @@ type SubpageNavItem<T extends string> = {
 }
 
 type AtlasSubpage = 'routes' | 'chronology' | 'places' | 'missions' | 'pathways' | 'compare'
-type EvidenceSubpage = 'source-atlas' | 'case-files'
+type EvidenceSubpage = 'source-atlas' | 'source-annotation' | 'case-files'
 type LabsSubpage = typeof legacyLabPageIds[number]
 type TasksSubpage = 'discover' | 'library' | 'builder' | 'workbench' | 'assessment' | 'debate' | 'exhibits' | 'sessions' | 'modules' | 'portfolio'
 type DebateMode = 'decision-hearing' | 'source-challenge' | 'cross-era-forum'
@@ -808,6 +811,7 @@ type DebateDuration = 15 | 30 | 45
 
 const evidenceSubpages: SubpageNavItem<EvidenceSubpage>[] = [
   { id: 'source-atlas', label: 'Source Atlas', eyebrow: 'Atlas', description: '全站来源搜索、证据篮与互证', hash: 'source-atlas' },
+  { id: 'source-annotation', label: '来源注释', eyebrow: 'Notebook', description: '单条来源精读、摘记、释义与证据标签化', hash: sectionIds.sourceAnnotationStudio },
   { id: 'case-files', label: 'Case Files', eyebrow: 'Quests', description: '6 个来源任务档案与证据包', hash: sectionIds.evidenceCaseFiles },
 ]
 
@@ -1133,6 +1137,7 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'actor-network', label: 'Actor Network' },
   { value: 'material-culture', label: 'Material Culture' },
   { value: 'dispatch', label: 'Scenario Dispatch' },
+  { value: 'source-annotation', label: 'Source Annotation Notebook' },
   { value: 'inquiry', label: 'Inquiry Paths' },
   { value: 'compare', label: 'Compare Lenses' },
   { value: 'place-desk', label: 'Place Evidence Studio' },
@@ -1144,14 +1149,43 @@ const taskLibrarySourceFilters: { value: 'all' | TaskLibrarySource, label: strin
   { value: 'concept-atlas', label: 'Concept Atlas' },
   { value: 'synthesis', label: 'Synthesis Studio' },
   { value: 'case-file', label: 'Evidence Case Files' },
+  { value: 'source-annotation', label: 'Source Annotation Notebook' },
   { value: 'exhibit', label: 'Exhibit Studio' },
 ]
 
-type SourceAtlasEntry = {
-  id: string
+type SourceAnnotationSource = {
+  sourceId: string
   scenario: Scenario
   source: Scenario['sources'][number]
   searchText: string
+}
+
+type SourceAtlasEntry = SourceAnnotationSource & {
+  id: string
+}
+
+type SourceAnnotationDraft = {
+  paraphrase: string
+  sourceContext: string
+  authorPerspective: string
+  usefulEvidence: string
+  reliabilityLimits: string
+  missingVoices: string
+  citationOrParaphraseBoundary: string
+  evidenceTags: string[]
+  confidence: SynthesisConfidence
+  completed: boolean
+  updatedAt?: string
+}
+
+type SourceAnnotationDraftState = Record<string, SourceAnnotationDraft>
+
+type SourceAnnotationStats = {
+  activeDrafts: [string, SourceAnnotationDraft][]
+  draftCount: number
+  completedCount: number
+  taggedDraftCount: number
+  recentDrafts: [string, SourceAnnotationDraft][]
 }
 
 const evidenceCaseFiles: EvidenceCaseFile[] = [
@@ -3415,6 +3449,149 @@ function persistMaterialCultureDraftState(state: MaterialCultureDraftState) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(materialCultureDraftStorageKey, serializedState)
+}
+
+
+function normalizeSourceTitleForId(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9一-龥]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80) || 'untitled-source'
+}
+
+function getSourceAnnotationSourceId(scenario: Pick<Scenario, 'id'>, source: Pick<Scenario['sources'][number], 'title'>) {
+  return `${scenario.id}:source:${normalizeSourceTitleForId(source.title)}`
+}
+
+function buildSourceAnnotationSourceIndex(): SourceAnnotationSource[] {
+  return buildSourceAtlasEntries().map((entry) => ({
+    sourceId: entry.sourceId,
+    scenario: entry.scenario,
+    source: entry.source,
+    searchText: entry.searchText,
+  }))
+}
+
+function getEmptySourceAnnotationDraft(source?: SourceAnnotationSource): SourceAnnotationDraft {
+  return {
+    paraphrase: source?.source.excerpt ?? '',
+    sourceContext: source ? `${source.scenario.era}｜${source.scenario.location}｜${source.source.creator}` : '',
+    authorPerspective: source?.source.perspective ?? '',
+    usefulEvidence: '',
+    reliabilityLimits: source?.source.reliabilityNote ?? '',
+    missingVoices: '',
+    citationOrParaphraseBoundary: '',
+    evidenceTags: source?.source.evidenceTags.slice(0, 4) ?? [],
+    confidence: 'uncertain',
+    completed: false,
+  }
+}
+
+function parseSourceAnnotationDraftState(rawState: string | null): SourceAnnotationDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as SourceAnnotationDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+
+        const draft = value as Partial<SourceAnnotationDraft>
+        const evidenceTags = Array.isArray(draft.evidenceTags)
+          ? draft.evidenceTags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 12)
+          : []
+        const confidence = draft.confidence && draft.confidence in synthesisConfidenceLabels
+          ? draft.confidence
+          : 'uncertain'
+
+        return [[
+          key,
+          {
+            paraphrase: typeof draft.paraphrase === 'string' ? draft.paraphrase : '',
+            sourceContext: typeof draft.sourceContext === 'string' ? draft.sourceContext : '',
+            authorPerspective: typeof draft.authorPerspective === 'string' ? draft.authorPerspective : '',
+            usefulEvidence: typeof draft.usefulEvidence === 'string' ? draft.usefulEvidence : '',
+            reliabilityLimits: typeof draft.reliabilityLimits === 'string' ? draft.reliabilityLimits : '',
+            missingVoices: typeof draft.missingVoices === 'string' ? draft.missingVoices : '',
+            citationOrParaphraseBoundary: typeof draft.citationOrParaphraseBoundary === 'string' ? draft.citationOrParaphraseBoundary : '',
+            evidenceTags,
+            confidence,
+            completed: Boolean(draft.completed),
+            updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+          } satisfies SourceAnnotationDraft,
+        ]]
+      }),
+    )
+  } catch {
+    return {} as SourceAnnotationDraftState
+  }
+}
+
+function hasSourceAnnotationDraftActivity(draft: SourceAnnotationDraft) {
+  return Boolean(
+    draft.paraphrase.trim()
+      || draft.sourceContext.trim()
+      || draft.authorPerspective.trim()
+      || draft.usefulEvidence.trim()
+      || draft.reliabilityLimits.trim()
+      || draft.missingVoices.trim()
+      || draft.citationOrParaphraseBoundary.trim()
+      || draft.evidenceTags.length
+      || draft.confidence !== 'uncertain'
+      || draft.completed,
+  )
+}
+
+function getActiveSourceAnnotationDrafts(sourceAnnotationDraftState: SourceAnnotationDraftState) {
+  return Object.entries(sourceAnnotationDraftState).filter((entry): entry is [string, SourceAnnotationDraft] => hasSourceAnnotationDraftActivity(entry[1]))
+}
+
+function getSourceAnnotationStats(sourceAnnotationDraftState: SourceAnnotationDraftState): SourceAnnotationStats {
+  const activeDrafts = getActiveSourceAnnotationDrafts(sourceAnnotationDraftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => new Date(second[1].updatedAt ?? 0).getTime() - new Date(first[1].updatedAt ?? 0).getTime())
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    taggedDraftCount: activeDrafts.filter(([, draft]) => draft.evidenceTags.length > 0).length,
+    recentDrafts,
+  }
+}
+
+function loadSourceAnnotationDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseSourceAnnotationDraftState(localStorage?.getItem(sourceAnnotationStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasSourceAnnotationDraftActivity)) {
+    return localState
+  }
+
+  return parseSourceAnnotationDraftState(sessionStorage?.getItem(sourceAnnotationStorageKey) ?? null)
+}
+
+function persistSourceAnnotationDraftState(state: SourceAnnotationDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(sourceAnnotationStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(sourceAnnotationStorageKey, serializedState)
 }
 
 function getTaskWorkbenchChecklist(task: LibraryTask) {
@@ -6247,6 +6424,7 @@ function getSynthesisOriginLabel(origin: SynthesisEvidenceOrigin) {
     'actor-network': 'Actor Network draft / 人物网络草稿',
     'material-culture': 'Material Culture draft / 物件证据草稿',
     dispatch: 'Scenario Dispatch draft / 情境简报草稿',
+    'source-annotation': 'Source Annotation draft / 来源注释草稿',
     'mission-work': 'Mission work / 场景任务草稿',
     'case-file': 'Evidence Case File / 来源任务档案',
     'place-desk': 'Place Evidence Studio draft / 空间证据草稿',
@@ -6275,6 +6453,7 @@ function buildSynthesisEvidencePool({
   conceptAtlasDraftState,
   compareDraftState,
   caseFileDraftState,
+  sourceAnnotationDraftState,
   actorNetworkDraftState,
   materialCultureDraftState,
   dispatchDraftState,
@@ -6293,6 +6472,7 @@ function buildSynthesisEvidencePool({
   conceptAtlasDraftState: ConceptAtlasDraftState
   compareDraftState: CompareDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
+  sourceAnnotationDraftState: SourceAnnotationDraftState
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
   dispatchDraftState: DispatchDraftState
@@ -6357,6 +6537,23 @@ function buildSynthesisEvidencePool({
       text: [`主张：${draft.workingClaim}`, `来源：${draft.sourceNotes}`, `情境：${draft.contextNotes}`, `互证：${draft.corroborationNotes}`, `张力：${draft.tensions}`, `缺席：${draft.missingVoices}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
       tags: ['case file', ...caseFile.tags, ...caseFile.skills, draft.confidence],
       inquiryTitle: caseFile.drivingQuestion,
+      updatedAt: draft.updatedAt,
+    })
+  })
+
+  getActiveSourceAnnotationDrafts(sourceAnnotationDraftState).forEach(([sourceId, draft]) => {
+    const source = sourceAtlasEntries.find((entry) => entry.sourceId === sourceId)
+    if (!source) return
+    entries.push({
+      id: makeSynthesisEvidenceId('source-annotation', sourceId),
+      origin: 'source-annotation',
+      originLabel: getSynthesisOriginLabel('source-annotation'),
+      title: `Source Note：${source.source.title}`,
+      text: [`释义：${draft.paraphrase}`, `情境：${draft.sourceContext}`, `视角：${draft.authorPerspective}`, `可用证据：${draft.usefulEvidence}`, `边界：${draft.reliabilityLimits}`, `缺席：${draft.missingVoices}`, `引用边界：${draft.citationOrParaphraseBoundary}`].filter((line) => !line.match(/：\s*$/)).join('｜'),
+      tags: ['source annotation', source.source.sourceType, ...source.source.evidenceTags, ...draft.evidenceTags, draft.confidence, draft.completed ? 'completed' : 'draft'],
+      scenarioTitle: source.scenario.title,
+      scenarioId: source.scenario.id,
+      inquiryTitle: source.source.sourceQuestion,
       updatedAt: draft.updatedAt,
     })
   })
@@ -6807,6 +7004,7 @@ function formatLearningArchive(
   conceptAtlasDraftState: ConceptAtlasDraftState,
   synthesisDraftState: SynthesisDraftState,
   caseFileDraftState: EvidenceCaseFileDraftState,
+  sourceAnnotationDraftState: SourceAnnotationDraftState,
   compareDraftState: CompareDraftState,
   actorNetworkDraftState: ActorNetworkDraftState,
   materialCultureDraftState: MaterialCultureDraftState,
@@ -6829,6 +7027,8 @@ function formatLearningArchive(
   const activeConceptAtlasDrafts = getActiveConceptAtlasDrafts(conceptAtlasDraftState)
   const activeSynthesisDrafts = getActiveSynthesisDrafts(synthesisDraftState)
   const activeCaseFileDrafts = getActiveEvidenceCaseFileDrafts(caseFileDraftState)
+  const activeSourceAnnotationDrafts = getActiveSourceAnnotationDrafts(sourceAnnotationDraftState)
+  const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
   const activeCompareDrafts = getActiveCompareDrafts(compareDraftState)
   const activeActorNetworkDrafts = getActiveActorNetworkDrafts(actorNetworkDraftState)
   const activeMaterialCultureDrafts = getActiveMaterialCultureDrafts(materialCultureDraftState)
@@ -6843,7 +7043,7 @@ function formatLearningArchive(
   const perspectivesEvidenceByInquiry = getPerspectivesInquiryEvidenceMap()
   const contextEvidenceByInquiry = getContextInquiryEvidenceMap()
   const significanceEvidenceByInquiry = getSignificanceInquiryEvidenceMap()
-  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState })
+  const synthesisEvidencePool = buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState })
   const lines = [
     'TimeAtlas Learning Archive',
     `导出时间：${new Date().toLocaleString()}`,
@@ -6865,6 +7065,7 @@ function formatLearningArchive(
     `- Concept Atlas 概念图谱草稿：${activeConceptAtlasDrafts.length}`,
     `- 综合历史论证草稿：${activeSynthesisDrafts.length}`,
     `- Evidence Case Files 草稿：${activeCaseFileDrafts.length}`,
+    `- Source Annotation Notebook 草稿：${sourceAnnotationStats.draftCount} drafts，${sourceAnnotationStats.completedCount} completed，${sourceAnnotationStats.taggedDraftCount} tagged`,
     `- 跨场景比较草稿：${activeCompareDrafts.length}`,
     `- Actor Network 草稿：${activeActorNetworkDrafts.length}`,
     `- Material Culture / Object Desk 草稿：${activeMaterialCultureDrafts.length}`,
@@ -7307,6 +7508,27 @@ function formatLearningArchive(
     lines.push('')
   }
 
+  if (activeSourceAnnotationDrafts.length > 0) {
+    const sourceIndex = buildSourceAnnotationSourceIndex()
+    lines.push('Source Annotation Notebook / 来源注释笔记台：')
+    activeSourceAnnotationDrafts.forEach(([sourceId, draft]) => {
+      const source = sourceIndex.find((entry) => entry.sourceId === sourceId)
+      lines.push(
+        `  - ${source?.source.title ?? sourceId}（${draft.completed ? '已完成' : '草稿'}｜${source?.scenario.title ?? '来源索引已变化'}）`,
+        `    更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+        `    释义：${draft.paraphrase.trim() || '尚未填写'}`,
+        `    来源情境：${draft.sourceContext.trim() || '尚未填写'}`,
+        `    作者/保存者视角：${draft.authorPerspective.trim() || '尚未填写'}`,
+        `    可用证据：${draft.usefulEvidence.trim() || '尚未填写'}`,
+        `    可靠边界：${draft.reliabilityLimits.trim() || '尚未填写'}`,
+        `    缺席声音：${draft.missingVoices.trim() || '尚未填写'}`,
+        `    引用/释义边界：${draft.citationOrParaphraseBoundary.trim() || '尚未填写'}`,
+        `    标签：${draft.evidenceTags.join('、') || '尚未标注'}；Confidence：${synthesisConfidenceLabels[draft.confidence]}`,
+      )
+    })
+    lines.push('')
+  }
+
   if (activeCompareDrafts.length > 0) {
     lines.push('Compare Lab Workspace / 跨场景比较工作区：')
     activeCompareDrafts.forEach(([, draft]) => {
@@ -7389,7 +7611,7 @@ function formatLearningArchive(
   }
 
   if (lines.length <= 15) {
-    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、单元模块进度或完成记录。')
+    lines.push('尚未保存任何任务草稿、情境简报草稿、任务执行台草稿、跨场景草稿、Chronology Desk 草稿、互证草稿、因果草稿、分期草稿、多视角草稿、情境化草稿、历史意义草稿、Concept Atlas 草稿、综合论证草稿、Evidence Case Files 草稿、Source Annotation 草稿、单元模块进度或完成记录。')
   }
 
   return lines.join('\n')
@@ -7512,6 +7734,7 @@ function buildLearningCoachRecommendations({
   contextDraftState,
   significanceDraftState,
   synthesisDraftState,
+  sourceAnnotationDraftState,
   compareDraftState,
   missionWorkState,
   completedMissionIdsByScenario,
@@ -7534,6 +7757,7 @@ function buildLearningCoachRecommendations({
   significanceDraftState: SignificanceDraftState
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
+  sourceAnnotationDraftState: SourceAnnotationDraftState
   compareDraftState: CompareDraftState
   missionWorkState: MissionWorkState
   completedMissionIdsByScenario: Record<string, string[]>
@@ -7550,6 +7774,7 @@ function buildLearningCoachRecommendations({
   const incompleteModule = moduleStats.details.find((detail) => !detail.isComplete)
   const workspaceStats = getWorkspaceStats(workspaceState)
   const labDraftCount = getLabDraftCount({ corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState })
+  const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const argumentDraftCount = Object.values(argumentDraftState).filter(hasArgumentDraftActivity).length
@@ -7560,6 +7785,7 @@ function buildLearningCoachRecommendations({
       || moduleStats.startedCount
       || workspaceStats.totalEntries
       || labDraftCount
+      || sourceAnnotationStats.draftCount
       || compareDraftCount
       || synthesisDraftCount
       || argumentDraftCount
@@ -8722,6 +8948,7 @@ function buildTaskLibraryTasks({
   onLoadConceptTopic,
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
+  onOpenSourceAnnotation,
   onOpenDebateStudio,
   onOpenExhibitTheme,
   onStartTask,
@@ -8739,6 +8966,7 @@ function buildTaskLibraryTasks({
   onLoadConceptTopic: (topicId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
+  onOpenSourceAnnotation?: (sourceId?: string) => void
   onOpenDebateStudio?: (scenarioId: string) => void
   onOpenExhibitTheme?: (themeId: string) => void
   onStartTask?: (taskId: string) => void
@@ -8810,6 +9038,36 @@ function buildTaskLibraryTasks({
       tasks.push(task)
     })
 
+
+    const firstAnnotationSource = scenario.sources[0] ? getSourceAnnotationSourceId(scenario, scenario.sources[0]) : ''
+    const sourceAnnotationTask: LibraryTask = {
+      id: `source-annotation:${scenario.id}`,
+      title: `${scenario.title} · Source Annotation Notebook`,
+      context: `${scenario.title} · ${scenario.era} · ${scenario.location}`,
+      scenarioId: scenario.id,
+      category: 'Source Annotation / 来源注释',
+      source: 'source-annotation',
+      sourceLabel: 'Source Annotation Notebook',
+      durationMinutes: 25,
+      durationBand: getDurationBand(25),
+      summary: `选择 ${scenario.sources.length} 条来源中的一条，完成释义、来源情境、视角、可用证据、可靠边界、缺席声音和证据标签。`,
+      deliverable: 'Source Note Card：paraphrase、source context、author perspective、useful evidence、reliability limits、missing voices、citation/paraphrase boundary、evidence tags、confidence',
+      tags: ['Source Annotation', '来源注释', 'close reading', 'source note', scenario.region, scenario.theme, ...scenario.sources.flatMap((source) => source.evidenceTags.slice(0, 2)).slice(0, 8)],
+      sourceBased: true,
+      searchText: '',
+      primaryActionLabel: '打开来源注释',
+      secondaryActionLabel: '打开场景来源层',
+      onPrimaryAction: () => onOpenSourceAnnotation?.(firstAnnotationSource),
+      onSecondaryAction: () => onOpenScenario(scenario.id, sectionIds.sourceReader),
+      onStartTask: onStartTask ? () => onStartTask(sourceAnnotationTask.id) : undefined,
+      workbenchPrompts: ['在 Evidence / 来源注释中选择一条具体来源', '完成 paraphrase、source context、perspective 和 evidence tags', '复制 Source Note Card 并指出可靠边界'],
+      checklist: ['打开 Source Annotation Notebook', '选择本场景一条来源', '写出 paraphrase 与 source context', '标出 author perspective、useful evidence、reliability limits 和 missing voices', '补充 citation/paraphrase boundary、evidence tags 与 confidence'],
+      evidencePrompts: scenario.sources.map((source) => `${source.title}：${source.sourceQuestion}`),
+      formatSheet: () => formatSourceAnnotationTaskSheet(scenario),
+    }
+
+    sourceAnnotationTask.searchText = [sourceAnnotationTask.title, sourceAnnotationTask.context, sourceAnnotationTask.category, sourceAnnotationTask.sourceLabel, sourceAnnotationTask.summary, sourceAnnotationTask.deliverable, ...sourceAnnotationTask.tags, ...scenario.sources.flatMap((source) => [source.title, source.creator, source.excerpt, source.reliabilityNote, source.perspective, source.sourceQuestion, ...source.evidenceTags])].join(' ').toLowerCase()
+    tasks.push(sourceAnnotationTask)
 
     scenario.activityPacks.forEach((activity) => {
       const durationBand = getDurationBand(activity.durationMinutes)
@@ -9976,6 +10234,8 @@ function App() {
   const [selectedConceptTopicId, setSelectedConceptTopicId] = useState(conceptAtlasTopics[0]?.id ?? '')
   const [synthesisDraftState, setSynthesisDraftState] = useState<SynthesisDraftState>(loadSynthesisDraftState)
   const [caseFileDraftState, setCaseFileDraftState] = useState<EvidenceCaseFileDraftState>(loadEvidenceCaseFileDraftState)
+  const [sourceAnnotationDraftState, setSourceAnnotationDraftState] = useState<SourceAnnotationDraftState>(loadSourceAnnotationDraftState)
+  const [selectedSourceAnnotationSourceId, setSelectedSourceAnnotationSourceId] = useState(buildSourceAnnotationSourceIndex()[0]?.sourceId ?? '')
   const [selectedCaseFileId, setSelectedCaseFileId] = useState(evidenceCaseFiles[0]?.id ?? '')
   const [selectedSynthesisPresetId, setSelectedSynthesisPresetId] = useState(synthesisInquiryPresets[0]?.id ?? '')
   const [selectedContextInquiryId, setSelectedContextInquiryId] = useState(contextInquiryDefinitions[0]?.id ?? '')
@@ -10024,8 +10284,8 @@ function App() {
   const significanceEvidenceByInquiry = useMemo(getSignificanceInquiryEvidenceMap, [])
   const exhibitEvidenceByTheme = useMemo(getExhibitEvidenceByThemeMap, [])
   const placeEvidenceByInquiry = useMemo(getPlaceEvidenceByInquiryMap, [])
-  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState])
-  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onStartTask: startTaskWorkbench })
+  const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, missionWorkState, workspaceState])
+  const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onStartTask: startTaskWorkbench })
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -10066,6 +10326,7 @@ function App() {
     significanceDraftState,
     synthesisDraftState,
     caseFileDraftState,
+    sourceAnnotationDraftState,
     compareDraftState,
     missionWorkState,
     completedMissionIdsByScenario,
@@ -10250,6 +10511,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [caseFileDraftState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistSourceAnnotationDraftState(sourceAnnotationDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [sourceAnnotationDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -10474,6 +10747,24 @@ function App() {
     }
 
     scrollToSection(sectionIds.evidenceCaseFiles, prefersReducedMotion)
+  }
+
+  function openSourceAnnotationSource(sourceId: string = selectedSourceAnnotationSourceId) {
+    const sourceIndex = buildSourceAnnotationSourceIndex()
+    const selectedSource = sourceIndex.find((entry) => entry.sourceId === sourceId) ?? sourceIndex[0]
+
+    if (selectedSource) {
+      setSelectedSourceAnnotationSourceId(selectedSource.sourceId)
+    }
+
+    setActivePage('evidence')
+    setActiveEvidenceSubpage('source-annotation')
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildPageUrl('evidence', sectionIds.sourceAnnotationStudio))
+    }
+
+    scrollToSection(sectionIds.sourceAnnotationStudio, prefersReducedMotion)
   }
 
   function selectLabsSubpage(subpage: LabsSubpage) {
@@ -11028,6 +11319,16 @@ function App() {
                 onUpdateCorroborationDraftState={setCorroborationDraftState}
                 onOpenScenario={selectScenario}
                 onLoadCompareLens={loadCompareLens}
+                onAnnotateSource={openSourceAnnotationSource}
+              />
+            ) : null}
+            {activeEvidenceSubpage === 'source-annotation' ? (
+              <SourceAnnotationNotebookPanel
+                selectedSourceId={selectedSourceAnnotationSourceId}
+                draftState={sourceAnnotationDraftState}
+                onSelectSource={setSelectedSourceAnnotationSourceId}
+                onUpdateDraftState={setSourceAnnotationDraftState}
+                onOpenScenario={selectScenario}
               />
             ) : null}
             {activeEvidenceSubpage === 'case-files' ? (
@@ -11163,6 +11464,7 @@ function App() {
                 onLoadConceptTopic={loadConceptTopic}
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenEvidenceCaseFile={openEvidenceCaseFile}
+                onOpenSourceAnnotation={openSourceAnnotationSource}
                 onOpenDebateStudio={openDebateStudio}
                 onOpenExhibitTheme={openExhibitTheme}
                 onStartTask={startTaskWorkbench}
@@ -11185,6 +11487,7 @@ function App() {
                 onLoadConceptTopic={loadConceptTopic}
                 onLoadSynthesisPreset={loadSynthesisPreset}
                 onOpenEvidenceCaseFile={openEvidenceCaseFile}
+                onOpenSourceAnnotation={openSourceAnnotationSource}
                 onOpenDebateStudio={openDebateStudio}
                 onOpenExhibitTheme={openExhibitTheme}
                 onStartTask={startTaskWorkbench}
@@ -11263,6 +11566,7 @@ function App() {
                 conceptAtlasDraftState={conceptAtlasDraftState}
                 synthesisDraftState={synthesisDraftState}
                 caseFileDraftState={caseFileDraftState}
+                sourceAnnotationDraftState={sourceAnnotationDraftState}
                 compareDraftState={compareDraftState}
                 actorNetworkDraftState={actorNetworkDraftState}
                 materialCultureDraftState={materialCultureDraftState}
@@ -12521,7 +12825,7 @@ function formatAtlasMapRouteAssignment(route: AtlasMapRoute, entry = getEmptyWor
 
 function buildSourceAtlasEntries(): SourceAtlasEntry[] {
   return scenarios.flatMap((scenario) =>
-    scenario.sources.map((source, sourceIndex) => {
+    scenario.sources.map((source) => {
       const searchText = [
         source.title,
         source.creator,
@@ -12540,8 +12844,11 @@ function buildSourceAtlasEntries(): SourceAtlasEntry[] {
         ...source.evidenceTags,
       ].join(' ').toLowerCase()
 
+      const sourceId = getSourceAnnotationSourceId(scenario, source)
+
       return {
-        id: `${scenario.id}:source:${sourceIndex}`,
+        id: sourceId,
+        sourceId,
         scenario,
         source,
         searchText,
@@ -12582,16 +12889,64 @@ function formatSourceJudgmentWorksheet(entries: SourceAtlasEntry[]) {
   ].join('\n')
 }
 
+function formatSourceAnnotationCard(source: SourceAnnotationSource, draft: SourceAnnotationDraft) {
+  return [
+    `TimeAtlas Source Note Card · ${source.source.title}`,
+    `Scenario：${source.scenario.title}｜${source.scenario.era}｜${source.scenario.location}`,
+    `Source type：${sourceTypeLabels[source.source.sourceType]}｜${source.source.creator}`,
+    `状态：${draft.completed ? '已完成' : hasSourceAnnotationDraftActivity(draft) ? '草稿' : '未开始'}`,
+    `Confidence：${synthesisConfidenceLabels[draft.confidence]}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+    '',
+    `Original excerpt / 原始摘记：${source.source.excerpt}`,
+    `Paraphrase / 我的释义：${draft.paraphrase.trim() || '尚未填写'}`,
+    `Source context / 来源情境：${draft.sourceContext.trim() || '尚未填写'}`,
+    `Author perspective / 作者或保存者视角：${draft.authorPerspective.trim() || '尚未填写'}`,
+    `Useful evidence / 可用证据：${draft.usefulEvidence.trim() || '尚未填写'}`,
+    `Reliability limits / 可靠边界：${draft.reliabilityLimits.trim() || '尚未填写'}`,
+    `Missing voices / 缺席声音：${draft.missingVoices.trim() || '尚未填写'}`,
+    `Citation-or-paraphrase boundary / 引用与释义边界：${draft.citationOrParaphraseBoundary.trim() || '尚未填写'}`,
+    `Evidence tags：${draft.evidenceTags.join('、') || source.source.evidenceTags.join('、') || '尚未标注'}`,
+    `Source question：${source.source.sourceQuestion}`,
+    `URL：${source.source.url ?? '未提供'}`,
+  ].join('\n')
+}
+
+function formatSourceAnnotationTaskSheet(scenario: Scenario) {
+  const sourceList = scenario.sources.map((source, index) => `${index + 1}. ${source.title}｜${sourceTypeLabels[source.sourceType]}｜${source.creator}｜${source.sourceQuestion}`)
+
+  return [
+    `TimeAtlas Source Annotation Notebook：${scenario.title}`,
+    `地点/情境：${scenario.location}｜${scenario.era}｜${scenario.identity}`,
+    '',
+    '任务：进入 Evidence → 来源注释，选择本场景任意一条来源，完成单条来源的精读注释。',
+    '',
+    '可选来源：',
+    ...sourceList,
+    '',
+    '执行清单：',
+    '1. 选择一条来源并先用自己的话释义 paraphrase。',
+    '2. 说明 source context：作者/机构、保存环境、时代地点和媒介。',
+    '3. 标出 author perspective 与 useful evidence。',
+    '4. 写出 reliability limits、missing voices，以及 citation / paraphrase boundary。',
+    '5. 补充 evidence tags、confidence，复制 Source Note Card。',
+    '',
+    '交付物：一张 Source Note Card，包含释义、来源情境、视角、可用证据、可靠边界、缺席声音、引用/释义边界、证据标签和信心等级。',
+  ].join('\n')
+}
+
 function SourceAtlasPanel({
   corroborationDraftState,
   onUpdateCorroborationDraftState,
   onOpenScenario,
   onLoadCompareLens,
+  onAnnotateSource,
 }: {
   corroborationDraftState: CorroborationDraftState
   onUpdateCorroborationDraftState: Dispatch<SetStateAction<CorroborationDraftState>>
   onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
   onLoadCompareLens: (lens: CompareLens) => void
+  onAnnotateSource: (sourceId: string) => void
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | Scenario['sources'][number]['sourceType']>('all')
@@ -12970,6 +13325,14 @@ function SourceAtlasPanel({
                     </button>
                     <button
                       type="button"
+                      onClick={() => onAnnotateSource(entry.sourceId)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"
+                    >
+                      <BookOpen size={16} />
+                      注释此来源
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => toggleBasket(entry.id)}
                       disabled={basketFull}
                       className="inline-flex items-center justify-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-stone-600"
@@ -13156,6 +13519,180 @@ function SourceAtlasPanel({
   )
 }
 
+
+function SourceAnnotationNotebookPanel({
+  selectedSourceId,
+  draftState,
+  onSelectSource,
+  onUpdateDraftState,
+  onOpenScenario,
+}: {
+  selectedSourceId: string
+  draftState: SourceAnnotationDraftState
+  onSelectSource: (sourceId: string) => void
+  onUpdateDraftState: Dispatch<SetStateAction<SourceAnnotationDraftState>>
+  onOpenScenario: (id: string, hash?: ScenarioSectionId) => void
+}) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | Scenario['sources'][number]['sourceType']>('all')
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [evidenceTagFilter, setEvidenceTagFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'completed' | 'not-started'>('all')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const sourceIndex = useMemo(buildSourceAnnotationSourceIndex, [])
+  const stats = getSourceAnnotationStats(draftState)
+  const evidenceTagOptions = useMemo(() => [...new Set(sourceIndex.flatMap((entry) => entry.source.evidenceTags))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [sourceIndex])
+  const selectedSource = sourceIndex.find((entry) => entry.sourceId === selectedSourceId) ?? sourceIndex[0]
+  const currentDraft = draftState[selectedSource?.sourceId ?? ''] ?? getEmptySourceAnnotationDraft(selectedSource)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const visibleSources = sourceIndex.filter((entry) => {
+    const draft = draftState[entry.sourceId]
+    const active = draft ? hasSourceAnnotationDraftActivity(draft) : false
+    const status = draft?.completed ? 'completed' : active ? 'draft' : 'not-started'
+    const matchesSearch = !normalizedSearchQuery || entry.searchText.includes(normalizedSearchQuery)
+    const matchesType = sourceTypeFilter === 'all' || entry.source.sourceType === sourceTypeFilter
+    const matchesScenario = scenarioFilter === 'all' || entry.scenario.id === scenarioFilter
+    const matchesTag = evidenceTagFilter === 'all' || entry.source.evidenceTags.includes(evidenceTagFilter) || draft?.evidenceTags.includes(evidenceTagFilter)
+    const matchesStatus = statusFilter === 'all' || status === statusFilter
+
+    return matchesSearch && matchesType && matchesScenario && matchesTag && matchesStatus
+  })
+
+  function updateDraft(updates: Partial<Omit<SourceAnnotationDraft, 'updatedAt'>>) {
+    if (!selectedSource) return
+
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [selectedSource.sourceId]: {
+        ...(currentState[selectedSource.sourceId] ?? getEmptySourceAnnotationDraft(selectedSource)),
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+    setCopyStatus('idle')
+  }
+
+  function clearCurrentDraft() {
+    if (!selectedSource) return
+
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[selectedSource.sourceId]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  async function copySourceNoteCard() {
+    if (!selectedSource) return
+
+    try {
+      await copyTextToClipboard(formatSourceAnnotationCard(selectedSource, currentDraft))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function downloadSourceNoteCard() {
+    if (!selectedSource) return
+
+    const safeTitle = selectedSource.source.title.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'source-note'
+    downloadTextFile(`timeatlas-${safeTitle}-source-note.txt`, formatSourceAnnotationCard(selectedSource, currentDraft))
+  }
+
+  if (!selectedSource) {
+    return null
+  }
+
+  return (
+    <section id={sectionIds.sourceAnnotationStudio} className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 lg:px-10" aria-labelledby="source-annotation-title">
+      <div className="rounded-[2rem] border border-sky-200/15 bg-sky-100/[0.045] p-5">
+        <div className="mb-4 flex items-center gap-3 text-sky-100">
+          <BookOpen size={20} />
+          <span className="text-sm uppercase tracking-[0.3em]">source annotation notebook</span>
+        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 id="source-annotation-title" className="text-3xl font-semibold tracking-tight text-stone-50">Source Annotation Notebook / 来源注释笔记台</h2>
+            <p className="mt-3 max-w-3xl leading-7 text-stone-400">面向单条来源精读：先释义，再标出来源情境、作者/保存者视角、可用证据、可靠边界、缺席声音与引用/释义边界，最后生成 Source Note Card。</p>
+          </div>
+          <div className="grid grid-cols-4 gap-2 rounded-3xl border border-white/10 bg-black/20 p-3 text-center text-sm text-stone-400">
+            <span><strong className="block text-xl text-sky-100">{sourceIndex.length}</strong>sources</span>
+            <span><strong className="block text-xl text-sky-100">{stats.draftCount}</strong>drafts</span>
+            <span><strong className="block text-xl text-sky-100">{stats.completedCount}</strong>done</span>
+            <span><strong className="block text-xl text-sky-100">{stats.taggedDraftCount}</strong>tagged</span>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1.2fr_0.75fr_0.85fr_0.85fr_0.75fr]">
+          <label className="block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">Source picker search</span>
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-sky-200/60"><Search size={18} className="text-stone-500" /><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="title、creator、scenario、tags、excerpt…" className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600" /></div>
+          </label>
+          <label className="block"><span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">类型</span><select value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value as 'all' | Scenario['sources'][number]['sourceType'])} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"><option value="all">全部类型</option><option value="primary">原始材料</option><option value="institution">机构档案</option><option value="scholarship">研究著作</option></select></label>
+          <label className="block"><span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">场景</span><select value={scenarioFilter} onChange={(event) => setScenarioFilter(event.target.value)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"><option value="all">全部场景</option>{scenarios.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">标签</span><select value={evidenceTagFilter} onChange={(event) => setEvidenceTagFilter(event.target.value)} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"><option value="all">全部标签</option>{evidenceTagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">状态</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'draft' | 'completed' | 'not-started')} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"><option value="all">全部状态</option><option value="not-started">未开始</option><option value="draft">草稿</option><option value="completed">已完成</option></select></label>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[0.68fr_1.32fr]">
+          <aside className="space-y-3">
+            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-3">
+              <div className="text-xs uppercase tracking-[0.2em] text-stone-500">{visibleSources.length}/{sourceIndex.length} visible</div>
+              <div className="mt-3 max-h-[42rem] space-y-2 overflow-y-auto pr-1">
+                {visibleSources.slice(0, 80).map((entry) => {
+                  const draft = draftState[entry.sourceId]
+                  const isActive = entry.sourceId === selectedSource.sourceId
+                  const status = draft?.completed ? '已完成' : draft && hasSourceAnnotationDraftActivity(draft) ? '草稿' : '未开始'
+                  return (
+                    <button key={entry.sourceId} type="button" onClick={() => onSelectSource(entry.sourceId)} className={`block w-full rounded-2xl border p-3 text-left transition ${isActive ? 'border-sky-200/50 bg-sky-100/[0.09]' : 'border-white/10 bg-white/[0.025] hover:border-sky-100/25 hover:bg-white/[0.05]'}`}>
+                      <span className="block text-sm font-semibold text-stone-100">{entry.source.title}</span>
+                      <span className="mt-1 block text-xs leading-5 text-stone-500">{entry.scenario.title} · {sourceTypeLabels[entry.source.sourceType]} · {status}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </aside>
+
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <article className="rounded-[1.75rem] border border-amber-200/15 bg-amber-100/[0.045] p-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-500"><span className="rounded-full border border-amber-200/20 bg-amber-100/[0.06] px-3 py-1 text-amber-100">{selectedSource.scenario.title}</span><span>{sourceTypeLabels[selectedSource.source.sourceType]}</span><span>{selectedSource.source.creator}</span></div>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight text-stone-50">{selectedSource.source.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-stone-500">{selectedSource.scenario.era} · {selectedSource.scenario.location} · {selectedSource.scenario.identity}</p>
+              <div className="mt-4 rounded-2xl border border-amber-200/15 bg-black/20 p-4"><div className="text-xs uppercase tracking-[0.2em] text-amber-100/70">reader excerpt</div><p className="mt-2 text-sm leading-6 text-stone-300">{selectedSource.source.excerpt}</p></div>
+              <dl className="mt-4 grid gap-3 text-sm leading-6 text-stone-400"><div><dt className="font-semibold text-teal-100">Perspective</dt><dd>{selectedSource.source.perspective}</dd></div><div><dt className="font-semibold text-teal-100">Reliability boundary</dt><dd>{selectedSource.source.reliabilityNote}</dd></div><div><dt className="font-semibold text-teal-100">Source question</dt><dd>{selectedSource.source.sourceQuestion}</dd></div></dl>
+              <div className="mt-4 flex flex-wrap gap-2">{selectedSource.source.evidenceTags.map((tag) => <span key={`${selectedSource.sourceId}-${tag}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-stone-400">{tag}</span>)}</div>
+              <button type="button" onClick={() => onOpenScenario(selectedSource.scenario.id, sectionIds.sourceReader)} className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"><ScrollText size={16} />打开相关 scenario source reader</button>
+            </article>
+
+            <article className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 className="text-xl font-semibold text-stone-50">Annotation workspace</h3><p className="mt-1 text-xs text-stone-500">{currentDraft.updatedAt ? `已保存：${new Date(currentDraft.updatedAt).toLocaleString()}` : '任意填写后自动保存到本机。'}</p></div><button type="button" onClick={clearCurrentDraft} className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-400 transition hover:border-orange-200/30 hover:text-orange-100">清空当前草稿</button></div>
+              <div className="mt-4 grid gap-3">
+                {([
+                  ['paraphrase', 'paraphrase / 释义', '用自己的话重述这条来源，而不是复制摘记。'],
+                  ['sourceContext', 'source context / 来源情境', '谁留下？在哪里保存？属于怎样的时代、地点、媒介？'],
+                  ['authorPerspective', 'author perspective / 作者或保存者视角', '作者、机构、编者或保存系统的立场。'],
+                  ['usefulEvidence', 'useful evidence / 可用证据', '这条来源能支持什么具体历史判断？'],
+                  ['reliabilityLimits', 'reliability limits / 可靠边界', '它不能证明什么？哪些部分需要互证？'],
+                  ['missingVoices', 'missing voices / 缺席声音', '谁没有留下声音？哪些经验被过滤？'],
+                  ['citationOrParaphraseBoundary', 'citation or paraphrase boundary / 引用与释义边界', '哪些应作为谨慎转述，哪些只是你的推论？'],
+                ] as [keyof Omit<SourceAnnotationDraft, 'evidenceTags' | 'confidence' | 'completed' | 'updatedAt'>, string, string][]).map(([field, label, placeholder]) => (
+                  <label key={field} className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">{label}</span><textarea value={currentDraft[field]} onChange={(event) => updateDraft({ [field]: event.target.value } as Partial<SourceAnnotationDraft>)} rows={field === 'usefulEvidence' ? 3 : 2} placeholder={placeholder} className="w-full rounded-2xl border border-white/10 bg-black/25 p-3 text-sm leading-6 text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-sky-200/50" /></label>
+                ))}
+                <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">evidence tags / 证据标签</span><input value={currentDraft.evidenceTags.join(', ')} onChange={(event) => updateDraft({ evidenceTags: event.target.value.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 12) })} placeholder="archive silence, source perspective, labor…" className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-sky-200/50" /></label>
+                <div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">confidence</span><select value={currentDraft.confidence} onChange={(event) => updateDraft({ confidence: event.target.value as SynthesisConfidence })} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-sm text-stone-100 outline-none transition focus:border-sky-200/50">{(Object.entries(synthesisConfidenceLabels) as [SynthesisConfidence, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="mt-6 inline-flex cursor-pointer items-center gap-3 rounded-full border border-teal-200/20 bg-teal-100/[0.06] px-4 py-3 text-sm text-teal-100"><input type="checkbox" checked={currentDraft.completed} onChange={(event) => updateDraft({ completed: event.target.checked })} className="h-4 w-4 rounded border-white/20 bg-black text-teal-300 focus:ring-teal-200" />标记完成</label></div>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3"><button type="button" onClick={() => void copySourceNoteCard()} className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'copied' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'copied' ? '已复制' : '复制 Source Note Card'}</button><button type="button" onClick={downloadSourceNoteCard} className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200/25 bg-sky-100/[0.08] px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-100/[0.14]"><ScrollText size={16} />下载 txt</button><button type="button" onClick={() => onOpenScenario(selectedSource.scenario.id, sectionIds.sourceReader)} className="inline-flex items-center justify-center gap-2 rounded-full border border-teal-200/25 bg-teal-100/[0.08] px-4 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-100/[0.14]"><ArrowRight size={16} />Source Reader</button></div>
+              <p className="mt-3 text-xs text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查剪贴板权限。' : 'Source Note Card 可进入 Portfolio、Learning Archive 与 Synthesis evidence pool。'}</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 function EvidenceCaseFilesPanel({
   selectedCaseFileId,
@@ -15524,6 +16061,7 @@ function PortfolioPanel({
   conceptAtlasDraftState,
   synthesisDraftState,
   caseFileDraftState,
+  sourceAnnotationDraftState,
   compareDraftState,
   actorNetworkDraftState,
   materialCultureDraftState,
@@ -15550,6 +16088,7 @@ function PortfolioPanel({
   conceptAtlasDraftState: ConceptAtlasDraftState
   synthesisDraftState: SynthesisDraftState
   caseFileDraftState: EvidenceCaseFileDraftState
+  sourceAnnotationDraftState: SourceAnnotationDraftState
   compareDraftState: CompareDraftState
   actorNetworkDraftState: ActorNetworkDraftState
   materialCultureDraftState: MaterialCultureDraftState
@@ -15571,6 +16110,7 @@ function PortfolioPanel({
   const conceptAtlasDraftCount = getActiveConceptAtlasDrafts(conceptAtlasDraftState).length
   const synthesisDraftCount = getActiveSynthesisDrafts(synthesisDraftState).length
   const caseFileDraftCount = getActiveEvidenceCaseFileDrafts(caseFileDraftState).length
+  const sourceAnnotationStats = getSourceAnnotationStats(sourceAnnotationDraftState)
   const compareDraftCount = getActiveCompareDrafts(compareDraftState).length
   const actorNetworkDraftCount = getActiveActorNetworkDrafts(actorNetworkDraftState).length
   const materialCultureDraftCount = getActiveMaterialCultureDrafts(materialCultureDraftState).length
@@ -15589,6 +16129,8 @@ function PortfolioPanel({
     .filter(([, work]) => work.notes.trim() || work.checkedEvidence.length)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
+  const recentSourceAnnotationDrafts = sourceAnnotationStats.recentDrafts.slice(0, 3)
+  const sourceAnnotationIndex = buildSourceAnnotationSourceIndex()
   const recentCompareDrafts = getActiveCompareDrafts(compareDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
@@ -15611,7 +16153,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -15662,6 +16204,8 @@ function PortfolioPanel({
               { label: '概念图谱', value: conceptAtlasDraftCount },
               { label: '综合论证', value: synthesisDraftCount },
               { label: 'Case Files', value: caseFileDraftCount },
+              { label: '来源注释', value: sourceAnnotationStats.draftCount },
+              { label: '注释完成', value: sourceAnnotationStats.completedCount },
               { label: '比较草稿', value: compareDraftCount },
               { label: '人物网络', value: actorNetworkDraftCount },
               { label: '物件证据', value: materialCultureDraftCount },
@@ -15687,7 +16231,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -15763,6 +16307,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{topic?.title ?? topicId}</div>
                       <div>Concept Atlas · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedEvidenceIds.length} 条证据</div>
                       <div className="mt-1 text-stone-500">{draft.finalConceptNote.trim() || draft.definitionInContext.trim() || draft.comparisonNotes.trim() || '尚未填写 concept note'}</div>
+                    </div>
+                  )
+                })}
+                {recentSourceAnnotationDrafts.map(([sourceId, draft]) => {
+                  const source = sourceAnnotationIndex.find((entry) => entry.sourceId === sourceId)
+
+                  return (
+                    <div key={sourceId} className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{source?.source.title ?? sourceId}</div>
+                      <div>Source Annotation · {source?.scenario.title ?? '来源索引已变化'} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'}</div>
+                      <div className="mt-1 text-stone-500">{draft.usefulEvidence.trim() || draft.paraphrase.trim() || '尚未填写 source note'}</div>
                     </div>
                   )
                 })}
@@ -15928,6 +16483,7 @@ function TaskDiscoveryPanel({
   onLoadConceptTopic,
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
+  onOpenSourceAnnotation,
   onOpenDebateStudio,
   onOpenExhibitTheme,
   onStartTask,
@@ -15948,14 +16504,15 @@ function TaskDiscoveryPanel({
   onLoadConceptTopic: (topicId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
+  onOpenSourceAnnotation?: (sourceId?: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenExhibitTheme: (themeId: string) => void
   onStartTask: (taskId: string) => void
 }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
   )
   const collections = useMemo(getTaskDiscoveryCollections, [])
   const featuredRoute = atlasMapRoutes.find((route) => route.id === 'sugar-cotton-empire-route')
@@ -17206,6 +17763,7 @@ function TaskLibraryPanel({
   onLoadConceptTopic,
   onLoadSynthesisPreset,
   onOpenEvidenceCaseFile,
+  onOpenSourceAnnotation,
   onOpenDebateStudio,
   onOpenExhibitTheme,
   onStartTask,
@@ -17225,6 +17783,7 @@ function TaskLibraryPanel({
   onLoadConceptTopic: (topicId: string) => void
   onLoadSynthesisPreset: (presetId: string) => void
   onOpenEvidenceCaseFile?: (caseFileId: string) => void
+  onOpenSourceAnnotation?: (sourceId?: string) => void
   onOpenDebateStudio: (scenarioId: string) => void
   onOpenExhibitTheme: (themeId: string) => void
   onStartTask: (taskId: string) => void
@@ -17237,8 +17796,8 @@ function TaskLibraryPanel({
   const [sourceBasedOnly, setSourceBasedOnly] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const libraryTasks = useMemo(
-    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
-    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
+    () => buildTaskLibraryTasks({ onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask }),
+    [onOpenScenario, onLoadCompare, onLoadCompareLens, onOpenChronologyChallenge, onOpenPlaceInquiry, onLoadCausationInquiry, onLoadPeriodizationInquiry, onLoadPerspectivesInquiry, onLoadContextInquiry, onLoadSignificanceInquiry, onLoadConceptTopic, onLoadSynthesisPreset, onOpenEvidenceCaseFile, onOpenSourceAnnotation, onOpenDebateStudio, onOpenExhibitTheme, onStartTask],
   )
   const categoryOptions = useMemo(() => [...new Set(libraryTasks.map((task) => task.category))].sort((first, second) => first.localeCompare(second, 'zh-Hans-CN')), [libraryTasks])
   const durationBands = useMemo(() => [...new Set(libraryTasks.map((task) => task.durationBand))], [libraryTasks])
