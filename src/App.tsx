@@ -104,6 +104,7 @@ const dailyLedgerDraftStorageKey = 'timeatlas:daily-ledger-drafts'
 const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
 const questionBankStorageKey = 'timeatlas:question-bank-drafts'
 const questionSetDraftStorageKey = 'timeatlas:question-set-draft'
+const differentiationStorageKey = 'timeatlas:differentiation-studio-drafts'
 const portfolioReviewStorageKey = 'timeatlas:portfolio-review-drafts'
 const globalExplorerStorageKey = 'timeatlas:global-explorer-state'
 const defaultScenarioSectionId = 'experience'
@@ -1571,6 +1572,30 @@ type AssignmentBuilderSummary = {
 }
 
 type AssessmentTargetType = 'assignment' | 'task' | 'module'
+type SupportLevel = 'starter' | 'standard' | 'challenge' | 'language-support'
+type DifferentiationTargetKind = 'assignment' | 'library-task' | 'module'
+type SupportMove = 'sentence-starters' | 'evidence-hints' | 'vocabulary-bridge' | 'source-boundary-check' | 'graphic-organizer' | 'extension-question'
+
+type DifferentiationDraft = {
+  targetKind: DifferentiationTargetKind
+  targetId: string
+  selectedLevels: SupportLevel[]
+  selectedSupportMoves: SupportMove[]
+  learnerNeeds: string
+  teacherNotes: string
+  studentInstructions: string
+  completed: boolean
+  updatedAt?: string
+}
+
+type DifferentiationDraftState = Record<string, DifferentiationDraft>
+
+type DifferentiationDraftStats = {
+  activeDrafts: [string, DifferentiationDraft][]
+  draftCount: number
+  completedCount: number
+  recentDrafts: [string, DifferentiationDraft][]
+}
 
 type RubricCriterion = {
   id: string
@@ -1657,6 +1682,8 @@ type LearningCoachPlanSnapshot = {
   compareDraftCount: number
   synthesisDraftCount: number
   caseFileDraftCount: number
+  differentiationDraftCount: number
+  completedSupportPlanCount: number
 }
 
 
@@ -6335,6 +6362,361 @@ function persistAssignmentBuilderDraft(draft: AssignmentBuilderDraft) {
   }
 
   getSafeStorage('sessionStorage')?.setItem(assignmentBuilderStorageKey, serializedState)
+}
+
+const supportLevelLabels: Record<SupportLevel, { title: string, subtitle: string }> = {
+  starter: { title: 'Starter', subtitle: '更多提示与句架' },
+  standard: { title: 'Standard', subtitle: '保留核心目标' },
+  challenge: { title: 'Challenge', subtitle: '提高综合与迁移' },
+  'language-support': { title: 'Language Support', subtitle: '语言桥接与词汇' },
+}
+
+const supportMoveLabels: Record<SupportMove, string> = {
+  'sentence-starters': 'sentence starters / 句式开头',
+  'evidence-hints': 'evidence hints / 证据提示',
+  'vocabulary-bridge': 'vocabulary bridge / 词汇桥接',
+  'source-boundary-check': 'source boundary check / 来源边界核查',
+  'graphic-organizer': 'graphic organizer / 图表组织器',
+  'extension-question': 'extension question / 拓展追问',
+}
+
+function getDifferentiationDraftKey(targetKind: DifferentiationTargetKind, targetId: string) {
+  return `${targetKind}:${targetId || 'current'}`
+}
+
+function mapAssessmentTargetTypeToDifferentiationKind(targetType: AssessmentTargetType): DifferentiationTargetKind {
+  return targetType === 'task' ? 'library-task' : targetType
+}
+
+function mapDifferentiationKindToAssessmentTargetType(targetKind: DifferentiationTargetKind): AssessmentTargetType {
+  return targetKind === 'library-task' ? 'task' : targetKind
+}
+
+function getDifferentiationTargetId(targetKind: DifferentiationTargetKind, assessmentDraft: AssessmentDraft) {
+  if (targetKind === 'library-task') return assessmentDraft.taskId
+  if (targetKind === 'module') return assessmentDraft.moduleId
+  return 'current-assignment'
+}
+
+function getEmptyDifferentiationDraft(targetKind: DifferentiationTargetKind = 'assignment', targetId = 'current-assignment'): DifferentiationDraft {
+  return {
+    targetKind,
+    targetId,
+    selectedLevels: ['starter', 'standard', 'challenge', 'language-support'],
+    selectedSupportMoves: ['sentence-starters', 'evidence-hints', 'vocabulary-bridge', 'source-boundary-check', 'graphic-organizer', 'extension-question'],
+    learnerNeeds: '',
+    teacherNotes: '',
+    studentInstructions: '',
+    completed: false,
+  }
+}
+
+function parseDifferentiationDraftState(rawState: string | null): DifferentiationDraftState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return {} as DifferentiationDraftState
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsedState).flatMap(([key, value]) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+        const draft = value as Partial<DifferentiationDraft>
+        const targetKind = draft.targetKind === 'library-task' || draft.targetKind === 'module' || draft.targetKind === 'assignment'
+          ? draft.targetKind
+          : key.startsWith('library-task:') ? 'library-task' : key.startsWith('module:') ? 'module' : 'assignment'
+        const targetId = typeof draft.targetId === 'string' && draft.targetId.trim()
+          ? draft.targetId
+          : key.split(':').slice(1).join(':') || 'current-assignment'
+        const selectedLevels = Array.isArray(draft.selectedLevels)
+          ? draft.selectedLevels.filter((level): level is SupportLevel => level === 'starter' || level === 'standard' || level === 'challenge' || level === 'language-support')
+          : []
+        const selectedSupportMoves = Array.isArray(draft.selectedSupportMoves)
+          ? draft.selectedSupportMoves.filter((move): move is SupportMove => move in supportMoveLabels)
+          : []
+        const normalizedDraft: DifferentiationDraft = {
+          targetKind,
+          targetId,
+          selectedLevels: selectedLevels.length ? selectedLevels : ['starter', 'standard', 'challenge', 'language-support'],
+          selectedSupportMoves: selectedSupportMoves.length ? selectedSupportMoves : ['sentence-starters', 'evidence-hints', 'source-boundary-check', 'graphic-organizer'],
+          learnerNeeds: typeof draft.learnerNeeds === 'string' ? draft.learnerNeeds : '',
+          teacherNotes: typeof draft.teacherNotes === 'string' ? draft.teacherNotes : '',
+          studentInstructions: typeof draft.studentInstructions === 'string' ? draft.studentInstructions : '',
+          completed: Boolean(draft.completed),
+          updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : undefined,
+        }
+
+        return [[getDifferentiationDraftKey(normalizedDraft.targetKind, normalizedDraft.targetId), normalizedDraft]]
+      }),
+    )
+  } catch {
+    return {} as DifferentiationDraftState
+  }
+}
+
+function hasDifferentiationDraftActivity(draft: DifferentiationDraft) {
+  const emptyDraft = getEmptyDifferentiationDraft(draft.targetKind, draft.targetId)
+
+  return Boolean(
+    draft.selectedLevels.join('|') !== emptyDraft.selectedLevels.join('|')
+      || draft.selectedSupportMoves.join('|') !== emptyDraft.selectedSupportMoves.join('|')
+      || draft.learnerNeeds.trim()
+      || draft.teacherNotes.trim()
+      || draft.studentInstructions.trim()
+      || draft.completed,
+  )
+}
+
+function getActiveDifferentiationDrafts(draftState: DifferentiationDraftState) {
+  return Object.entries(draftState).filter((entry): entry is [string, DifferentiationDraft] => hasDifferentiationDraftActivity(entry[1]))
+}
+
+function getDifferentiationDraftStats(draftState: DifferentiationDraftState): DifferentiationDraftStats {
+  const activeDrafts = getActiveDifferentiationDrafts(draftState)
+  const recentDrafts = [...activeDrafts]
+    .sort((first, second) => (second[1].updatedAt ?? '').localeCompare(first[1].updatedAt ?? ''))
+    .slice(0, 5)
+
+  return {
+    activeDrafts,
+    draftCount: activeDrafts.length,
+    completedCount: activeDrafts.filter(([, draft]) => draft.completed).length,
+    recentDrafts,
+  }
+}
+
+function loadDifferentiationDraftState() {
+  const localStorage = getSafeStorage('localStorage')
+  const sessionStorage = getSafeStorage('sessionStorage')
+  const localState = parseDifferentiationDraftState(localStorage?.getItem(differentiationStorageKey) ?? null)
+
+  if (Object.values(localState).some(hasDifferentiationDraftActivity)) {
+    return localState
+  }
+
+  return parseDifferentiationDraftState(sessionStorage?.getItem(differentiationStorageKey) ?? null)
+}
+
+function persistDifferentiationDraftState(state: DifferentiationDraftState) {
+  const serializedState = JSON.stringify(state)
+  const localStorage = getSafeStorage('localStorage')
+
+  if (localStorage) {
+    localStorage.setItem(differentiationStorageKey, serializedState)
+    return
+  }
+
+  getSafeStorage('sessionStorage')?.setItem(differentiationStorageKey, serializedState)
+}
+
+function getDifferentiationTargetInfo(draft: DifferentiationDraft, assignmentDraft: AssignmentBuilderDraft, libraryTasks: LibraryTask[]) {
+  return getAssessmentTargetInfo({
+    targetType: mapDifferentiationKindToAssessmentTargetType(draft.targetKind),
+    taskId: draft.targetKind === 'library-task' ? draft.targetId : libraryTasks[0]?.id ?? '',
+    moduleId: draft.targetKind === 'module' ? draft.targetId : taskModules[0]?.id ?? '',
+  }, assignmentDraft, libraryTasks)
+}
+
+function getDifferentiationMethodFlags(target: AssessmentTargetInfo) {
+  const haystack = [target.title, target.targetLabel, target.learningGoal, target.deliverable, target.context, target.summary, target.rubricFocus, target.teacherNotes, ...target.sourceLabels, ...target.categories, ...target.tags, ...target.tasks.flatMap((task) => [task.title, task.summary, task.deliverable, task.category, ...task.tags])].join(' ').toLowerCase()
+
+  return {
+    hasCompare: includesAny(haystack, ['compare', 'comparison', '比较', '对照', '跨场景']),
+    hasCausation: includesAny(haystack, ['causation', 'cause', 'causal', '因果', '原因', '触发', '后果']),
+    hasSynthesis: includesAny(haystack, ['synthesis', '综合', '整合', 'capstone', 'writing', '论证']),
+    hasSourceBoundary: target.sourceBased || includesAny(haystack, ['source', 'evidence', 'archive', 'silence', 'citation', '来源', '证据', '档案', '沉默', '引用']),
+    hasVocabulary: includesAny(haystack, ['vocabulary', 'term', 'concept', '术语', '概念', '词汇']),
+  }
+}
+
+function buildDifferentiationGraphicOrganizer(target: AssessmentTargetInfo) {
+  const flags = getDifferentiationMethodFlags(target)
+
+  if (flags.hasCompare) {
+    return '比较维度表：Case / evidence / similarity / difference / why it matters / source limit。先用同一维度比较，再写解释。'
+  }
+
+  if (flags.hasCausation) {
+    return '因果 organizer：background conditions → immediate triggers → constraints → choices → short-term consequences → longer change。每格只写证据支持的内容。'
+  }
+
+  if (flags.hasSynthesis) {
+    return '综合写作 organizer：working thesis → evidence bridge 1 → evidence bridge 2 → counterpoint / limit → concluding significance。'
+  }
+
+  if (flags.hasSourceBoundary) {
+    return '来源核查 organizer：source title / perspective / useful detail / what it cannot prove / cautious claim。'
+  }
+
+  return '任务 organizer：goal → key evidence or detail → reasoning sentence → final product check → one uncertainty。'
+}
+
+function buildDifferentiationMoveLines(target: AssessmentTargetInfo, draft: DifferentiationDraft) {
+  const flags = getDifferentiationMethodFlags(target)
+  const lines: string[] = []
+
+  if (draft.selectedSupportMoves.includes('sentence-starters')) {
+    lines.push('句式开头："One piece of evidence suggests..." / "这条线索说明……" / "A careful claim is... because..."')
+    if (flags.hasCompare) lines.push('比较句架："Both cases show..., but they differ in... because..." / "共同点是……差异在于……这很重要，因为……"')
+    if (flags.hasCausation) lines.push('因果句架："A background condition was...; the trigger was...; the consequence was..." / "背景条件是……触发因素是……后果是……"')
+    if (flags.hasSynthesis) lines.push('综合句架："Taken together, these materials suggest... while the evidence still limits..." / "综合来看……但证据边界是……"')
+  }
+
+  if (draft.selectedSupportMoves.includes('evidence-hints')) {
+    const sourceHint = target.sourceBased ? '先找来源标题、作者/视角、摘录细节和可靠边界。' : '先找任务材料、场景细节、课堂记录或已选任务中的具体线索。'
+    lines.push(`证据提示：${sourceHint} 每个判断后补一句 "this shows / 这说明"。`)
+  }
+
+  if (draft.selectedSupportMoves.includes('vocabulary-bridge')) {
+    const vocabulary = uniqueLimitedStrings([...target.tags, ...target.categories, ...target.sourceLabels], 8)
+    lines.push(`词汇桥接：先解释关键词，再放回目标任务。可用词：${vocabulary.join('、') || 'evidence、context、claim、source limit、comparison、causation'}。`)
+  }
+
+  if (draft.selectedSupportMoves.includes('source-boundary-check')) {
+    lines.push(flags.hasSourceBoundary
+      ? '来源边界核查：写清来源能证明什么、不能证明什么；不要把单一视角当作完整事实。'
+      : '边界核查：写清你的材料来自任务/课堂/场景，不把练习材料扩展成未经证据支持的历史事实。')
+  }
+
+  if (draft.selectedSupportMoves.includes('graphic-organizer')) {
+    lines.push(`图表组织器：${buildDifferentiationGraphicOrganizer(target)}`)
+  }
+
+  if (draft.selectedSupportMoves.includes('extension-question')) {
+    lines.push(flags.hasCompare
+      ? '拓展追问：如果换一个比较维度，原来的相似/差异是否仍成立？'
+      : flags.hasCausation
+        ? '拓展追问：哪个原因是背景条件，哪个只是触发？如果删去一个条件，后果链会怎样改变？'
+        : flags.hasSynthesis
+          ? '拓展追问：哪条证据最能连接两个材料？哪条证据会迫使你限定 thesis？'
+          : '拓展追问：还需要哪类证据才能让这个结论更可靠？')
+  }
+
+  return lines
+}
+
+function buildDifferentiationLevelLines(target: AssessmentTargetInfo, draft: DifferentiationDraft) {
+  const flags = getDifferentiationMethodFlags(target)
+
+  return draft.selectedLevels.map((level) => {
+    if (level === 'starter') {
+      return [
+        'Starter：保留同一学习目标，但减少开放度。',
+        `- 只选择 1–2 条最直接材料，完成 ${flags.hasCompare ? '同一比较维度下的一组相似/差异' : flags.hasCausation ? '背景→触发→后果三格链条' : flags.hasSynthesis ? '一个 thesis + 一条 evidence bridge' : '证据→说明→一句结论'}。`,
+        '- 允许使用句架、词汇表和图表；先准确说明证据，再追求复杂性。',
+      ].join('\n')
+    }
+
+    if (level === 'standard') {
+      return [
+        'Standard：完成原始任务目标与交付物。',
+        `- 产出：${target.deliverable}`,
+        `- 检查：回应学习目标“${target.learningGoal}”，并至少说明一处材料边界或不确定性。`,
+      ].join('\n')
+    }
+
+    if (level === 'challenge') {
+      return [
+        'Challenge：提高证据连接、方法自觉和迁移。',
+        `- 加入 ${flags.hasCompare ? '第二个比较维度或反例' : flags.hasCausation ? '多重原因权重或长期/短期后果区分' : flags.hasSynthesis ? '反驳/限制段与更精确 thesis' : '额外证据、替代解释或方法反思'}。`,
+        '- 最后写一句：这个更复杂的版本如何改变原来的判断？',
+      ].join('\n')
+    }
+
+    return [
+      'Language Support：降低语言负荷，不降低历史思维目标。',
+      '- 先用关键词 + 短句完成 organizer，再扩展成段落或口头说明。',
+      '- 可使用双语词汇、句式开头和同伴复述；最终仍需指出证据、推理和来源/材料边界。',
+    ].join('\n')
+  })
+}
+
+function formatDifferentiatedStudentHandout(target: AssessmentTargetInfo, draft: DifferentiationDraft) {
+  const levelLines = buildDifferentiationLevelLines(target, draft)
+  const moveLines = buildDifferentiationMoveLines(target, draft)
+
+  return [
+    `TimeAtlas Differentiated Student Handout：${target.title}`,
+    `目标类型：${target.targetLabel}`,
+    `学习目标：${target.learningGoal}`,
+    `交付物：${target.deliverable}`,
+    `情境 / 覆盖：${target.context}`,
+    '',
+    'Teacher-selected learner needs / 学习需要：',
+    draft.learnerNeeds.trim() || '教师尚未填写；学生可根据当前需要选择 Starter、Standard、Challenge 或 Language Support。',
+    '',
+    'Student instructions / 学生说明：',
+    draft.studentInstructions.trim() || '选择一个适合自己的支架版本完成同一任务目标。所有版本都需要：具体材料、推理句、边界/不确定性。',
+    '',
+    'Support levels / 分层版本：',
+    ...(levelLines.length ? levelLines : ['未选择支架层级。']),
+    '',
+    'Support moves / 支架动作：',
+    ...(moveLines.length ? moveLines.map((line) => `- ${line}`) : ['- 未选择支架动作。']),
+    '',
+    '完成前自检：',
+    '- 我使用了具体材料，而不是只写主题词。',
+    '- 我解释了材料如何支持判断。',
+    target.sourceBased ? '- 我说明了来源视角、可靠边界或档案沉默。' : '- 我说明了任务材料能支持什么，不能支持什么。',
+    '- 我选择的支架版本仍回应同一个学习目标。',
+  ].join('\n')
+}
+
+function formatTeacherAdaptationGuide(target: AssessmentTargetInfo, draft: DifferentiationDraft) {
+  const flags = getDifferentiationMethodFlags(target)
+  const selectedLevelLabels = draft.selectedLevels.map((level) => supportLevelLabels[level].title).join(' / ') || '未选择'
+  const selectedMoveLabels = draft.selectedSupportMoves.map((move) => supportMoveLabels[move]).join('；') || '未选择'
+
+  return [
+    `TimeAtlas Teacher Adaptation Guide：${target.title}`,
+    `目标类型：${target.targetLabel}`,
+    `适用对象：${target.audience}`,
+    `时间盒：${target.timeBox}`,
+    `方法信号：${[
+      flags.hasCompare ? 'compare' : '',
+      flags.hasCausation ? 'causation' : '',
+      flags.hasSynthesis ? 'synthesis' : '',
+      flags.hasSourceBoundary ? 'source boundary' : '',
+      flags.hasVocabulary ? 'vocabulary' : '',
+    ].filter(Boolean).join('、') || 'general historical thinking'}`,
+    '',
+    `启用层级：${selectedLevelLabels}`,
+    `启用支架：${selectedMoveLabels}`,
+    '',
+    '教师调整建议：',
+    '- Starter：减少材料数量和开放问题数量，保留证据—推理—边界三件事。',
+    '- Standard：使用原任务交付物和 rubric focus，允许学生选择自己需要的单项支架。',
+    '- Challenge：增加第二维度、反例、限定语或迁移追问，而不是新增未经数据支持的历史事实。',
+    '- Language Support：先处理语言与结构，再评价历史解释质量；不要因使用句架而降低方法期待。',
+    '',
+    '目标特定 organizer：',
+    buildDifferentiationGraphicOrganizer(target),
+    '',
+    '课堂观察点：',
+    target.sourceBased
+      ? '- 学生是否把来源视角/可靠边界纳入结论，而不是只摘录？'
+      : '- 学生是否把任务材料转成可解释的证据，而不是只复述流程？',
+    flags.hasCompare ? '- 比较是否使用同一维度，并解释异同为什么重要？' : '',
+    flags.hasCausation ? '- 因果链是否区分背景、触发、约束、选择和后果？' : '',
+    flags.hasSynthesis ? '- 综合是否把材料连接成一个有范围的 thesis，而不是材料清单？' : '',
+    '',
+    '教师备注：',
+    draft.teacherNotes.trim() || target.teacherNotes || '可根据学生已有草稿，把支架作为选择菜单而不是固定分组。',
+    '',
+    `完成状态：${draft.completed ? 'completed support plan' : 'draft support plan'}`,
+    `更新时间：${draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'}`,
+  ].filter(Boolean).join('\n')
+}
+
+function formatDifferentiationDownload(target: AssessmentTargetInfo, draft: DifferentiationDraft) {
+  return [
+    formatDifferentiatedStudentHandout(target, draft),
+    '',
+    '---',
+    '',
+    formatTeacherAdaptationGuide(target, draft),
+  ].join('\n')
 }
 
 
@@ -11322,6 +11704,7 @@ function formatLearningArchive(
   assignmentLibraryTasks: LibraryTask[],
   taskWorkbenchDraftState: TaskWorkbenchState,
   sessionRunDraftState: SessionRunDraftState,
+  differentiationDraftState: DifferentiationDraftState,
   portfolioReviewDraft?: PortfolioReviewDraft,
 ) {
   const workspaceStats = getWorkspaceStats(workspaceState)
@@ -11359,6 +11742,7 @@ function formatLearningArchive(
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
+  const differentiationStats = getDifferentiationDraftStats(differentiationDraftState)
   const libraryTasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
   const portfolioReviewItems = portfolioReviewDraft ? buildPortfolioReviewItems({ missionWorkState, completedMissionIdsByScenario, workspaceState, assignmentLibraryTasks, taskWorkbenchDraftState, patternDraftState, infrastructureDraftState, interpretationDraftState, synthesisDraftState, compareDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, exhibitDraftState }) : []
   const selectedPortfolioReviewItems = portfolioReviewDraft ? portfolioReviewItems.filter((item) => portfolioReviewDraft.selectedItemIds.includes(item.id)) : []
@@ -11408,6 +11792,7 @@ function formatLearningArchive(
     `- 任务组合器：${assignmentSummary.selectedTasks.length ? `${assignmentSummary.selectedTasks.length} tasks，${assignmentSummary.totalMinutes} 分钟` : '尚未组合'}`,
     `- 任务执行台草稿：${taskWorkbenchStats.activeCount} drafts，${taskWorkbenchStats.completedCount} completed，${taskWorkbenchStats.checkedPromptCount} checklist items`,
     `- Live Session Runner：${sessionRunnerStats.draftCount} active routes，${sessionRunnerStats.completedCount} completed routes`,
+    `- Differentiation & Scaffolding Studio：${differentiationStats.draftCount} support drafts，${differentiationStats.completedCount} completed support plans`,
     `- 单元模块进度：${taskModuleStats.startedCount}/${taskModules.length} started，${taskModuleStats.completedCount} completed，${taskModuleStats.checkedStepCount}/${taskModuleStats.totalStepCount} steps`,
     `- Portfolio Review：${portfolioReviewDraft && hasPortfolioReviewActivity(portfolioReviewDraft) ? `${selectedPortfolioReviewItems.length} selected，${portfolioReviewDraft.completed ? 'completed' : 'draft'}，focus ${portfolioReviewFocusLabels[portfolioReviewDraft.reviewFocus]}` : '尚未开始'}`,
     '',
@@ -12321,6 +12706,7 @@ function formatLearningCoachPlan(recommendations: LearningCoachRecommendation[],
     `- Compare Lab 草稿：${snapshot.compareDraftCount}`,
     `- Synthesis 草稿：${snapshot.synthesisDraftCount}`,
     `- Case Files 草稿：${snapshot.caseFileDraftCount}`,
+    `- Differentiation support plans：${snapshot.differentiationDraftCount} drafts（${snapshot.completedSupportPlanCount} completed）`,
     `- Question Bank：${buildQuestionBankItems().length} 个可用短题 / exit tickets`,
     '',
     '推荐下一步：',
@@ -15354,6 +15740,8 @@ type BuildGlobalExplorerItemsOptions = {
   synthesisDraftState: SynthesisDraftState
   sourceAnnotationDraftState: SourceAnnotationDraftState
   sessionRunDraftState: SessionRunDraftState
+  differentiationDraftState: DifferentiationDraftState
+  assignmentBuilderDraft: AssignmentBuilderDraft
 }
 
 const globalExplorerKindLabels: Record<GlobalExplorerKindFilter, string> = {
@@ -15457,6 +15845,8 @@ function buildGlobalExplorerItems({
   synthesisDraftState,
   sourceAnnotationDraftState,
   sessionRunDraftState,
+  differentiationDraftState,
+  assignmentBuilderDraft,
 }: BuildGlobalExplorerItemsOptions): GlobalExplorerItem[] {
   const items: GlobalExplorerItem[] = []
 
@@ -15673,6 +16063,38 @@ function buildGlobalExplorerItems({
     })
   })
 
+  items.push({
+    id: 'tool:tasks:assessment-scaffolds',
+    kind: 'tool',
+    title: 'Differentiation & Scaffolding Studio',
+    eyebrow: 'Scaffolds · Assessment Studio',
+    summary: '把 Assignment、LibraryTask 或 Task Module 转成 Starter / Standard / Challenge / Language Support 支架版本。',
+    context: '任务档案 · 评价反馈',
+    tags: uniqueLimitedStrings(['Scaffolds', 'Differentiation', 'Assessment', 'Support plans', '分层支架']),
+    actionLabel: '打开评价反馈中的支架区域',
+    priority: 83,
+    searchText: buildGlobalExplorerSearchText(['Differentiation Scaffolding Studio', 'Scaffolds', 'Assessment Studio', '支架', '分层', 'support levels', 'starter standard challenge language support', '评价反馈']),
+    action: { type: 'tool', page: 'tasks', hash: 'differentiation-studio' },
+  })
+
+  getDifferentiationDraftStats(differentiationDraftState).recentDrafts.forEach(([draftKey, draft]) => {
+    const target = getDifferentiationTargetInfo(draft, assignmentBuilderDraft, assignmentLibraryTasks)
+    items.push({
+      id: `draft:differentiation:${draftKey}`,
+      kind: 'draft',
+      title: target.title,
+      eyebrow: draft.completed ? 'Differentiation Studio · 已完成' : 'Differentiation Studio · 草稿',
+      summary: compactText(draft.learnerNeeds, draft.studentInstructions || '继续分层支架、学生任务单和教师调整指南。', 145),
+      context: target.targetLabel,
+      tags: uniqueLimitedStrings(['Scaffolds', ...draft.selectedLevels.map((level) => supportLevelLabels[level].title), ...target.tags]),
+      actionLabel: '打开支架草稿',
+      priority: 97,
+      updatedAt: draft.updatedAt,
+      searchText: buildGlobalExplorerSearchText([draftKey, target.title, target.targetLabel, target.learningGoal, target.deliverable, draft.learnerNeeds, draft.studentInstructions, draft.teacherNotes, 'differentiation scaffolding support plan 分层 支架']),
+      action: { type: 'tool', page: 'tasks', hash: 'differentiation-studio' },
+    })
+  })
+
   return items
 }
 
@@ -15864,6 +16286,7 @@ function App() {
     loadTaskModuleProgressState,
   )
   const [assignmentBuilderDraft, setAssignmentBuilderDraft] = useState<AssignmentBuilderDraft>(loadAssignmentBuilderDraft)
+  const [differentiationDraftState, setDifferentiationDraftState] = useState<DifferentiationDraftState>(loadDifferentiationDraftState)
   const [taskWorkbenchDraftState, setTaskWorkbenchDraftState] = useState<TaskWorkbenchState>(loadTaskWorkbenchDraftState)
   const [actorNetworkDraftState, setActorNetworkDraftState] = useState<ActorNetworkDraftState>(loadActorNetworkDraftState)
   const [materialCultureDraftState, setMaterialCultureDraftState] = useState<MaterialCultureDraftState>(loadMaterialCultureDraftState)
@@ -15912,7 +16335,7 @@ function App() {
   const patternMetricsByInquiry = useMemo(getPatternMetricsByInquiryMap, [])
   const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenPatternInquiry: openPatternInquiry, onOpenInfrastructureInquiry: openInfrastructureInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenInterpretationInquiry: openInterpretationInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenCitationTrail: openCitationTrailSources, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
-  const globalExplorerItems = useMemo(() => buildGlobalExplorerItems({ assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState }), [assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState])
+  const globalExplorerItems = useMemo(() => buildGlobalExplorerItems({ assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState, differentiationDraftState, assignmentBuilderDraft }), [assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState, differentiationDraftState, assignmentBuilderDraft])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -15927,6 +16350,7 @@ function App() {
   const compareDraftCount = useMemo(() => getActiveCompareDrafts(compareDraftState).length, [compareDraftState])
   const synthesisDraftCount = useMemo(() => getActiveSynthesisDrafts(synthesisDraftState).length, [synthesisDraftState])
   const caseFileDraftCount = useMemo(() => getActiveEvidenceCaseFileDrafts(caseFileDraftState).length, [caseFileDraftState])
+  const differentiationDraftStats = useMemo(() => getDifferentiationDraftStats(differentiationDraftState), [differentiationDraftState])
   const missionDraftCount = useMemo(() => getMissionDraftCount(missionWorkState), [missionWorkState])
   const learningCoachSnapshot = useMemo(() => ({
     totalCompletedMissionCount,
@@ -15938,7 +16362,9 @@ function App() {
     compareDraftCount,
     synthesisDraftCount,
     caseFileDraftCount,
-  }), [totalCompletedMissionCount, missionDraftCount, workspaceStats, taskModuleStats, taskWorkbenchStats, labDraftCount, compareDraftCount, synthesisDraftCount, caseFileDraftCount])
+    differentiationDraftCount: differentiationDraftStats.draftCount,
+    completedSupportPlanCount: differentiationDraftStats.completedCount,
+  }), [totalCompletedMissionCount, missionDraftCount, workspaceStats, taskModuleStats, taskWorkbenchStats, labDraftCount, compareDraftCount, synthesisDraftCount, caseFileDraftCount, differentiationDraftStats])
   const learningCoachRecommendations = buildLearningCoachRecommendations({
     libraryTasks: assignmentLibraryTasks,
     taskWorkbenchDraftState,
@@ -16355,6 +16781,18 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [assignmentBuilderDraft])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      persistDifferentiationDraftState(differentiationDraftState)
+    } catch {
+      // Browser storage persistence is progressive enhancement; in-memory state still works.
+    }
+  }, [differentiationDraftState])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -17691,6 +18129,8 @@ function App() {
               <AssessmentStudioPanel
                 assignmentBuilderDraft={assignmentBuilderDraft}
                 libraryTasks={assignmentLibraryTasks}
+                differentiationDraftState={differentiationDraftState}
+                onUpdateDifferentiationDraftState={setDifferentiationDraftState}
               />
             ) : null}
             {activeTasksSubpage === 'debate' ? (
@@ -17761,6 +18201,7 @@ function App() {
                 decisionReplayDraftState={decisionReplayDraftState}
                 dailyLedgerDraftState={dailyLedgerDraftState}
                 exhibitDraftState={exhibitDraftState}
+                differentiationDraftState={differentiationDraftState}
                 taskWorkbenchDraftState={taskWorkbenchDraftState}
                 sessionRunDraftState={sessionRunDraftState}
                 portfolioReviewDraft={portfolioReviewDraft}
@@ -23079,6 +23520,7 @@ function PortfolioPanel({
   decisionReplayDraftState,
   dailyLedgerDraftState,
   exhibitDraftState,
+  differentiationDraftState,
   taskWorkbenchDraftState,
   sessionRunDraftState,
   portfolioReviewDraft,
@@ -23119,6 +23561,7 @@ function PortfolioPanel({
   decisionReplayDraftState: DecisionReplayDraftState
   dailyLedgerDraftState: DailyLedgerDraftState
   exhibitDraftState: ExhibitStudioDraftState
+  differentiationDraftState: DifferentiationDraftState
   taskWorkbenchDraftState: TaskWorkbenchState
   sessionRunDraftState: SessionRunDraftState
   portfolioReviewDraft: PortfolioReviewDraft
@@ -23154,6 +23597,7 @@ function PortfolioPanel({
   const decisionReplayStats = getDecisionReplayStats(decisionReplayDraftState)
   const exhibitStudioStats = getExhibitStudioStats(exhibitDraftState)
   const dailyLedgerStats = getDailyLedgerStats(dailyLedgerDraftState)
+  const differentiationStats = getDifferentiationDraftStats(differentiationDraftState)
   const assignmentSummary = getAssignmentBuilderSummary(assignmentBuilderDraft, assignmentLibraryTasks)
   const taskWorkbenchStats = getTaskWorkbenchStats(taskWorkbenchDraftState)
   const sessionRunnerStats = getSessionRunnerStats(sessionRunDraftState)
@@ -23191,6 +23635,7 @@ function PortfolioPanel({
   const recentDecisionReplayDrafts = decisionReplayStats.recentDrafts.slice(0, 3)
   const recentExhibitDrafts = exhibitStudioStats.recentDrafts.slice(0, 3)
   const recentDailyLedgerDrafts = dailyLedgerStats.recentDrafts.slice(0, 3)
+  const recentDifferentiationDrafts = differentiationStats.recentDrafts.slice(0, 3)
   const recentChronologyDrafts = getActiveChronologyDrafts(chronologyDraftState)
     .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
     .slice(0, 3)
@@ -23253,7 +23698,7 @@ function PortfolioPanel({
 
   async function copyArchive() {
     try {
-      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState, portfolioReviewDraft))
+      await copyTextToClipboard(formatLearningArchive(missionWorkState, completedMissionIdsByScenario, workspaceState, chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, synthesisDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, vocabularyClinicDraftState, questionBankDraftState, compareDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, taskModuleProgressState, assignmentBuilderDraft, assignmentLibraryTasks, taskWorkbenchDraftState, sessionRunDraftState, differentiationDraftState, portfolioReviewDraft))
       setCopyStatus('copied')
     } catch {
       setCopyStatus('failed')
@@ -23331,6 +23776,8 @@ function PortfolioPanel({
               { label: '账本完成', value: dailyLedgerStats.completedCount },
               { label: '展览策展', value: exhibitStudioStats.draftCount },
               { label: '展览完成', value: exhibitStudioStats.completedCount },
+              { label: '支架草稿', value: differentiationStats.draftCount },
+              { label: '支架完成', value: differentiationStats.completedCount },
               { label: '任务组合', value: assignmentSummary.selectedTasks.length },
               { label: '组合分钟', value: assignmentSummary.totalMinutes },
               { label: '执行台草稿', value: taskWorkbenchStats.activeCount },
@@ -23354,7 +23801,7 @@ function PortfolioPanel({
 
           <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
             <h3 className="font-semibold text-stone-50">最近草稿 / 工作区</h3>
-            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentInfrastructureDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentInterpretationDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCitationTrailDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || recentSessionRunDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
+            {recentEntries.length > 0 || workspaceStats.recentEntries.length > 0 || taskModuleStats.details.length > 0 || recentChronologyDrafts.length > 0 || recentCounterfactualDrafts.length > 0 || recentPlaceDrafts.length > 0 || recentInfrastructureDrafts.length > 0 || recentMessageFlowDrafts.length > 0 || recentInterpretationDrafts.length > 0 || recentConceptAtlasDrafts.length > 0 || recentSourceAnnotationDrafts.length > 0 || recentCitationTrailDrafts.length > 0 || recentVocabularyClinicDrafts.length > 0 || recentCompareDrafts.length > 0 || recentActorNetworkDrafts.length > 0 || recentMaterialCultureDrafts.length > 0 || recentDispatchDrafts.length > 0 || recentDecisionReplayDrafts.length > 0 || recentDailyLedgerDrafts.length > 0 || recentExhibitDrafts.length > 0 || recentDifferentiationDrafts.length > 0 || recentWorkbenchDrafts.length > 0 || recentSessionRunDrafts.length > 0 || assignmentSummary.selectedTasks.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {assignmentSummary.selectedTasks.length > 0 ? (
                   <div className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
@@ -23374,6 +23821,17 @@ function PortfolioPanel({
                       <div className="font-medium text-stone-100">{route?.title ?? routeId}</div>
                       <div>Live Session Runner · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '运行中'} · {completedStepCount}/{steps.length || '若干'} steps</div>
                       <div className="mt-1 text-stone-500">{draft.finalReflection.trim() || draft.selectedEvidenceNotes.trim() || '尚未填写 reflection 或 evidence notes'}</div>
+                    </div>
+                  )
+                })}
+                {recentDifferentiationDrafts.map(([draftKey, draft]) => {
+                  const supportTarget = getDifferentiationTargetInfo(draft, assignmentBuilderDraft, assignmentLibraryTasks)
+
+                  return (
+                    <div key={draftKey} className="rounded-2xl border border-amber-200/15 bg-amber-100/[0.045] p-3 text-sm leading-6 text-stone-400">
+                      <div className="font-medium text-stone-100">{supportTarget.title}</div>
+                      <div>Differentiation Studio · {supportTarget.targetLabel} · {draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : '未记录时间'} · {draft.completed ? '已完成' : '草稿'} · {draft.selectedLevels.length} levels</div>
+                      <div className="mt-1 text-stone-500">{draft.learnerNeeds.trim() || draft.studentInstructions.trim() || '尚未填写 learner needs 或 student instructions'}</div>
                     </div>
                   )
                 })}
@@ -24584,9 +25042,13 @@ function AssignmentBuilderPanel({
 function AssessmentStudioPanel({
   assignmentBuilderDraft,
   libraryTasks,
+  differentiationDraftState,
+  onUpdateDifferentiationDraftState,
 }: {
   assignmentBuilderDraft: AssignmentBuilderDraft
   libraryTasks: LibraryTask[]
+  differentiationDraftState: DifferentiationDraftState
+  onUpdateDifferentiationDraftState: Dispatch<SetStateAction<DifferentiationDraftState>>
 }) {
   const [assessmentDraft, setAssessmentDraft] = useState<AssessmentDraft>({
     targetType: 'assignment',
@@ -24594,6 +25056,7 @@ function AssessmentStudioPanel({
     moduleId: taskModules[0]?.id ?? '',
   })
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  const [studioMode, setStudioMode] = useState<'rubric' | 'scaffolds' | 'revision'>('rubric')
   const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'feedback' | 'revision' | 'failed'>('idle')
   const normalizedTaskSearch = taskSearchQuery.trim().toLowerCase()
   const visibleTasks = useMemo(
@@ -24606,6 +25069,10 @@ function AssessmentStudioPanel({
   const teacherGuide = formatAssessmentTeacherScoringGuide(target, criteria)
   const feedbackStems = formatAssessmentFeedbackStems(target, criteria)
   const revisionChecklist = formatAssessmentRevisionChecklist(target, criteria)
+  const differentiationTargetKind = mapAssessmentTargetTypeToDifferentiationKind(assessmentDraft.targetType)
+  const differentiationTargetId = getDifferentiationTargetId(differentiationTargetKind, assessmentDraft)
+  const differentiationDraftKey = getDifferentiationDraftKey(differentiationTargetKind, differentiationTargetId)
+  const differentiationDraft = differentiationDraftState[differentiationDraftKey] ?? getEmptyDifferentiationDraft(differentiationTargetKind, differentiationTargetId)
   const assessmentExports = [
     { id: 'student' as const, label: '学生 Rubric', text: studentRubric, filename: 'student-rubric' },
     { id: 'teacher' as const, label: '教师评分指南', text: teacherGuide, filename: 'teacher-scoring-guide' },
@@ -24640,15 +25107,15 @@ function AssessmentStudioPanel({
               Tasks Assessment Studio / 评价与反馈工作台
             </h2>
             <p className="mt-3 max-w-3xl leading-7 text-stone-400">
-              从当前任务组合、单个 Task Library 任务或 Task Module 生成四级评价标准，并复制或导出学生 rubric、教师评分指南、反馈句式与修改清单。
+              从当前任务组合、单个 Task Library 任务或 Task Module 生成四级评价标准，并在相邻 Scaffolds 模式中把同一目标改写为分层学习支架。
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: 'Rubric 项', value: criteria.length },
               { label: '关联任务', value: target.tasks.length },
-              { label: '来源类别', value: target.sourceLabels.length },
-              { label: '方法标签', value: target.tags.length },
+              { label: '支架草稿', value: getDifferentiationDraftStats(differentiationDraftState).draftCount },
+              { label: '完成支架', value: getDifferentiationDraftStats(differentiationDraftState).completedCount },
             ].map((item) => (
               <div key={item.label} className="rounded-3xl border border-white/10 bg-black/20 p-4 text-center">
                 <div className="text-2xl font-semibold text-sky-100">{item.value}</div>
@@ -24658,10 +25125,27 @@ function AssessmentStudioPanel({
           </div>
         </div>
 
+        <div className="mt-6 flex flex-wrap gap-2 rounded-full border border-white/10 bg-black/20 p-1">
+          {([
+            ['rubric', 'Rubric'],
+            ['scaffolds', 'Scaffolds'],
+            ['revision', 'Revision'],
+          ] as [typeof studioMode, string][]).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setStudioMode(mode)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${studioMode === mode ? 'bg-sky-300 text-stone-950' : 'text-stone-300 hover:bg-white/[0.06]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="mt-6 grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
           <div className="space-y-5">
             <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
-              <h3 className="text-xl font-semibold text-stone-50">1. 选择评价目标 / Target</h3>
+              <h3 className="text-xl font-semibold text-stone-50">1. 选择目标 / Target</h3>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {([
                   ['assignment', '当前任务组合', 'Assignment Builder draft'],
@@ -24690,20 +25174,10 @@ function AssessmentStudioPanel({
                     <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">搜索任务</span>
                     <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-3 transition focus-within:border-sky-200/60">
                       <Search size={18} className="text-stone-500" />
-                      <input
-                        type="search"
-                        value={taskSearchQuery}
-                        onChange={(event) => setTaskSearchQuery(event.target.value)}
-                        placeholder="标题、来源、类别、标签……"
-                        className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600"
-                      />
+                      <input type="search" value={taskSearchQuery} onChange={(event) => setTaskSearchQuery(event.target.value)} placeholder="标题、来源、类别、标签……" className="min-w-0 flex-1 bg-transparent text-stone-100 outline-none placeholder:text-stone-600" />
                     </div>
                   </label>
-                  <select
-                    value={assessmentDraft.taskId}
-                    onChange={(event) => setAssessmentDraft((currentDraft) => ({ ...currentDraft, taskId: event.target.value }))}
-                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
-                  >
+                  <select value={assessmentDraft.taskId} onChange={(event) => setAssessmentDraft((currentDraft) => ({ ...currentDraft, taskId: event.target.value }))} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60">
                     {visibleTasks.map((task) => <option key={task.id} value={task.id}>{task.title} · {task.sourceLabel} · {task.durationMinutes}m</option>)}
                   </select>
                 </div>
@@ -24712,11 +25186,7 @@ function AssessmentStudioPanel({
               {assessmentDraft.targetType === 'module' ? (
                 <label className="mt-4 block">
                   <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-stone-500">选择 Task Module</span>
-                  <select
-                    value={assessmentDraft.moduleId}
-                    onChange={(event) => setAssessmentDraft((currentDraft) => ({ ...currentDraft, moduleId: event.target.value }))}
-                    className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60"
-                  >
+                  <select value={assessmentDraft.moduleId} onChange={(event) => setAssessmentDraft((currentDraft) => ({ ...currentDraft, moduleId: event.target.value }))} className="w-full rounded-full border border-white/10 bg-black/25 px-4 py-3 text-stone-100 outline-none transition focus:border-sky-200/60">
                     {taskModules.map((module) => <option key={module.id} value={module.id}>{module.title} · {module.totalMinutes}m</option>)}
                   </select>
                 </label>
@@ -24724,7 +25194,7 @@ function AssessmentStudioPanel({
             </div>
 
             <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
-              <h3 className="text-xl font-semibold text-stone-50">2. 目标摘要 / Assessment brief</h3>
+              <h3 className="text-xl font-semibold text-stone-50">2. 目标摘要 / Brief</h3>
               <div className="mt-4 space-y-3 text-sm leading-6 text-stone-300">
                 <div className="rounded-2xl border border-sky-200/15 bg-sky-100/[0.045] p-3">
                   <div className="text-xs uppercase tracking-[0.18em] text-sky-100">{target.targetLabel}</div>
@@ -24744,69 +25214,220 @@ function AssessmentStudioPanel({
           </div>
 
           <div className="space-y-5">
-            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
-              <h3 className="text-xl font-semibold text-stone-50">3. Rubric criteria / 四级评价标准</h3>
-              <div className="mt-4 grid gap-3">
-                {criteria.map((criterion, index) => (
-                  <article key={criterion.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
-                      <span className="rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-3 py-1 text-sky-100">Criterion {index + 1}</span>
-                      <span>{criterion.id}</span>
-                    </div>
-                    <h4 className="mt-2 font-semibold text-stone-50">{criterion.title}</h4>
-                    <p className="mt-2 text-sm leading-6 text-stone-400">{criterion.focus}</p>
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      {([
-                        ['exceeds', 'Exceeds'],
-                        ['meets', 'Meets'],
-                        ['developing', 'Developing'],
-                        ['beginning', 'Beginning'],
-                      ] as [keyof RubricCriterion['levels'], string][]).map(([level, label]) => (
-                        <div key={level} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-300">
-                          <span className="font-semibold text-sky-100">{label}：</span>{criterion.levels[level]}
+            {studioMode === 'rubric' ? (
+              <>
+                <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                  <h3 className="text-xl font-semibold text-stone-50">3. Rubric criteria / 四级评价标准</h3>
+                  <div className="mt-4 grid gap-3">
+                    {criteria.map((criterion, index) => (
+                      <article key={criterion.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                        <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500"><span className="rounded-full border border-sky-200/20 bg-sky-100/[0.06] px-3 py-1 text-sky-100">Criterion {index + 1}</span><span>{criterion.id}</span></div>
+                        <h4 className="mt-2 font-semibold text-stone-50">{criterion.title}</h4>
+                        <p className="mt-2 text-sm leading-6 text-stone-400">{criterion.focus}</p>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                          {([
+                            ['exceeds', 'Exceeds'],
+                            ['meets', 'Meets'],
+                            ['developing', 'Developing'],
+                            ['beginning', 'Beginning'],
+                          ] as [keyof RubricCriterion['levels'], string][]).map(([level, label]) => (
+                            <div key={level} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-stone-300"><span className="font-semibold text-sky-100">{label}：</span>{criterion.levels[level]}</div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
-              <h3 className="text-xl font-semibold text-stone-50">4. 复制 / 导出</h3>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {assessmentExports.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
-                    <div className="font-semibold text-stone-100">{item.label}</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void copyAssessment(item.id, item.text)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-sky-200"
-                      >
-                        {copyStatus === item.id ? <Check size={16} /> : <Copy size={16} />}
-                        {copyStatus === item.id ? '已复制' : '复制'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadTextFile(getAssessmentFilename(target, item.filename), item.text)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"
-                      >
-                        <Share2 size={16} />
-                        导出 .txt
-                      </button>
-                    </div>
+                      </article>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                  <h3 className="text-xl font-semibold text-stone-50">4. 复制 / 导出</h3>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {assessmentExports.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                        <div className="font-semibold text-stone-100">{item.label}</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button type="button" onClick={() => void copyAssessment(item.id, item.text)} className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-sky-200">{copyStatus === item.id ? <Check size={16} /> : <Copy size={16} />}{copyStatus === item.id ? '已复制' : '复制'}</button>
+                          <button type="button" onClick={() => downloadTextFile(getAssessmentFilename(target, item.filename), item.text)} className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"><Share2 size={16} />导出 .txt</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-sm text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限；仍可使用导出按钮下载文本。' : '导出内容由当前目标即时生成，不新增 scenario 数据。'}</p>
+                </div>
+              </>
+            ) : null}
+
+            {studioMode === 'scaffolds' ? (
+              <DifferentiationStudioPanel
+                target={target}
+                draft={differentiationDraft}
+                draftKey={differentiationDraftKey}
+                onUpdateDraftState={onUpdateDifferentiationDraftState}
+              />
+            ) : null}
+
+            {studioMode === 'revision' ? (
+              <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
+                <h3 className="text-xl font-semibold text-stone-50">Revision / 修改与反馈</h3>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-stone-300">{feedbackStems}</pre>
+                  <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-stone-300">{revisionChecklist}</pre>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void copyAssessment('feedback', feedbackStems)} className="inline-flex items-center gap-2 rounded-full bg-sky-300 px-4 py-2 text-sm font-semibold text-stone-950"><Copy size={16} />复制反馈句式</button>
+                  <button type="button" onClick={() => void copyAssessment('revision', revisionChecklist)} className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-stone-100"><Copy size={16} />复制修改清单</button>
+                </div>
               </div>
-              <p className="mt-3 text-sm text-stone-500" aria-live="polite">
-                {copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限；仍可使用导出按钮下载文本。' : '导出内容由当前目标即时生成，不新增 scenario 数据。'}
-              </p>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
     </section>
+  )
+}
+
+function DifferentiationStudioPanel({
+  target,
+  draft,
+  draftKey,
+  onUpdateDraftState,
+}: {
+  target: AssessmentTargetInfo
+  draft: DifferentiationDraft
+  draftKey: string
+  onUpdateDraftState: Dispatch<SetStateAction<DifferentiationDraftState>>
+}) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'student' | 'teacher' | 'failed'>('idle')
+  const studentHandout = formatDifferentiatedStudentHandout(target, draft)
+  const teacherGuide = formatTeacherAdaptationGuide(target, draft)
+  const downloadText = formatDifferentiationDownload(target, draft)
+  const levelCards: { id: SupportLevel, title: string, subtitle: string, body: string }[] = [
+    { id: 'starter', title: 'Starter', subtitle: '更多入口、更低开放度', body: '减少材料数量，使用句架和 organizer，保留证据—推理—边界。' },
+    { id: 'standard', title: 'Standard', subtitle: '原任务目标', body: `完成目标交付物：${target.deliverable}` },
+    { id: 'challenge', title: 'Challenge', subtitle: '提高复杂性', body: '增加比较维度、反例、因果权重、综合限定或拓展追问。' },
+    { id: 'language-support', title: 'Language Support', subtitle: '语言支架', body: '用词汇桥、双语句架和同伴复述降低表达负荷，不降低历史思维目标。' },
+  ]
+
+  function updateDraft(patch: Partial<DifferentiationDraft>) {
+    onUpdateDraftState((currentState) => ({
+      ...currentState,
+      [draftKey]: {
+        ...draft,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      },
+    }))
+  }
+
+  function toggleLevel(level: SupportLevel) {
+    updateDraft({ selectedLevels: draft.selectedLevels.includes(level) ? draft.selectedLevels.filter((item) => item !== level) : [...draft.selectedLevels, level] })
+  }
+
+  function toggleSupportMove(move: SupportMove) {
+    updateDraft({ selectedSupportMoves: draft.selectedSupportMoves.includes(move) ? draft.selectedSupportMoves.filter((item) => item !== move) : [...draft.selectedSupportMoves, move] })
+  }
+
+  async function copyScaffold(kind: 'student' | 'teacher') {
+    try {
+      await copyTextToClipboard(kind === 'student' ? studentHandout : teacherGuide)
+      setCopyStatus(kind)
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  function clearDraft() {
+    onUpdateDraftState((currentState) => {
+      const nextState = { ...currentState }
+      delete nextState[draftKey]
+      return nextState
+    })
+    setCopyStatus('idle')
+  }
+
+  return (
+    <div id="differentiation-studio" className="rounded-[1.5rem] border border-amber-200/15 bg-amber-100/[0.045] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.24em] text-amber-100">Differentiation & Scaffolding Studio</div>
+          <h3 className="mt-2 text-xl font-semibold text-stone-50">分层支架工作台</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-400">把当前评价目标转为 Starter / Standard / Challenge / Language Support 版本。支架只重组现有任务目标与材料，不新增历史事实。</p>
+        </div>
+        <button type="button" onClick={() => updateDraft({ completed: !draft.completed })} className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${draft.completed ? 'border-emerald-200/40 bg-emerald-100/[0.1] text-emerald-100' : 'border-white/15 bg-white/[0.03] text-stone-200 hover:bg-white/[0.08]'}`}>
+          {draft.completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+          {draft.completed ? '已完成 support plan' : '标记完成'}
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Support levels / 支架层级</h4>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {levelCards.map((level) => {
+                const active = draft.selectedLevels.includes(level.id)
+                return (
+                  <button key={level.id} type="button" onClick={() => toggleLevel(level.id)} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-amber-200/50 bg-amber-100/[0.1]' : 'border-white/10 bg-white/[0.025] hover:bg-white/[0.06]'}`}>
+                    <div className="flex items-center gap-2 font-semibold text-stone-50">{active ? <CheckCircle2 size={16} className="text-amber-100" /> : <Circle size={16} className="text-stone-500" />}{level.title}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.14em] text-amber-100/80">{level.subtitle}</div>
+                    <p className="mt-2 text-xs leading-5 text-stone-400">{level.body}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Support moves / 支架动作</h4>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(Object.keys(supportMoveLabels) as SupportMove[]).map((move) => (
+                <label key={move} className="flex items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-3 text-sm leading-5 text-stone-300">
+                  <input type="checkbox" checked={draft.selectedSupportMoves.includes(move)} onChange={() => toggleSupportMove(move)} className="mt-1 accent-amber-300" />
+                  <span>{supportMoveLabels[move]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Teacher fields / 教师输入</h4>
+            <div className="mt-3 grid gap-3">
+              <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Learner needs</span><textarea value={draft.learnerNeeds} onChange={(event) => updateDraft({ learnerNeeds: event.target.value })} rows={3} placeholder="例如：需要更多证据定位；需要语言句架；可接受 challenge 拓展……" className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+              <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Student instructions</span><textarea value={draft.studentInstructions} onChange={(event) => updateDraft({ studentInstructions: event.target.value })} rows={3} placeholder="给学生看的支架使用说明……" className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+              <label className="block"><span className="mb-1 block text-xs uppercase tracking-[0.16em] text-stone-500">Teacher notes</span><textarea value={draft.teacherNotes} onChange={(event) => updateDraft({ teacherNotes: event.target.value })} rows={3} placeholder="分组、时间、观察重点或反馈建议……" className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-stone-100 outline-none focus:border-amber-200/60" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="text-xs uppercase tracking-[0.16em] text-stone-500">Draft key</div><div className="mt-1 break-all text-sm text-amber-100">{draftKey}</div></div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="text-xs uppercase tracking-[0.16em] text-stone-500">Status</div><div className="mt-1 text-sm text-amber-100">{draft.completed ? 'completed support plan' : 'draft support plan'}{draft.updatedAt ? ` · ${new Date(draft.updatedAt).toLocaleString()}` : ''}</div></div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Student handout preview</h4>
+            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 p-3 text-xs leading-5 text-stone-300">{studentHandout}</pre>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Teacher guide preview</h4>
+            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 p-3 text-xs leading-5 text-stone-300">{teacherGuide}</pre>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-stone-50">Actions</h4>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => void copyScaffold('student')} className="inline-flex items-center gap-2 rounded-full bg-amber-300 px-4 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-200">{copyStatus === 'student' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'student' ? '学生 handout 已复制' : '复制 student handout'}</button>
+              <button type="button" onClick={() => void copyScaffold('teacher')} className="inline-flex items-center gap-2 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-100/[0.14]">{copyStatus === 'teacher' ? <Check size={16} /> : <Copy size={16} />}{copyStatus === 'teacher' ? '教师 guide 已复制' : '复制 teacher adaptation guide'}</button>
+              <button type="button" onClick={() => downloadTextFile(getAssessmentFilename(target, 'differentiation-scaffolds'), downloadText)} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-white/[0.08]"><Share2 size={16} />下载 txt</button>
+              <button type="button" onClick={clearDraft} className="inline-flex items-center gap-2 rounded-full border border-rose-200/25 bg-rose-100/[0.06] px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-100/[0.12]">清空当前 draft</button>
+            </div>
+            <p className="mt-3 text-sm text-stone-500" aria-live="polite">{copyStatus === 'failed' ? '复制失败，请检查浏览器剪贴板权限；仍可下载 txt。' : '草稿自动保存到本机 storage；下载合并学生 handout 与教师 guide。'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
