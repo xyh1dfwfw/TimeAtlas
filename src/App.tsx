@@ -105,6 +105,7 @@ const vocabularyClinicStorageKey = 'timeatlas:vocabulary-clinic-drafts'
 const questionBankStorageKey = 'timeatlas:question-bank-drafts'
 const questionSetDraftStorageKey = 'timeatlas:question-set-draft'
 const portfolioReviewStorageKey = 'timeatlas:portfolio-review-drafts'
+const globalExplorerStorageKey = 'timeatlas:global-explorer-state'
 const defaultScenarioSectionId = 'experience'
 const sectionIds = {
   experience: defaultScenarioSectionId,
@@ -15308,6 +15309,445 @@ async function copyTextToClipboard(text: string) {
   await navigator.clipboard.writeText(text)
 }
 
+
+type GlobalExplorerItemKind = 'scenario' | 'source' | 'task' | 'route' | 'tool' | 'draft'
+type GlobalExplorerKindFilter = 'all' | GlobalExplorerItemKind
+
+type GlobalExplorerAction =
+  | { type: 'scenario', scenarioId: string, hash?: ScenarioSectionId }
+  | { type: 'source', sourceId: string, scenarioId: string }
+  | { type: 'task', taskId: string }
+  | { type: 'route', routeKind: 'map-route' | 'inquiry-path', routeId: string }
+  | { type: 'tool', page: PageId, hash?: string }
+  | { type: 'draft', draftKind: 'task-workbench', taskId: string }
+  | { type: 'draft', draftKind: 'compare', scenarioAId: string, scenarioBId: string, lensKey: CompareLens['key'] }
+  | { type: 'draft', draftKind: 'synthesis', presetId: string }
+  | { type: 'draft', draftKind: 'source-annotation', sourceId: string }
+  | { type: 'draft', draftKind: 'session-runner', routeId: string }
+
+type GlobalExplorerItem = {
+  id: string
+  kind: GlobalExplorerItemKind
+  title: string
+  eyebrow: string
+  summary: string
+  context: string
+  tags: string[]
+  actionLabel: string
+  priority: number
+  updatedAt?: string
+  searchText: string
+  action: GlobalExplorerAction
+}
+
+type GlobalExplorerState = {
+  recentQuery: string
+  recentItemIds: string[]
+  pinnedItemIds: string[]
+  updatedAt?: string
+}
+
+type BuildGlobalExplorerItemsOptions = {
+  assignmentLibraryTasks: LibraryTask[]
+  taskWorkbenchDraftState: TaskWorkbenchState
+  compareDraftState: CompareDraftState
+  synthesisDraftState: SynthesisDraftState
+  sourceAnnotationDraftState: SourceAnnotationDraftState
+  sessionRunDraftState: SessionRunDraftState
+}
+
+const globalExplorerKindLabels: Record<GlobalExplorerKindFilter, string> = {
+  all: '全部',
+  scenario: '身份',
+  source: '来源',
+  task: '任务',
+  route: '路线',
+  tool: '工具',
+  draft: '草稿',
+}
+
+const defaultGlobalExplorerState: GlobalExplorerState = {
+  recentQuery: '',
+  recentItemIds: [],
+  pinnedItemIds: [],
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildGlobalExplorerSearchText(parts: Array<string | number | null | undefined>) {
+  return normalizeSearchText(parts.filter((part) => part !== null && part !== undefined).join(' '))
+}
+
+function uniqueLimitedStrings(values: Array<string | null | undefined>, limit = 8) {
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))].slice(0, limit)
+}
+
+function parseGlobalExplorerState(rawState: string | null): GlobalExplorerState {
+  try {
+    const parsedState = rawState ? JSON.parse(rawState) : {}
+
+    if (!parsedState || typeof parsedState !== 'object' || Array.isArray(parsedState)) {
+      return defaultGlobalExplorerState
+    }
+
+    const state = parsedState as Partial<GlobalExplorerState>
+
+    return {
+      recentQuery: typeof state.recentQuery === 'string' ? state.recentQuery.slice(0, 120) : '',
+      recentItemIds: Array.isArray(state.recentItemIds)
+        ? state.recentItemIds.filter((id): id is string => typeof id === 'string').slice(0, 12)
+        : [],
+      pinnedItemIds: Array.isArray(state.pinnedItemIds)
+        ? state.pinnedItemIds.filter((id): id is string => typeof id === 'string').slice(0, 12)
+        : [],
+      updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : undefined,
+    }
+  } catch {
+    return defaultGlobalExplorerState
+  }
+}
+
+function loadGlobalExplorerState(): GlobalExplorerState {
+  if (typeof window === 'undefined') {
+    return defaultGlobalExplorerState
+  }
+
+  const localState = parseGlobalExplorerState(window.localStorage.getItem(globalExplorerStorageKey))
+  if (localState.recentQuery || localState.recentItemIds.length || localState.pinnedItemIds.length) {
+    return localState
+  }
+
+  return parseGlobalExplorerState(window.sessionStorage.getItem(globalExplorerStorageKey))
+}
+
+function persistGlobalExplorerState(state: GlobalExplorerState) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const serializedState = JSON.stringify({
+    recentQuery: state.recentQuery,
+    recentItemIds: state.recentItemIds.slice(0, 12),
+    pinnedItemIds: state.pinnedItemIds.slice(0, 12),
+    updatedAt: state.updatedAt ?? new Date().toISOString(),
+  })
+
+  try {
+    window.localStorage.setItem(globalExplorerStorageKey, serializedState)
+  } catch {
+    try {
+      window.sessionStorage.setItem(globalExplorerStorageKey, serializedState)
+    } catch {
+      // Global Explorer still works in memory when storage is unavailable.
+    }
+  }
+}
+
+function buildGlobalExplorerItems({
+  assignmentLibraryTasks,
+  taskWorkbenchDraftState,
+  compareDraftState,
+  synthesisDraftState,
+  sourceAnnotationDraftState,
+  sessionRunDraftState,
+}: BuildGlobalExplorerItemsOptions): GlobalExplorerItem[] {
+  const items: GlobalExplorerItem[] = []
+
+  scenarios.forEach((scenario) => {
+    const firstMission = scenario.missions[0]
+    const firstSource = scenario.sources[0]
+    const tags = uniqueLimitedStrings([scenario.era, scenario.region, scenario.theme, scenario.identity, firstMission?.taskType, firstSource?.sourceType])
+    items.push({
+      id: `scenario:${scenario.id}`,
+      kind: 'scenario',
+      title: scenario.title,
+      eyebrow: `${scenario.year} · ${scenario.location}`,
+      summary: compactText(scenario.summary, scenario.atmosphere, 150),
+      context: `${scenario.identity} · ${scenario.era}`,
+      tags,
+      actionLabel: '打开身份场景',
+      priority: 95,
+      searchText: buildGlobalExplorerSearchText([scenario.title, scenario.identity, scenario.summary, scenario.atmosphere, scenario.era, scenario.location, scenario.region, scenario.theme, scenario.sourceEvidenceUse, scenario.interpretationNote, ...scenario.keyTerms.map((term) => `${term.term} ${term.definition}`), ...tags]),
+      action: { type: 'scenario', scenarioId: scenario.id, hash: defaultScenarioSectionId },
+    })
+  })
+
+  buildSourceAtlasEntries().forEach((entry) => {
+    const tags = uniqueLimitedStrings([sourceTypeLabels[entry.source.sourceType], entry.source.creator, ...entry.source.evidenceTags])
+    items.push({
+      id: `source:${entry.sourceId}`,
+      kind: 'source',
+      title: entry.source.title,
+      eyebrow: `${entry.scenario.title} · ${sourceTypeLabels[entry.source.sourceType]}`,
+      summary: compactText(entry.source.relevance, entry.source.excerpt, 145),
+      context: `${entry.source.creator} · ${entry.scenario.era}`,
+      tags,
+      actionLabel: '打开来源注释',
+      priority: 82,
+      searchText: buildGlobalExplorerSearchText([entry.searchText, entry.source.title, entry.source.creator, entry.source.sourceQuestion, entry.source.reliabilityNote, entry.source.perspective, ...tags]),
+      action: { type: 'source', sourceId: entry.sourceId, scenarioId: entry.scenario.id },
+    })
+  })
+
+  assignmentLibraryTasks.forEach((task) => {
+    const tags = uniqueLimitedStrings([task.category, task.sourceLabel, task.durationBand, ...task.tags])
+    items.push({
+      id: `task:${task.id}`,
+      kind: 'task',
+      title: task.title,
+      eyebrow: `${task.sourceLabel} · ${task.durationMinutes}m`,
+      summary: compactText(task.summary, task.deliverable, 145),
+      context: task.context,
+      tags,
+      actionLabel: '启动任务台',
+      priority: task.sourceBased ? 78 : 72,
+      searchText: buildGlobalExplorerSearchText([task.searchText, task.title, task.context, task.summary, task.deliverable, ...tags]),
+      action: { type: 'task', taskId: task.id },
+    })
+  })
+
+  atlasMapRoutes.forEach((route) => {
+    const scenarioTitles = route.scenarioIds.map((scenarioId) => getScenarioById(scenarioId)?.title ?? scenarioId)
+    const tags = uniqueLimitedStrings(['Atlas route', ...route.tags, ...scenarioTitles])
+    items.push({
+      id: `route:map:${route.id}`,
+      kind: 'route',
+      title: route.title,
+      eyebrow: `路线地图 · ${getCompareLensByKey(route.lensKey).shortLabel}`,
+      summary: compactText(route.routeQuestion, route.assignmentPrompt, 145),
+      context: route.subtitle,
+      tags,
+      actionLabel: '打开路线比较',
+      priority: 76,
+      searchText: buildGlobalExplorerSearchText([route.title, route.subtitle, route.routeQuestion, route.mapFocus, route.classroomUse, route.assignmentPrompt, ...route.evidencePrompts, ...route.deliverables, ...tags]),
+      action: { type: 'route', routeKind: 'map-route', routeId: route.id },
+    })
+  })
+
+  atlasInquiryPaths.forEach((path) => {
+    const scenarioTitles = path.scenarioIds.map((scenarioId) => getScenarioById(scenarioId)?.title ?? scenarioId)
+    const tags = uniqueLimitedStrings(['Inquiry path', getCompareLensByKey(path.lensKey).shortLabel, ...scenarioTitles])
+    items.push({
+      id: `route:path:${path.id}`,
+      kind: 'route',
+      title: path.title,
+      eyebrow: `探究路径 · ${getCompareLensByKey(path.lensKey).shortLabel}`,
+      summary: compactText(path.drivingQuestion, path.whyTheseScenarios, 145),
+      context: path.subtitle,
+      tags,
+      actionLabel: '打开探究路径',
+      priority: 74,
+      searchText: buildGlobalExplorerSearchText([path.title, path.subtitle, path.drivingQuestion, path.whyTheseScenarios, ...path.tasks, ...path.discussionMoves, ...path.rubric, ...tags]),
+      action: { type: 'route', routeKind: 'inquiry-path', routeId: path.id },
+    })
+  })
+
+  ;[
+    ...primaryPages.map((page) => ({ id: `tool:page:${page}`, label: pageLabels[page].label, eyebrow: pageLabels[page].eyebrow, description: pageLabels[page].description, page, hash: undefined as string | undefined, priority: page === 'home' ? 80 : 66 })),
+    { id: 'tool:page:about', label: pageLabels.about.label, eyebrow: pageLabels.about.eyebrow, description: pageLabels.about.description, page: 'about' as PageId, hash: 'about', priority: 58 },
+    ...atlasSubpages.map((subpage) => ({ id: `tool:atlas:${subpage.id}`, label: subpage.label, eyebrow: subpage.eyebrow, description: subpage.description, page: 'atlas' as PageId, hash: subpage.hash, priority: 70 })),
+    ...evidenceSubpages.map((subpage) => ({ id: `tool:evidence:${subpage.id}`, label: subpage.label, eyebrow: subpage.eyebrow, description: subpage.description, page: 'evidence' as PageId, hash: subpage.hash, priority: 70 })),
+    ...labsSubpages.map((subpage) => ({ id: `tool:labs:${subpage.id}`, label: subpage.label, eyebrow: subpage.eyebrow, description: subpage.description, page: 'labs' as PageId, hash: subpage.hash, priority: 70 })),
+    ...tasksSubpages.map((subpage) => ({ id: `tool:tasks:${subpage.id}`, label: subpage.label, eyebrow: subpage.eyebrow, description: subpage.description, page: 'tasks' as PageId, hash: subpage.hash, priority: subpage.id === 'workbench' ? 75 : 68 })),
+  ].forEach((tool) => {
+    items.push({
+      id: tool.id,
+      kind: 'tool',
+      title: tool.label,
+      eyebrow: tool.eyebrow,
+      summary: tool.description,
+      context: pageLabels[tool.page].label,
+      tags: uniqueLimitedStrings([tool.eyebrow, pageLabels[tool.page].label]),
+      actionLabel: '打开工具',
+      priority: tool.priority,
+      searchText: buildGlobalExplorerSearchText([tool.label, tool.eyebrow, tool.description, pageLabels[tool.page].label]),
+      action: { type: 'tool', page: tool.page, hash: tool.hash },
+    })
+  })
+
+  const tasksById = new Map(assignmentLibraryTasks.map((task) => [task.id, task]))
+  getTaskWorkbenchStats(taskWorkbenchDraftState).recentDrafts.forEach(([taskId, draft]) => {
+    const task = tasksById.get(taskId)
+    items.push({
+      id: `draft:task-workbench:${taskId}`,
+      kind: 'draft',
+      title: task?.title ?? 'Task Workbench 草稿',
+      eyebrow: draft.completed ? 'Task Workbench · 已完成' : 'Task Workbench · 草稿',
+      summary: compactText(draft.claimExplanation, draft.evidenceNotes || task?.summary || '继续任务执行台中的证据、主张与反思。', 145),
+      context: task?.context ?? '任务执行台',
+      tags: uniqueLimitedStrings(['Task Workbench', task?.sourceLabel, task?.category]),
+      actionLabel: '继续任务草稿',
+      priority: 98,
+      updatedAt: draft.updatedAt,
+      searchText: buildGlobalExplorerSearchText([taskId, task?.title, task?.context, task?.summary, draft.evidenceNotes, draft.claimExplanation, draft.sourceLimits, draft.reflection]),
+      action: { type: 'draft', draftKind: 'task-workbench', taskId },
+    })
+  })
+
+  getActiveCompareDrafts(compareDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 6)
+    .forEach(([key, draft]) => {
+      const scenarioA = getScenarioById(draft.scenarioAId)
+      const scenarioB = getScenarioById(draft.scenarioBId)
+      const lens = getCompareLensByKey(draft.lensKey)
+      items.push({
+        id: `draft:compare:${key}`,
+        kind: 'draft',
+        title: `${scenarioA?.title ?? draft.scenarioAId} ↔ ${scenarioB?.title ?? draft.scenarioBId}`,
+        eyebrow: `Compare Lab · ${lens.shortLabel}`,
+        summary: compactText(draft.comparativeClaim, draft.evidenceBridge || '继续比较相似、差异、证据桥与来源限制。', 145),
+        context: lens.title,
+        tags: uniqueLimitedStrings(['Compare Lab', lens.shortLabel, scenarioA?.region, scenarioB?.region]),
+        actionLabel: '继续比较草稿',
+        priority: 96,
+        updatedAt: draft.updatedAt,
+        searchText: buildGlobalExplorerSearchText([key, scenarioA?.title, scenarioB?.title, lens.title, lens.description, draft.comparativeClaim, draft.similarity, draft.difference, draft.evidenceBridge, draft.sourceLimits]),
+        action: { type: 'draft', draftKind: 'compare', scenarioAId: draft.scenarioAId, scenarioBId: draft.scenarioBId, lensKey: draft.lensKey },
+      })
+    })
+
+  getActiveSynthesisDrafts(synthesisDraftState)
+    .sort(([, first], [, second]) => (second.updatedAt ?? '').localeCompare(first.updatedAt ?? ''))
+    .slice(0, 6)
+    .forEach(([presetId, draft]) => {
+      const preset = synthesisInquiryPresets.find((candidate) => candidate.id === presetId)
+      items.push({
+        id: `draft:synthesis:${presetId}`,
+        kind: 'draft',
+        title: preset?.title ?? (draft.drivingQuestion || 'Synthesis Writing 草稿'),
+        eyebrow: 'Synthesis Studio · 草稿',
+        summary: compactText(draft.workingThesis, draft.reasoningBridge || preset?.focus || '继续综合写作主张、证据与反驳。', 145),
+        context: preset?.focus ?? draft.drivingQuestion,
+        tags: uniqueLimitedStrings(['Synthesis', preset?.claimScope, ...(preset?.tags ?? [])]),
+        actionLabel: '继续综合写作',
+        priority: 94,
+        updatedAt: draft.updatedAt,
+        searchText: buildGlobalExplorerSearchText([presetId, preset?.title, preset?.focus, preset?.claimScope, draft.drivingQuestion, draft.workingThesis, draft.reasoningBridge, draft.sourceLimits, draft.paragraphPlan]),
+        action: { type: 'draft', draftKind: 'synthesis', presetId },
+      })
+    })
+
+  const sourceIndexById = new Map(buildSourceAnnotationSourceIndex().map((source) => [source.sourceId, source]))
+  getSourceAnnotationStats(sourceAnnotationDraftState).recentDrafts.forEach(([sourceId, draft]) => {
+    const source = sourceIndexById.get(sourceId)
+    items.push({
+      id: `draft:source-annotation:${sourceId}`,
+      kind: 'draft',
+      title: source?.source.title ?? '来源注释草稿',
+      eyebrow: draft.completed ? 'Source Annotation · 已完成' : 'Source Annotation · 草稿',
+      summary: compactText(draft.usefulEvidence, draft.paraphrase || '继续来源释义、视角、可靠边界与证据标签。', 145),
+      context: source ? `${source.scenario.title} · ${source.source.creator}` : '来源注释',
+      tags: uniqueLimitedStrings(['Source Annotation', source && sourceTypeLabels[source.source.sourceType], ...(source?.source.evidenceTags ?? []), ...draft.evidenceTags]),
+      actionLabel: '继续来源注释',
+      priority: 93,
+      updatedAt: draft.updatedAt,
+      searchText: buildGlobalExplorerSearchText([sourceId, source?.source.title, source?.scenario.title, source?.source.creator, draft.paraphrase, draft.usefulEvidence, draft.reliabilityLimits, draft.missingVoices, ...draft.evidenceTags]),
+      action: { type: 'draft', draftKind: 'source-annotation', sourceId },
+    })
+  })
+
+  const guidedRoutesById = new Map(buildGuidedSessionRoutes().map((route) => [route.id, route]))
+  getSessionRunnerStats(sessionRunDraftState).recentDrafts.forEach(([routeId, draft]) => {
+    const route = guidedRoutesById.get(routeId)
+    items.push({
+      id: `draft:session-runner:${routeId}`,
+      kind: 'draft',
+      title: route?.title ?? 'Session Runner 草稿',
+      eyebrow: draft.completed ? 'Session Runner · 已完成' : 'Session Runner · 运行中',
+      summary: compactText(draft.finalReflection, draft.selectedEvidenceNotes || route?.purpose || '继续 guided session 步骤、证据与最终反思。', 145),
+      context: route ? `${route.minutes}m · ${route.scenario.title}` : '学习路线',
+      tags: uniqueLimitedStrings(['Session Runner', route && `${route.minutes}m`, route?.scenario.region]),
+      actionLabel: '打开学习路线',
+      priority: 92,
+      updatedAt: draft.updatedAt,
+      searchText: buildGlobalExplorerSearchText([routeId, route?.title, route?.purpose, route?.deliverable, route?.scenario.title, draft.selectedEvidenceNotes, draft.finalReflection, ...Object.values(draft.stepNotes)]),
+      action: { type: 'draft', draftKind: 'session-runner', routeId },
+    })
+  })
+
+  return items
+}
+
+function scoreGlobalExplorerItem(item: GlobalExplorerItem, normalizedQuery: string, state?: GlobalExplorerState) {
+  const pinnedBonus = state?.pinnedItemIds.includes(item.id) ? 28 : 0
+  const recentIndex = state?.recentItemIds.indexOf(item.id) ?? -1
+  const recentBonus = recentIndex >= 0 ? Math.max(0, 18 - recentIndex * 2) : 0
+
+  if (!normalizedQuery) {
+    return item.priority + pinnedBonus + recentBonus + (item.updatedAt ? 6 : 0)
+  }
+
+  const tokens = normalizedQuery.split(' ').filter(Boolean)
+  const searchable = item.searchText || buildGlobalExplorerSearchText([item.title, item.eyebrow, item.summary, item.context, ...item.tags])
+
+  if (!tokens.every((token) => searchable.includes(token))) {
+    return Number.NEGATIVE_INFINITY
+  }
+
+  const normalizedTitle = normalizeSearchText(item.title)
+  const normalizedEyebrow = normalizeSearchText(item.eyebrow)
+  const normalizedTags = normalizeSearchText(item.tags.join(' '))
+  let score = item.priority + pinnedBonus + recentBonus
+
+  if (normalizedTitle === normalizedQuery) score += 90
+  if (normalizedTitle.startsWith(normalizedQuery)) score += 54
+  if (normalizedTitle.includes(normalizedQuery)) score += 34
+  if (normalizedEyebrow.includes(normalizedQuery)) score += 18
+  if (normalizedTags.includes(normalizedQuery)) score += 16
+  score += tokens.reduce((total, token) => total + (normalizedTitle.includes(token) ? 10 : 4), 0)
+
+  return score
+}
+
+function getGlobalExplorerResults(items: GlobalExplorerItem[], query: string, kindFilter: GlobalExplorerKindFilter, state: GlobalExplorerState, limit = 18) {
+  const normalizedQuery = normalizeSearchText(query)
+
+  return items
+    .filter((item) => kindFilter === 'all' || item.kind === kindFilter)
+    .map((item) => ({ item, score: scoreGlobalExplorerItem(item, normalizedQuery, state) }))
+    .filter((result) => Number.isFinite(result.score))
+    .sort((first, second) => second.score - first.score || second.item.priority - first.item.priority || first.item.title.localeCompare(second.item.title))
+    .slice(0, limit)
+    .map((result) => result.item)
+}
+
+function formatGlobalExplorerPlan(results: GlobalExplorerItem[], query: string) {
+  return [
+    `TimeAtlas Global Explorer 学习计划${query.trim() ? `：${query.trim()}` : ''}`,
+    `生成时间：${new Date().toLocaleString()}`,
+    `结果数量：${results.length}`,
+    '',
+    ...(results.length
+      ? results.map((item, index) => [
+        `${index + 1}. ${item.title}｜${globalExplorerKindLabels[item.kind]}｜${item.eyebrow}`,
+        `   为什么打开：${item.summary}`,
+        `   入口：${item.context}`,
+        `   建议动作：${item.actionLabel}`,
+        `   标签：${item.tags.join('、') || '无'}`,
+      ].join('\n'))
+      : ['1. 先输入身份、来源、任务、路线或工具关键词，再复制当前结果为学习计划。']),
+    '',
+    '使用建议：先打开 1 个身份或路线建立情境，再选择 1-2 条来源，最后启动一个任务或继续已有草稿。',
+  ].join('\n')
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  const tagName = target.tagName.toLowerCase()
+  return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable || Boolean(target.closest('[contenteditable="true"]'))
+}
+
 function getStatusLabel(status: 'not-started' | 'draft' | 'completed') {
   return {
     'not-started': '未开始',
@@ -15435,6 +15875,8 @@ function App() {
   const [selectedExhibitThemeId, setSelectedExhibitThemeId] = useState(exhibitThemes[0]?.id ?? '')
   const [activeWorkbenchTaskId, setActiveWorkbenchTaskId] = useState<string>('')
   const [taskLibraryPreset, setTaskLibraryPreset] = useState<TaskLibraryPreset | null>(null)
+  const [globalExplorerState, setGlobalExplorerState] = useState<GlobalExplorerState>(loadGlobalExplorerState)
+  const [isGlobalExplorerOpen, setIsGlobalExplorerOpen] = useState(false)
 
   const selectedScenario = useMemo(
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
@@ -15470,6 +15912,7 @@ function App() {
   const patternMetricsByInquiry = useMemo(getPatternMetricsByInquiryMap, [])
   const synthesisEvidencePool = useMemo(() => buildSynthesisEvidencePool({ chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState }), [chronologyDraftState, placeDraftState, patternDraftState, infrastructureDraftState, messageFlowDraftState, interpretationDraftState, corroborationDraftState, causationDraftState, periodizationDraftState, perspectivesDraftState, contextDraftState, significanceDraftState, counterfactualDraftState, conceptAtlasDraftState, compareDraftState, caseFileDraftState, sourceAnnotationDraftState, citationTrailDraftState, actorNetworkDraftState, materialCultureDraftState, dispatchDraftState, decisionReplayDraftState, dailyLedgerDraftState, exhibitDraftState, vocabularyClinicDraftState, questionBankDraftState, missionWorkState, workspaceState])
   const assignmentLibraryTasks = buildTaskLibraryTasks({ onOpenScenario: selectScenario, onLoadCompare: loadCompareFromInquiryPath, onLoadCompareLens: loadCompareLens, onOpenChronologyChallenge: openChronologyChallenge, onOpenPlaceInquiry: openPlaceInquiry, onOpenPatternInquiry: openPatternInquiry, onOpenInfrastructureInquiry: openInfrastructureInquiry, onOpenMessageFlowInquiry: openMessageFlowInquiry, onOpenInterpretationInquiry: openInterpretationInquiry, onOpenCounterfactualChallenge: openCounterfactualChallenge, onLoadCausationInquiry: loadCausationInquiry, onLoadPeriodizationInquiry: loadPeriodizationInquiry, onLoadPerspectivesInquiry: loadPerspectivesInquiry, onLoadContextInquiry: loadContextInquiry, onLoadSignificanceInquiry: loadSignificanceInquiry, onLoadConceptTopic: loadConceptTopic, onLoadSynthesisPreset: loadSynthesisPreset, onOpenEvidenceCaseFile: openEvidenceCaseFile, onOpenSourceAnnotation: openSourceAnnotationSource, onOpenCitationTrail: openCitationTrailSources, onOpenDebateStudio: openDebateStudio, onOpenExhibitTheme: openExhibitTheme, onOpenVocabularyClinic: openVocabularyClinic, onOpenQuestionBank: openQuestionBank, onStartTask: startTaskWorkbench })
+  const globalExplorerItems = useMemo(() => buildGlobalExplorerItems({ assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState }), [assignmentLibraryTasks, taskWorkbenchDraftState, compareDraftState, synthesisDraftState, sourceAnnotationDraftState, sessionRunDraftState])
 
   const completedMissionIds = completedMissionIdsByScenario[selectedScenario.id] ?? []
   const completedMissionCount = completedMissionIds.length
@@ -15542,6 +15985,27 @@ function App() {
       // Browser storage persistence is progressive enhancement; in-memory state still works.
     }
   }, [completedMissionIdsByScenario])
+
+
+  useEffect(() => {
+    persistGlobalExplorerState(globalExplorerState)
+  }, [globalExplorerState])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    function handleGlobalExplorerShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !isEditableKeyboardTarget(event.target)) {
+        event.preventDefault()
+        setIsGlobalExplorerOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalExplorerShortcut)
+    return () => window.removeEventListener('keydown', handleGlobalExplorerShortcut)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -16689,6 +17153,97 @@ function App() {
     loadSynthesisPreset(action.presetId)
   }
 
+  function rememberGlobalExplorerItem(itemId: string) {
+    setGlobalExplorerState((currentState) => ({
+      ...currentState,
+      recentItemIds: [itemId, ...currentState.recentItemIds.filter((id) => id !== itemId)].slice(0, 12),
+      updatedAt: new Date().toISOString(),
+    }))
+  }
+
+  function updateGlobalExplorerQuery(query: string) {
+    setGlobalExplorerState((currentState) => ({
+      ...currentState,
+      recentQuery: query.slice(0, 120),
+      updatedAt: new Date().toISOString(),
+    }))
+  }
+
+  function toggleGlobalExplorerPin(itemId: string) {
+    setGlobalExplorerState((currentState) => {
+      const isPinned = currentState.pinnedItemIds.includes(itemId)
+      return {
+        ...currentState,
+        pinnedItemIds: isPinned
+          ? currentState.pinnedItemIds.filter((id) => id !== itemId)
+          : [itemId, ...currentState.pinnedItemIds].slice(0, 12),
+        updatedAt: new Date().toISOString(),
+      }
+    })
+  }
+
+  function launchGlobalExplorerItem(item: GlobalExplorerItem) {
+    rememberGlobalExplorerItem(item.id)
+    setIsGlobalExplorerOpen(false)
+
+    const { action } = item
+
+    if (action.type === 'scenario') {
+      selectScenario(action.scenarioId, action.hash ?? defaultScenarioSectionId)
+      return
+    }
+
+    if (action.type === 'source') {
+      openSourceAnnotationSource(action.sourceId)
+      return
+    }
+
+    if (action.type === 'task') {
+      startTaskWorkbench(action.taskId)
+      return
+    }
+
+    if (action.type === 'route') {
+      const route = action.routeKind === 'map-route'
+        ? atlasMapRoutes.find((candidate) => candidate.id === action.routeId)
+        : atlasInquiryPaths.find((candidate) => candidate.id === action.routeId)
+
+      if (route) {
+        loadCompareFromInquiryPath(route)
+      } else {
+        navigateToPage('atlas', action.routeKind === 'map-route' ? 'time-space-atlas' : 'atlas-inquiry-paths')
+      }
+      return
+    }
+
+    if (action.type === 'tool') {
+      navigateToPage(action.page, action.hash)
+      return
+    }
+
+    if (action.draftKind === 'task-workbench') {
+      startTaskWorkbench(action.taskId)
+      return
+    }
+
+    if (action.draftKind === 'compare') {
+      openScenarioCompare(action.scenarioAId, action.lensKey, action.scenarioBId)
+      return
+    }
+
+    if (action.draftKind === 'synthesis') {
+      loadSynthesisPreset(action.presetId)
+      return
+    }
+
+    if (action.draftKind === 'source-annotation') {
+      openSourceAnnotationSource(action.sourceId)
+      return
+    }
+
+    selectTasksSubpage('sessions')
+  }
+
   function selectScenarioTab(tab: ScenarioExperienceTab) {
     setSelectedScenarioTab(tab)
 
@@ -16706,7 +17261,7 @@ function App() {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(215,168,75,0.22),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(124,199,178,0.14),transparent_28%),linear-gradient(180deg,#15110b_0%,#0b0a08_46%,#050505_100%)]" />
       <div className="fixed inset-0 -z-10 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <AppShell activePage={activePage} onNavigate={navigateToPage}>
+      <AppShell activePage={activePage} onNavigate={navigateToPage} onOpenGlobalExplorer={() => setIsGlobalExplorerOpen(true)}>
         {activePage === 'home' ? (
           <>
             <Hero
@@ -17217,6 +17772,17 @@ function App() {
 
         {activePage === 'about' ? <About /> : null}
       </AppShell>
+
+      <GlobalExplorerPanel
+        isOpen={isGlobalExplorerOpen}
+        items={globalExplorerItems}
+        state={globalExplorerState}
+        query={globalExplorerState.recentQuery}
+        onQueryChange={updateGlobalExplorerQuery}
+        onClose={() => setIsGlobalExplorerOpen(false)}
+        onLaunch={launchGlobalExplorerItem}
+        onTogglePin={toggleGlobalExplorerPin}
+      />
     </main>
   )
 }
@@ -17225,10 +17791,12 @@ function App() {
 function AppShell({
   activePage,
   onNavigate,
+  onOpenGlobalExplorer,
   children,
 }: {
   activePage: PageId
   onNavigate: (page: PageId, hash?: string) => void
+  onOpenGlobalExplorer: () => void
   children: ReactNode
 }) {
   return (
@@ -17250,7 +17818,8 @@ function AppShell({
               </span>
             </button>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <GlobalExplorerTrigger onOpen={onOpenGlobalExplorer} />
               {primaryPages.map((page) => (
                 <button
                   key={page}
@@ -17300,6 +17869,233 @@ function AppShell({
         </motion.div>
       </AnimatePresence>
     </>
+  )
+}
+
+function GlobalExplorerTrigger({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group inline-flex min-w-[15rem] items-center justify-between gap-3 rounded-full border border-amber-200/25 bg-amber-100/[0.08] px-4 py-2 text-left text-sm text-amber-50 shadow-lg shadow-black/10 transition hover:border-amber-100/45 hover:bg-amber-100/[0.12]"
+      aria-label="打开全站探索"
+    >
+      <span className="inline-flex items-center gap-2">
+        <Search size={15} className="text-amber-200" />
+        <span>
+          <span className="block font-semibold">全站探索</span>
+          <span className="block text-[0.68rem] uppercase tracking-[0.16em] text-amber-100/60">Search TimeAtlas</span>
+        </span>
+      </span>
+      <span className="rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[0.65rem] font-semibold text-stone-300">⌘K</span>
+    </button>
+  )
+}
+
+function GlobalExplorerPanel({
+  isOpen,
+  items,
+  state,
+  query,
+  onQueryChange,
+  onClose,
+  onLaunch,
+  onTogglePin,
+}: {
+  isOpen: boolean
+  items: GlobalExplorerItem[]
+  state: GlobalExplorerState
+  query: string
+  onQueryChange: (query: string) => void
+  onClose: () => void
+  onLaunch: (item: GlobalExplorerItem) => void
+  onTogglePin: (itemId: string) => void
+}) {
+  const [kindFilter, setKindFilter] = useState<GlobalExplorerKindFilter>('all')
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const results = useMemo(() => getGlobalExplorerResults(items, query, kindFilter, state), [items, query, kindFilter, state])
+  const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
+  const continuationItems = [...state.pinnedItemIds, ...state.recentItemIds]
+    .map((id) => itemById.get(id))
+    .filter((item, index, list): item is GlobalExplorerItem => Boolean(item) && list.findIndex((candidate) => candidate?.id === item?.id) === index)
+    .slice(0, 5)
+  const starterQueries = ['丝路 来源', '比较 证据', '30m session', '因果 草稿', 'Source Annotation']
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') {
+      return
+    }
+
+    function handlePanelKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handlePanelKeydown)
+    return () => window.removeEventListener('keydown', handlePanelKeydown)
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (isOpen) {
+      setCopyStatus(null)
+    }
+  }, [isOpen, query, kindFilter])
+
+  if (!isOpen) {
+    return null
+  }
+
+  async function copyPlan() {
+    try {
+      await copyTextToClipboard(formatGlobalExplorerPlan(results, query))
+      setCopyStatus('已复制学习计划')
+    } catch {
+      setCopyStatus('复制失败，请检查浏览器权限')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 sm:py-12" role="dialog" aria-modal="true" aria-label="TimeAtlas 全站探索">
+      <button type="button" aria-label="关闭全站探索" className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 12, scale: 0.98 }}
+        transition={{ duration: 0.18 }}
+        className="relative z-10 grid max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/15 bg-[#14100b]/95 shadow-2xl shadow-black/50 backdrop-blur-2xl lg:grid-cols-[17rem_minmax(0,1fr)]"
+      >
+        <aside className="border-b border-white/10 bg-white/[0.03] p-4 lg:border-b-0 lg:border-r">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] text-amber-200/70">Global Explorer</div>
+              <h2 className="mt-1 text-xl font-semibold text-stone-50">全站探索</h2>
+              <p className="mt-2 text-sm text-stone-400">搜索身份、来源、任务、路线、工具与本机草稿；只保存查询和入口 ID。</p>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-stone-300 hover:border-amber-100/30 hover:text-amber-100">Esc</button>
+          </div>
+
+          <div className="mt-5">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">继续上次工作</div>
+            <div className="mt-3 space-y-2">
+              {continuationItems.length ? continuationItems.map((item) => (
+                <button key={item.id} type="button" onClick={() => onLaunch(item)} className="w-full rounded-2xl border border-white/10 bg-black/20 p-3 text-left transition hover:border-amber-100/30 hover:bg-amber-100/[0.06]">
+                  <div className="text-xs uppercase tracking-[0.16em] text-amber-100/70">{globalExplorerKindLabels[item.kind]}</div>
+                  <div className="mt-1 line-clamp-2 text-sm font-semibold text-stone-100">{item.title}</div>
+                  <div className="mt-1 text-xs text-stone-500">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : item.eyebrow}</div>
+                </button>
+              )) : (
+                <div className="rounded-2xl border border-dashed border-white/10 p-3 text-sm text-stone-500">还没有最近打开或固定的项目。</div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <section className="flex min-h-0 flex-col">
+          <div className="border-b border-white/10 p-4">
+            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3 focus-within:border-amber-100/45">
+              <Search size={18} className="text-amber-200" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                placeholder="Search TimeAtlas：身份、来源标题、任务、route、lab、draft…"
+                className="min-w-0 flex-1 bg-transparent text-base text-stone-100 outline-none placeholder:text-stone-600"
+              />
+              <span className="hidden rounded-full border border-white/10 px-2 py-1 text-[0.65rem] text-stone-500 sm:inline">Ctrl/Cmd K</span>
+            </label>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {(Object.keys(globalExplorerKindLabels) as GlobalExplorerKindFilter[]).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setKindFilter(kind)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${kindFilter === kind ? 'border-amber-200/50 bg-amber-100/15 text-amber-100' : 'border-white/10 bg-white/[0.03] text-stone-400 hover:border-white/20 hover:text-stone-100'}`}
+                >
+                  {globalExplorerKindLabels[kind]}
+                </button>
+              ))}
+              <button type="button" onClick={copyPlan} className="ml-auto rounded-full border border-emerald-200/25 bg-emerald-100/[0.06] px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:border-emerald-100/45">
+                复制当前结果为学习计划
+              </button>
+            </div>
+            {copyStatus ? <p className="mt-2 text-xs text-emerald-100" aria-live="polite">{copyStatus}</p> : null}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {results.length ? (
+              <div className="grid gap-3">
+                {results.map((item) => (
+                  <GlobalExplorerResultCard
+                    key={item.id}
+                    item={item}
+                    isPinned={state.pinnedItemIds.includes(item.id)}
+                    onLaunch={() => onLaunch(item)}
+                    onTogglePin={() => onTogglePin(item.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-white/15 bg-white/[0.03] p-5 text-center">
+                <div className="text-lg font-semibold text-stone-100">没有匹配结果</div>
+                <p className="mt-2 text-sm text-stone-400">试试更短的关键词，或从下面的 starter chips 开始。</p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {starterQueries.map((starter) => (
+                    <button key={starter} type="button" onClick={() => onQueryChange(starter)} className="rounded-full border border-amber-200/25 bg-amber-100/[0.06] px-3 py-1.5 text-xs font-semibold text-amber-100 hover:border-amber-100/45">
+                      {starter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </motion.div>
+    </div>
+  )
+}
+
+function GlobalExplorerResultCard({
+  item,
+  isPinned,
+  onLaunch,
+  onTogglePin,
+}: {
+  item: GlobalExplorerItem
+  isPinned: boolean
+  onLaunch: () => void
+  onTogglePin: () => void
+}) {
+  return (
+    <article className="rounded-[1.35rem] border border-white/10 bg-white/[0.035] p-4 transition hover:border-amber-100/25 hover:bg-white/[0.055]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <button type="button" onClick={onLaunch} className="min-w-0 flex-1 text-left">
+          <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-amber-100">{globalExplorerKindLabels[item.kind]}</span>
+            <span>{item.eyebrow}</span>
+            {item.updatedAt ? <span>更新 {new Date(item.updatedAt).toLocaleDateString()}</span> : null}
+          </div>
+          <h3 className="mt-2 text-lg font-semibold text-stone-50">{item.title}</h3>
+          <p className="mt-1 text-sm leading-6 text-stone-300">{item.summary}</p>
+          <div className="mt-2 text-xs text-stone-500">{item.context}</div>
+        </button>
+        <div className="flex shrink-0 gap-2">
+          <button type="button" onClick={onTogglePin} className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${isPinned ? 'border-amber-200/50 bg-amber-100/15 text-amber-100' : 'border-white/10 bg-black/20 text-stone-400 hover:border-amber-100/30 hover:text-amber-100'}`}>
+            {isPinned ? '已固定' : '固定'}
+          </button>
+          <button type="button" onClick={onLaunch} className="inline-flex items-center gap-2 rounded-full bg-amber-200 px-3 py-2 text-xs font-bold text-stone-950 transition hover:bg-amber-100">
+            {item.actionLabel} <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+      {item.tags.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {item.tags.slice(0, 6).map((tag) => <span key={tag} className="rounded-full border border-white/10 bg-black/15 px-2 py-1 text-xs text-stone-400">{tag}</span>)}
+        </div>
+      ) : null}
+    </article>
   )
 }
 
